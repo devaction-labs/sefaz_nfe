@@ -15,6 +15,7 @@ defmodule SefazNfe do
   alias SefazNfe.Endpoints
   alias SefazNfe.Events
   alias SefazNfe.Result
+  alias SefazNfe.Schema
   alias SefazNfe.Signer
   alias SefazNfe.SOAP
   alias SefazNfe.SOAP.Envelope
@@ -25,8 +26,12 @@ defmodule SefazNfe do
   @doc """
   Sign + `NFeAutorizacao4`. Does not mutate tax nodes once SOAP exists.
 
-  The pipeline is sign, wrap in `enviNFe`, POST, parse. `:sync` asks SEFAZ to
-  answer with the protocol in the same call instead of a receipt.
+  The pipeline is validate, sign, wrap in `enviNFe`, POST, parse. `:sync` asks
+  SEFAZ to answer with the protocol in the same call instead of a receipt.
+
+  XSD validation runs only when `SefazNfe.Schema` is configured, and then it
+  fails before the network — a local error naming the offending element beats
+  `cStat` 225, which names nothing.
 
   `tpAmb` is MOC data rather than a boolean — 1 is produção, 2 is homologação —
   so a mismatch against `:environment` is refused before anything is sent.
@@ -37,6 +42,7 @@ defmodule SefazNfe do
          :ok <- validate_environment(opts.environment),
          :ok <- reject_an(opts.uf, :nfe_autorizacao),
          :ok <- environment_matches_xml(opts.environment, opts.xml),
+         :ok <- Schema.validate(opts.xml, Map.get(opts, :schema, "nfe_v4.00.xsd")),
          {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_autorizacao),
          {:ok, signed} <- Signer.sign_nfe(opts.xml, opts.cert),
          message = Envelope.send_nfe(signed, Map.get(opts, :id_lote, "1"), ind_sinc(opts)),

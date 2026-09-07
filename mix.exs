@@ -15,15 +15,16 @@ defmodule SefazNfe.MixProject do
       name: "sefaz_nfe",
       source_url: @source_url,
       description:
-        "SEFAZ NF-e transport for Elixir (sign, authorize, DistDFe). No tax calculation.",
+        "SEFAZ NF-e transport for Elixir: A1 certificates, mTLS, XMLDSig, " <>
+          "webservices 4.00 and DistDFe. Does not calculate taxes.",
       package: [
         licenses: ["Apache-2.0"],
-        links: %{"GitHub" => @source_url}
+        links: %{"GitHub" => @source_url, "Changelog" => @source_url <> "/blob/main/CHANGELOG.md"}
       ],
       dialyzer: [plt_add_apps: [:mix]],
       docs: [
         main: "readme",
-        extras: ["README.md", "LICENSE"],
+        extras: ["README.md", "CHANGELOG.md", "LICENSE"],
         source_ref: "v#{@version}"
       ],
       aliases: aliases()

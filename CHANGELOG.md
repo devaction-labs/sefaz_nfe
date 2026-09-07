@@ -1,0 +1,62 @@
+# Changelog
+
+## 0.1.0
+
+First release. SEFAZ NF-e transport for modelo 55: sign, send, consult,
+distribute. It does not calculate taxes — the ERP builds the XML and this
+library talks to SEFAZ.
+
+### What works
+
+- **A1 certificates.** OTP 29 ships no PKCS#12 support and Hex has no package
+  for it, so `SefazNfe.Certificate.PKCS12` reads the PFX itself per RFC 7292.
+  Verified byte for byte against `openssl` on a real ICP-Brasil A1. Supports
+  `PBE-SHA1-3DES` (what ICP-Brasil issues) and PBES2 with AES. A wrong password
+  fails on the MAC before any network call.
+- **mTLS transport** over `:httpc`, on a private profile so the library never
+  touches the host's global HTTP settings. Zero new dependencies.
+- **XMLDSig** with Canonical XML 1.0, written here because OTP has no
+  `xmerl_c14n`. Every canonical form in the test suite is compared byte for
+  byte against `xmllint --c14n`, including the apex rule that renders a
+  namespace `infNFe` only inherits.
+- **All eight services**: `authorize/1`, `authorization_result/1`,
+  `service_status/1`, `dist_dfe/1`, `consult_protocol/1`, `cancel/1`, `cce/1`,
+  `void_numbers/1`, plus a DistDFe poller per tax ID.
+- **Optional XSD validation**, off unless a schema directory is configured.
+- **Per-UF circuit breaker**, so a SEFAZ that stops answering cannot stall
+  callers working with other states. Only transport failures trip it.
+- **Telemetry** on `[:sefaz_nfe, :soap, :start | :stop | :exception]`, carrying
+  UF, service and outcome — never the certificate, the password or the body.
+
+### Verified against production SEFAZ
+
+`service_status/1` returns `cStat` 107 from SP, MT and MG homologation and from
+SP production, using a real ICP-Brasil A1.
+
+`authorize/1` reaches SEFAZ SP's taxpayer-registration check and stops at
+`cStat` **245, CNPJ emitente não cadastrado**. No code in the 280–297 range —
+where certificate and signature failures live — was ever returned, and SEFAZ
+validates schema and signature before registration. Every layer this library
+owns is therefore exercised and accepted.
+
+### Not yet proven
+
+No `cStat` 100. Reaching it needs an emitter CNPJ credenciado in a UF's
+homologation with its real IE and address, which is registration data rather
+than code. Until then the authorized-document path — parsing a real `protNFe`
+and consulting a real receipt — is covered by fixtures only.
+
+### Known limits
+
+- Contingency (SVC-AN, SVC-RS, EPEC, FS-DA) is not automatic. A down SEFAZ
+  returns an error and the caller chooses; silent failover can duplicate an
+  authorization.
+- No trust anchors ship with the package. SP and MT serve certificates chained
+  to *Autoridade Certificadora Raiz Brasileira*, which no OS bundle carries;
+  supply it with `config :sefaz_nfe, :cacerts`. Vendoring a CA bundle from a
+  download whose own host cannot be verified would be a man-in-the-middle
+  vector.
+- `SefazNfe.Certificate.PKCS12` and `SefazNfe.XML.C14N` are hand-written
+  crypto-adjacent code. They are tested against reference implementations, and
+  they deserve a security review before carrying production emission traffic.
+- NFC-e (65), CT-e, MDF-e, NFS-e and DANFE are out of scope.

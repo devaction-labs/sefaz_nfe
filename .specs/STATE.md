@@ -114,6 +114,14 @@
 - **Date**: 2026-09-07
 - **Status**: active
 
+### AD-015
+- **Decision**: XSD validation is optional and ships no schemas; a host points `config :sefaz_nfe, :schemas` at an unpacked Pacote de Liberação. The compiled schema is **not** cached.
+- **Reason**: Schemas change with every Nota Técnica and are megabytes; vendoring them would date the package and bloat it (AD-004). Caching the compiled state looks like an obvious optimisation and is a trap: an `:xmerl_xsd` state references ETS tables that validation releases, so a cached state validates one document and then reports every later one as "element not in schema" — a validator that silently stops validating. The test suite caught exactly that as order-dependent flakiness.
+- **Trade-off**: Compilation cost per call, which is milliseconds and only paid when validation is switched on. Local validation names the offending element, where SEFAZ answers `cStat` 225 and names nothing.
+- **Scope**: `SefazNfe.Schema`, `SefazNfe.authorize/1`
+- **Date**: 2026-09-07
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: transport-mvp (`.specs/features/transport-mvp/`)
@@ -121,6 +129,6 @@
 - **Completed**: spec, design, public API in English (AD-008), endpoints snapshot + IBGE cUF, DistDFe poller (AD-006), PKCS#12 reader verified against a real A1 (AD-007), `:httpc` mTLS client and `:xmerl` parser (AD-010), SOAP 1.2 envelopes, `Result.parse/1`, SEFAZ-05 and SEFAZ-14 done, 67 offline tests
 - **In-progress**: none
 - **Next step**: Credenciar an emitter CNPJ in a UF's homologação, with its real IE and address, and run the emit path for a `cStat` 100. That is the spec's gate before any Hex publish, and it needs registration data rather than code.
-- **Known gaps**: no `cStat` 100 yet (AD-014), so the authorized-document path — `protNFe` on a real 100 and `authorization_result/1` against a real receipt — is covered by fixtures only; events, CCe and inutilização are built and signed but never accepted by SEFAZ for the same registration reason; optional XSD validation (SEFAZ-12) is not implemented, which is what would have caught the fixture's schema errors locally instead of costing a round trip; `SefazNfe.Certificate.PKCS12` is hand-written and wants a security review.
+- **Known gaps**: no `cStat` 100 yet (AD-014), so the authorized-document path — `protNFe` on a real 100 and `authorization_result/1` against a real receipt — is covered by fixtures only; events, CCe and inutilização are built and signed but never accepted by SEFAZ for the same registration reason; `SefazNfe.Certificate.PKCS12` is hand-written and wants a security review.
 - **Blockers**: none
 - **Branch**: main
