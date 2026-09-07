@@ -20,6 +20,7 @@ defmodule SefazNfe.MixProject do
         licenses: ["Apache-2.0"],
         links: %{"GitHub" => @source_url}
       ],
+      dialyzer: [plt_add_apps: [:mix]],
       docs: [
         main: "readme",
         extras: ["README.md", "LICENSE"],
