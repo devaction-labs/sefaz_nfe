@@ -11,10 +11,11 @@ It does **not** calculate taxes. The ERP (or Nexus Pro) builds the XML; this lib
 > `authorize/1` gets past schema and signature validation, stopping at `cStat`
 > **245, CNPJ emitente não cadastrado**.
 >
-> Twenty UF endpoints — SVRS, PR, RS, PE, AM — cannot be reached with a stock
-> OTP: `:ssl` aborts on malformed CA names in their `CertificateRequest`
-> ([erlang/otp#11595](https://github.com/erlang/otp/issues/11595)). With the
-> six-line fix in `patches/`, all 27 answer. DistDFe is unaffected either way.
+> Twenty UF endpoints — SVRS, PR, RS, PE, AM — need **OTP 29.1**. Earlier
+> runtimes abort on malformed CA names in those servers'
+> `CertificateRequest`; OTP fixed it as OTP-20327 but no release carries it yet
+> ([erlang/otp#11595](https://github.com/erlang/otp/issues/11595)). See
+> `patches/` for the interim. DistDFe is unaffected either way.
 
 ## Package shell
 

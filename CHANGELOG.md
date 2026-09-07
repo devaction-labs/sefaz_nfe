@@ -69,10 +69,15 @@ The field is only a hint for choosing a client certificate, and
 `ssl_certificate:handle_cert_auths/4` already treats an empty list as "accept
 first choice", so skipping undecodable entries degrades into an existing path.
 
-Reported upstream with a verified fix: **erlang/otp#11595**. With that six-line
-change compiled and loaded ahead of the shipped module, all 27 endpoints answer
-`cStat` 107 instead of 7 of 27. `patches/` carries the patch and the procedure,
-along with what you take on by pinning a module inside `ssl`.
+**OTP already fixed this on `maint` (OTP-20327), and it ships in OTP 29.1.** No
+released OTP carries it — not 29.0.x, not 28, not 27 — and `maint` and
+`maint-29` both report `SSL_VSN = 11.7.5`, so the version string does not
+distinguish a patched runtime. A backport is requested in
+[erlang/otp#11595](https://github.com/erlang/otp/issues/11595).
+
+Upgrading to OTP 29.1 is the fix. `patches/` carries the same change for the
+interval before then, and is explicit about what pinning a module inside `ssl`
+costs. With it, all 27 endpoints answer `cStat` 107 instead of 7 of 27.
 
 There is no workaround inside the library itself: the handshake transcript is
 hashed, so the bytes cannot be corrected in flight. DistDFe is unaffected.

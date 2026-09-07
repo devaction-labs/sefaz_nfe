@@ -13,11 +13,28 @@ error abort the connection, even though the field is only a hint for choosing a
 client certificate and `ssl_certificate:handle_cert_auths/4` already treats an
 empty list as "accept first choice".
 
-Reported upstream: **https://github.com/erlang/otp/issues/11595**
+## This is already fixed upstream
 
-`otp-decode-cert-auths.patch` skips entries it cannot decode instead of
-failing. Measured against all 27 endpoints with a real ICP-Brasil certificate:
-7 of 27 answered before, 27 of 27 after.
+OTP fixed it on `maint` as **OTP-20327**, merged 2026-08-19, with a
+`drop_undecodable_certificate_authorities` test whose fixture is an ICP-Brasil
+DN. It ships in **OTP 29.1**.
+
+No released OTP carries it yet — not 29.0.x, not 28, not 27 — and `maint` and
+`maint-29` both report `SSL_VSN = 11.7.5`, so the version string does not tell
+a patched runtime from an unpatched one. Backport requested in
+[erlang/otp#11595](https://github.com/erlang/otp/issues/11595).
+
+**Upgrade to OTP 29.1 when it is out; that is the fix.** The patch here is the
+same change, for the interval before then. Measured against all 27 endpoints
+with a real ICP-Brasil certificate: 7 of 27 answered before, 27 of 27 after.
+
+## Checking whether your runtime needs it
+
+```erlang
+%% no output means your ssl is patched
+{error, _} = ssl:connect("nfe.svrs.rs.gov.br", 443,
+                         [{verify, verify_none}, {versions, ['tlsv1.2']}], 15000).
+```
 
 ## Applying it
 
