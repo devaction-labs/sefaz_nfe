@@ -138,6 +138,14 @@
 - **Date**: 2026-09-07
 - **Status**: active
 
+### AD-018
+- **Decision**: CT-e (57), MDF-e (58) and the insucesso de entrega event wait for erlang/otp#11595. Manifestação do destinatário was implemented now because it does not depend on it.
+- **Reason**: CT-e routes 18 of 27 states through SVRS, which OTP cannot reach — Bahia among them, which is where this is headed. Building it first would deliver something its first user cannot run. Manifestação is processed by the Ambiente Nacional, which works on a stock runtime, and it is the missing half of the DistDFe flow the host app already uses. Insucesso is blocked on reading NT 2021.002 for `hashTentativaEntrega`, and the NF-e portal refuses automated fetch.
+- **Trade-off**: The migration from the Focus-based host app stays partial. Research is recorded in `.specs/features/cte/research.md` so the work starts from measurements rather than from a re-run of the same investigation — including that the CT-e portal, unlike the NF-e one, answers automated requests, so its snapshot can come from the official source (AD-004).
+- **Scope**: roadmap
+- **Date**: 2026-09-07
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: transport-mvp (`.specs/features/transport-mvp/`)
