@@ -1,10 +1,32 @@
 # Changelog
 
-## 0.1.0-alpha.1
+## 0.1.0
 
-First release. SEFAZ NF-e transport for modelo 55: sign, send, consult,
-distribute. It does not calculate taxes — the ERP builds the XML and this
-library talks to SEFAZ.
+SEFAZ NF-e transport for modelo 55: sign, send, consult, distribute. It does
+not calculate taxes — the ERP builds the XML and this library talks to SEFAZ.
+
+### Since 0.1.0-alpha.1
+
+The alpha shipped without a single authorized document; that is what the
+designation meant. An NF-e has since been authorized in homologação, along with
+the events around it, so this release drops it.
+
+Three defects surfaced while doing that, none of which a unit test would have
+caught:
+
+- The lote defaulted to asynchronous, and SEFAZ rejects an asynchronous request
+  for a single-document batch (`cStat` 452). Since this library sends one
+  document per call, the default guaranteed a rejection on every emission. It
+  is synchronous now.
+- `cStat` 102 — how SEFAZ reports a voided number range — was mapped as a
+  rejection, so `void_numbers/1` reported failure on success.
+- `authorize/1` discarded the signed document and never filled `Result.xml`,
+  losing the `nfeProc` that has to be archived and delivered. A protocol number
+  alone proves nothing without the bytes it refers to.
+
+Also new: `manifest/2` for manifestação do destinatário, which is the other
+half of the DistDFe flow — confirming an operation is what releases the full
+XML of a note that arrived as a summary.
 
 ### What works
 
