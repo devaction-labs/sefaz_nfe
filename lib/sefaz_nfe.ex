@@ -9,6 +9,7 @@ defmodule SefazNfe do
   endpoints, then return `{:error, :not_implemented}`.
   """
 
+  alias SefazNfe.DistDFe.Poller
   alias SefazNfe.Endpoints
 
   @justificativa_min 15
@@ -20,8 +21,8 @@ defmodule SefazNfe do
          :ok <- validate_ambiente(opts.ambiente),
          :ok <- reject_an(opts.uf, :nfe_autorizacao),
          :ok <- ambiente_matches_xml(opts.ambiente, opts.xml),
-         {:ok, _url} <- Endpoints.url(opts.uf, opts.ambiente, :nfe_autorizacao) do
-      {:error, :not_implemented}
+         {:ok, url} <- Endpoints.url(opts.uf, opts.ambiente, :nfe_autorizacao) do
+      SefazNfe.SOAP.isolated_call(url, opts.xml, opts.cert)
     end
   end
 
@@ -88,6 +89,17 @@ defmodule SefazNfe do
          {:ok, _url} <- Endpoints.url(opts.uf, opts.ambiente, :nfe_recepcao_evento) do
       {:error, :not_implemented}
     end
+  end
+
+  @doc """
+  Starts a DistDFe poller for one CNPJ under `SefazNfe.DistDFe.Supervisor`.
+
+  `opts` must include `:cnpj` and `:cert`. Optional `:ambiente`, `:ult_nsu`,
+  `:interval` (`Duration.t()`, default 5 minutes).
+  """
+  @spec start_dist_dfe_poller(keyword()) :: DynamicSupervisor.on_start_child()
+  def start_dist_dfe_poller(opts) when is_list(opts) do
+    DynamicSupervisor.start_child(SefazNfe.DistDFe.Supervisor, {Poller, opts})
   end
 
   @doc "`NFeInutilizacao4`."

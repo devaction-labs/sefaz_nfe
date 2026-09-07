@@ -45,8 +45,8 @@
 ## Handoff
 
 - **Feature**: transport-mvp (`.specs/features/transport-mvp/`)
-- **Phase / Task**: Package shell on main; SOAP/XMLDSig still `:not_implemented`
-- **Completed**: spec, design, public API, endpoints snapshot, offline tests
+- **Phase / Task**: Package shell + OTP tree on main; SOAP/XMLDSig still `:not_implemented`
+- **Completed**: spec, design, public API, endpoints snapshot, masters skill, DistDFe poller, isolated SOAP, offline tests
 - **In-progress**: none
 - **Next step**: Tasks.md then implement Signer + SOAP mTLS (homologação)
 - **Blockers**: none

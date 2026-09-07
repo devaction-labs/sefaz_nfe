@@ -14,6 +14,8 @@ Public API is in `SefazNfe` (`authorize/1`, `ret_autorizacao/1`, `status_servico
 Input is validated and the UF URL is resolved from `priv/endpoints/nfe_4.00.json`.
 SOAP/XMLDSig still return `{:error, :not_implemented}` — no network in `mix test`.
 
+OTP (Elixir 1.20 / OTP 29): `Task.Supervisor` isolates SOAP, `Registry` + DistDFe **poller per CNPJ** (`Process.set_label/1`), timeouts via `Duration` + `to_timeout/1`, `JSON` stdlib.
+
 ```elixir
 {:ok, cert} = SefazNfe.Certificate.load(pfx_binary, "senha")
 SefazNfe.status_servico(%{cert: cert, uf: "SP", ambiente: :homologacao})
