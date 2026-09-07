@@ -6,6 +6,8 @@ defmodule SefazNfe.SOAP do
   never opens a socket. `SefazNfe.SOAP.HTTPC` is the default implementation.
   """
 
+  alias SefazNfe.CircuitBreaker
+
   @type cert :: SefazNfe.Certificate.t()
 
   @callback call(String.t(), iodata(), cert(), keyword()) ::
@@ -35,6 +37,9 @@ defmodule SefazNfe.SOAP do
   service and an outcome tag. That tag is deliberately low cardinality: the raw
   reason would drag a whole `{:soap_crash, stacktrace}` into every metrics
   label.
+
+  Calls are gated by `SefazNfe.CircuitBreaker` on `:uf`, so a UF that stops
+  answering fails fast instead of costing every caller a full timeout.
   """
   @spec isolated_call(String.t(), iodata(), cert(), keyword()) ::
           {:ok, String.t()} | {:error, term()}
@@ -42,12 +47,32 @@ defmodule SefazNfe.SOAP do
     {timeout, opts} = Keyword.pop_lazy(opts, :timeout, fn -> to_timeout(second: 30) end)
     {meta, task_opts} = Keyword.split(opts, [:uf, :service])
     metadata = meta |> Map.new() |> Map.put(:endpoint, endpoint)
+    uf = Keyword.get(meta, :uf, "")
 
-    :telemetry.span([:sefaz_nfe, :soap], metadata, fn ->
-      result = run(endpoint, body, cert, task_opts, timeout)
-      {result, Map.put(metadata, :outcome, outcome(result))}
-    end)
+    with :ok <- CircuitBreaker.check(uf) do
+      :telemetry.span([:sefaz_nfe, :soap], metadata, fn ->
+        result = run(endpoint, body, cert, task_opts, timeout)
+        record(uf, result)
+        {result, Map.put(metadata, :outcome, outcome(result))}
+      end)
+    end
   end
+
+  # A reply that reached us — even a SOAP fault or an HTTP 4xx — proves the UF
+  # is answering. Only the transport failures below say otherwise.
+  defp record(uf, {:error, reason}) when reason in [:timeout, :unreachable] do
+    CircuitBreaker.record_failure(uf)
+  end
+
+  defp record(uf, {:error, {:tls, _alert}}), do: CircuitBreaker.record_failure(uf)
+  defp record(uf, {:error, {:dns, _reason}}), do: CircuitBreaker.record_failure(uf)
+  defp record(uf, {:error, {:soap_crash, _reason}}), do: CircuitBreaker.record_failure(uf)
+
+  defp record(uf, {:error, {:http, status, _body}}) when status >= 500 do
+    CircuitBreaker.record_failure(uf)
+  end
+
+  defp record(uf, _reached_sefaz), do: CircuitBreaker.record_success(uf)
 
   defp run(endpoint, body, cert, task_opts, timeout) do
     task =

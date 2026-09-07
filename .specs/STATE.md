@@ -90,6 +90,22 @@
 - **Date**: 2026-09-07
 - **Status**: active
 
+### AD-012
+- **Decision**: The per-UF circuit breaker is ETS with atomic counters, not a process per UF. Only transport failures trip it; a SEFAZ `cStat` never does.
+- **Reason**: The check runs on every request, and a GenServer per UF would serialise exactly the traffic the breaker protects. Tripping on rejections would take a UF offline for a caller merely sending bad documents.
+- **Trade-off**: State transitions are not linearised, so two concurrent callers can both open a breaker or both take the trial call after a cooldown. Harmless here — the worst case is one extra request — and cheaper than a bottleneck.
+- **Scope**: `SefazNfe.CircuitBreaker`, `SefazNfe.SOAP.isolated_call/4`
+- **Date**: 2026-09-07
+- **Status**: active
+
+### AD-013
+- **Decision**: `mix sefaz.endpoints` audits the vendored endpoint table and prints the manual refresh procedure. It does not scrape the portal.
+- **Reason**: AD-004 requires a documented refresh, and the portal blocks automated fetching. A scraper that silently stored a login page would replace a stale table with a wrong one, which is worse.
+- **Trade-off**: Refreshing stays manual. The task fails CI on a snapshot older than 180 days, on a UF whose authorizer or IBGE code is missing, and on any URL that is not an https `.gov.br` address — the failure modes a hand-edited table produces.
+- **Scope**: `Mix.Tasks.Sefaz.Endpoints`
+- **Date**: 2026-09-07
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: transport-mvp (`.specs/features/transport-mvp/`)
@@ -97,6 +113,6 @@
 - **Completed**: spec, design, public API in English (AD-008), endpoints snapshot + IBGE cUF, DistDFe poller (AD-006), PKCS#12 reader verified against a real A1 (AD-007), `:httpc` mTLS client and `:xmerl` parser (AD-010), SOAP 1.2 envelopes, `Result.parse/1`, SEFAZ-05 and SEFAZ-14 done, 67 offline tests
 - **In-progress**: none
 - **Next step**: `enviNFe` message builder plus `retEnviNFe` parsing, then a real `cStat` 100 in homologação — the gate the spec sets before any Hex publish. That needs a schema-valid NF-e from an ERP, which this library does not build (AD-001).
-- **Known gaps**: `authorize/1` signs but has no `enviNFe` builder yet, so it posts the bare document; `cancel/1`, `cce/1` and `void_numbers/1` need their event and inutilização message builders (the Signer already handles their `infEvento` / `infInut` via `Signer.sign/4`); `dist_dfe/1`, `consult_protocol/1`, `authorization_result/1` and `void_numbers/1` still need their message builders and response parsers (`retDistDFeInt` also needs gzip+base64, SEFAZ-07); no circuit breaker per UF yet — required before this carries emission traffic; PBES2/AES-256 PFX files are rejected rather than read (AD-007); the AD-004 refresh procedure for the endpoint snapshot is still not written; `SefazNfe.Certificate.PKCS12` is hand-written and wants a security review.
+- **Known gaps**: `authorize/1` signs but has no `enviNFe` builder yet, so it posts the bare document; `cancel/1`, `cce/1` and `void_numbers/1` need their event and inutilização message builders (the Signer already handles their `infEvento` / `infInut` via `Signer.sign/4`); `dist_dfe/1`, `consult_protocol/1`, `authorization_result/1` and `void_numbers/1` still need their message builders and response parsers (`retDistDFeInt` also needs gzip+base64, SEFAZ-07); `SefazNfe.Certificate.PKCS12` is hand-written and wants a security review.
 - **Blockers**: none
 - **Branch**: main

@@ -8,6 +8,7 @@ defmodule SefazNfe.Application do
 
     children = [
       {Task.Supervisor, name: SefazNfe.TaskSupervisor},
+      SefazNfe.CircuitBreaker,
       {Registry, keys: :unique, name: SefazNfe.Registry},
       {DynamicSupervisor, name: SefazNfe.DistDFe.Supervisor, strategy: :one_for_one}
     ]

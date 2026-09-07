@@ -82,6 +82,16 @@ SEFAZ        →  autorização / rejeição / documentos distribuídos
 
 Same split as Focus/ACBr: they guarantee **transport**, not fiscal arithmetic.
 
+## Operating
+
+- `mix sefaz.endpoints` audits the vendored endpoint table and prints the manual
+  refresh procedure (AD-004). Wire it into CI: it fails on a snapshot older than
+  180 days, on a UF missing an authorizer or IBGE code, and on any URL that is
+  not an https `.gov.br` address.
+- A UF that stops answering trips a circuit breaker after five consecutive
+  transport failures and fails fast for 30 seconds, so a down SP cannot stall
+  callers working with MG. A SEFAZ rejection is an answer and never trips it.
+
 ## Docs
 
 - Spec (TLC): [`.specs/features/transport-mvp/spec.md`](.specs/features/transport-mvp/spec.md)

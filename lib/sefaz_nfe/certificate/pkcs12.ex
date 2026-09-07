@@ -36,9 +36,20 @@ defmodule SefazNfe.Certificate.PKCS12 do
   @shrouded_key_bag <<0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x0C, 0x0A, 0x01, 0x02>>
   @key_bag <<0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x0C, 0x0A, 0x01, 0x01>>
   @pbe_sha1_3des <<0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x0C, 0x01, 0x03>>
-  @sha1 <<0x2B, 0x0E, 0x03, 0x02, 0x1A>>
+  @pbes2 <<0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x05, 0x0D>>
+  @pbkdf2 <<0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x05, 0x0C>>
 
-  @u 20
+  @sha1 <<0x2B, 0x0E, 0x03, 0x02, 0x1A>>
+  @sha256 <<0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01>>
+
+  @hmac_sha1 <<0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x07>>
+  @hmac_sha256 <<0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x09>>
+  @hmac_sha512 <<0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x0B>>
+
+  @aes128_cbc <<0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x01, 0x02>>
+  @aes192_cbc <<0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x01, 0x16>>
+  @aes256_cbc <<0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x01, 0x2A>>
+
   @v 64
 
   @id_key 1
@@ -89,16 +100,18 @@ defmodule SefazNfe.Certificate.PKCS12 do
       end
 
     case sequence(alg) do
-      [{6, @sha1} | _params] ->
-        key = kdf(bmp, salt, @id_mac, iterations, @u)
+      [{6, @sha1} | _params] -> mac(:sha, 20, bmp, salt, iterations, safe_der, expected)
+      [{6, @sha256} | _params] -> mac(:sha256, 32, bmp, salt, iterations, safe_der, expected)
+      [{6, oid} | _params] -> {:error, {:unsupported_mac, oid}}
+    end
+  end
 
-        case :crypto.mac(:hmac, :sha, key, safe_der) do
-          ^expected -> :ok
-          _mismatch -> {:error, :invalid_certificate}
-        end
+  defp mac(digest, size, bmp, salt, iterations, safe_der, expected) do
+    key = kdf(bmp, salt, @id_mac, iterations, size, digest)
 
-      [{6, oid} | _params] ->
-        {:error, {:unsupported_mac, oid}}
+    case :crypto.mac(:hmac, digest, key, safe_der) do
+      ^expected -> :ok
+      _mismatch -> {:error, :invalid_certificate}
     end
   end
 
@@ -162,33 +175,91 @@ defmodule SefazNfe.Certificate.PKCS12 do
 
   defp decrypt(alg, ciphertext, bmp) do
     case sequence(alg) do
-      [{6, @pbe_sha1_3des}, {0x30, params}] ->
-        [{4, salt}, {2, iterations}] = sequence(params)
-        iterations = unsigned(iterations)
-        key = kdf(bmp, salt, @id_key, iterations, 24)
-        iv = kdf(bmp, salt, @id_iv, iterations, 8)
+      [{6, @pbe_sha1_3des}, {0x30, params}] -> pbes1(params, ciphertext, bmp)
+      [{6, @pbes2}, {0x30, params}] -> pbes2(params, ciphertext, bmp)
+      [{6, oid} | _params] -> {:error, {:unsupported_pbe, oid}}
+    end
+  end
 
-        {:ok, unpad(:crypto.crypto_one_time(:des_ede3_cbc, key, iv, ciphertext, false))}
+  defp pbes1(params, ciphertext, bmp) do
+    [{4, salt}, {2, iterations}] = sequence(params)
+    iterations = unsigned(iterations)
+    key = kdf(bmp, salt, @id_key, iterations, 24, :sha)
+    iv = kdf(bmp, salt, @id_iv, iterations, 8, :sha)
+
+    {:ok, unpad(:crypto.crypto_one_time(:des_ede3_cbc, key, iv, ciphertext, false))}
+  end
+
+  # PBES2 keys the cipher from PKCS#5 PBKDF2 over the UTF-8 password, not from
+  # the PKCS#12 KDF over a BMPString. Different derivation, same file format.
+  defp pbes2(params, ciphertext, bmp) do
+    [{0x30, kdf_alg}, {0x30, cipher_alg}] = sequence(params)
+
+    with {:ok, cipher, key_size, iv} <- pbes2_cipher(cipher_alg),
+         {:ok, key} <- pbkdf2(kdf_alg, utf8_password(bmp), key_size) do
+      {:ok, unpad(:crypto.crypto_one_time(cipher, key, iv, ciphertext, false))}
+    end
+  end
+
+  defp pbes2_cipher(alg) do
+    case sequence(alg) do
+      [{6, @aes128_cbc}, {4, iv}] -> {:ok, :aes_128_cbc, 16, iv}
+      [{6, @aes192_cbc}, {4, iv}] -> {:ok, :aes_192_cbc, 24, iv}
+      [{6, @aes256_cbc}, {4, iv}] -> {:ok, :aes_256_cbc, 32, iv}
+      [{6, oid} | _params] -> {:error, {:unsupported_pbe, oid}}
+    end
+  end
+
+  defp pbkdf2(alg, password, default_size) do
+    case sequence(alg) do
+      [{6, @pbkdf2}, {0x30, params}] ->
+        [{4, salt}, {2, iterations} | rest] = sequence(params)
+        {size, prf} = pbkdf2_options(rest, default_size)
+
+        {:ok, :crypto.pbkdf2_hmac(prf, password, salt, unsigned(iterations), size)}
 
       [{6, oid} | _params] ->
         {:error, {:unsupported_pbe, oid}}
     end
   end
 
-  defp kdf(bmp, salt, id, iterations, needed) do
-    d = :binary.copy(<<id>>, @v)
-    i = pad_to_block(salt) <> pad_to_block(bmp)
-    derive(d, i, iterations, needed, <<>>)
+  defp pbkdf2_options(rest, default_size) do
+    size = Enum.find_value(rest, default_size, fn {tag, v} -> if tag == 2, do: unsigned(v) end)
+    prf = Enum.find_value(rest, :sha, fn {tag, v} -> if tag == 0x30, do: prf(v) end)
+    {size, prf}
   end
 
-  defp derive(_d, _i, _iterations, needed, acc) when byte_size(acc) >= needed,
+  defp prf(alg) do
+    case sequence(alg) do
+      [{6, @hmac_sha256} | _params] -> :sha256
+      [{6, @hmac_sha512} | _params] -> :sha512
+      [{6, @hmac_sha1} | _params] -> :sha
+      _unknown -> :sha
+    end
+  end
+
+  # The BMPString drops back to plain UTF-8 for PKCS#5: strip the UTF-16BE
+  # encoding and the two byte terminator the PKCS#12 KDF needs.
+  defp utf8_password(bmp) do
+    bmp
+    |> binary_part(0, max(byte_size(bmp) - 2, 0))
+    |> then(&for <<codepoint::big-16 <- &1>>, into: "", do: <<codepoint::utf8>>)
+  end
+
+  defp kdf(bmp, salt, id, iterations, needed, digest) do
+    d = :binary.copy(<<id>>, @v)
+    i = pad_to_block(salt) <> pad_to_block(bmp)
+    derive(d, i, iterations, needed, <<>>, digest)
+  end
+
+  defp derive(_d, _i, _iterations, needed, acc, _digest) when byte_size(acc) >= needed,
     do: binary_part(acc, 0, needed)
 
-  defp derive(d, i, iterations, needed, acc) do
-    a = Enum.reduce(1..iterations, d <> i, fn _round, x -> :crypto.hash(:sha, x) end)
+  defp derive(d, i, iterations, needed, acc, digest) do
+    a = Enum.reduce(1..iterations, d <> i, fn _round, x -> :crypto.hash(digest, x) end)
     b = repeat_to(a, @v)
     i = for <<block::binary-size(@v) <- i>>, into: <<>>, do: add_mod(block, b)
-    derive(d, i, iterations, needed, acc <> a)
+    derive(d, i, iterations, needed, acc <> a, digest)
   end
 
   defp add_mod(block, b) do

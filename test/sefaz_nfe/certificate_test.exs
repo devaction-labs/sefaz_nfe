@@ -71,15 +71,37 @@ defmodule SefazNfe.CertificateTest do
     end
   end
 
-  describe "load/2 on algorithms this reader does not support" do
-    test "an unsupported MAC digest is named, not reported as a bad password" do
-      assert {:error, {:unsupported_mac, _oid}} =
-               Certificate.load(Fixtures.pfx("a1_aes.pfx"), @password)
+  describe "load/2 across PKCS#12 encryption schemes" do
+    test "PBES2 with AES-256 and a SHA-256 MAC, the OpenSSL 3 export default" do
+      assert {:ok, cert} = Certificate.load(Fixtures.pfx("a1_aes.pfx"), @password)
+      assert byte_size(cert.key) > 0
     end
 
-    test "an unsupported cipher is named" do
+    test "PBES2 with AES-256 under a SHA-1 MAC" do
+      assert {:ok, cert} = Certificate.load(Fixtures.pfx("a1_aes_sha1mac.pfx"), @password)
+      assert byte_size(cert.key) > 0
+    end
+
+    test "PBES1 with 3DES, which is what ICP-Brasil issues" do
+      assert {:ok, cert} = Certificate.load(Fixtures.pfx("a1_3des.pfx"), @password)
+      assert byte_size(cert.key) > 0
+    end
+
+    test "the same keypair decodes identically whichever scheme wrapped it" do
+      {:ok, legacy} = Certificate.load(Fixtures.pfx("a1_3des.pfx"), @password)
+      {:ok, modern} = Certificate.load(Fixtures.pfx("a1_aes.pfx"), @password)
+
+      assert legacy.key == modern.key
+      assert legacy.der == modern.der
+    end
+
+    test "an unsupported cipher is named, never reported as a bad password" do
       assert {:error, {:unsupported_pbe, _oid}} =
-               Certificate.load(Fixtures.pfx("a1_aes_sha1mac.pfx"), @password)
+               Certificate.load(Fixtures.pfx("a1_rc2.pfx"), @password)
+    end
+
+    test "a wrong password is still told apart from an unsupported algorithm" do
+      assert {:error, :invalid_certificate} = Certificate.load(Fixtures.pfx("a1_aes.pfx"), "nope")
     end
   end
 

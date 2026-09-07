@@ -7,14 +7,16 @@ defmodule SefazNfe.Fixtures do
   A1 never belongs in version control — it signs legally binding fiscal
   documents.
 
-  Three shapes, matching what `SefazNfe.Certificate.PKCS12` does and does not
-  accept:
+  Four shapes, covering what `SefazNfe.Certificate.PKCS12` accepts and what it
+  must refuse by name:
 
-    * `a1_3des.pfx` — `PBE-SHA1-3DES` with a SHA-1 MAC, encrypted certificate
-      bags included. What ICP-Brasil issues today, and what the reader supports.
-    * `a1_aes.pfx` — the OpenSSL 3 default: PBES2/AES-256 with a SHA-256 MAC.
-    * `a1_aes_sha1mac.pfx` — a SHA-1 MAC over PBES2/AES-256 bags, which reaches
-      the cipher before failing.
+    * `a1_3des.pfx` — `PBE-SHA1-3DES` with a SHA-1 MAC and encrypted certificate
+      bags. What ICP-Brasil issues today.
+    * `a1_aes.pfx` — the OpenSSL 3 default: PBES2/AES-256, SHA-256 MAC. Shares
+      a keypair with `a1_3des.pfx`, so the two must decode to the same bytes.
+    * `a1_aes_sha1mac.pfx` — PBES2/AES-256 under a SHA-1 MAC.
+    * `a1_rc2.pfx` — RC2-40, which the reader does not implement and must
+      reject as `{:unsupported_pbe, oid}` rather than as a bad password.
   """
 
   @password "sefaz-test"
