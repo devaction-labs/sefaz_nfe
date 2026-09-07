@@ -6,10 +6,10 @@ It does **not** calculate taxes. The ERP (or Nexus Pro) builds the XML; this lib
 
 > Status: transport live, emission not yet. `service_status/1` is verified end to end
 > against SEFAZ **SP, MT and MG** (`cStat` 107) over real mTLS with an ICP-Brasil A1.
-> **DistDFe works** against the Ambiente Nacional in homologação and produção.
-> `service_status/1` answers `cStat` 107 from SP, MG, BA, GO, MT, MS and MA, and
-> `authorize/1` gets past schema and signature validation, stopping at `cStat`
-> **245, CNPJ emitente não cadastrado**.
+> **An NF-e was authorized**: `cStat` 100 against SEFAZ BA homologação, with the
+> `nfeProc` assembled. CCe and cancellation registered against it (`cStat` 135),
+> inutilização homologada (102), DistDFe and manifestação answering on the
+> Ambiente Nacional.
 >
 > On a stock OTP the per-UF services reach **BA, GO, MA, MG, MS, MT and SP**;
 > the other twenty states abort on malformed CA names in their

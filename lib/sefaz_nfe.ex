@@ -26,8 +26,12 @@ defmodule SefazNfe do
   @doc """
   Sign + `NFeAutorizacao4`. Does not mutate tax nodes once SOAP exists.
 
-  The pipeline is validate, sign, wrap in `enviNFe`, POST, parse. `:sync` asks
-  SEFAZ to answer with the protocol in the same call instead of a receipt.
+  The pipeline is validate, sign, wrap in `enviNFe`, POST, parse.
+
+  The lote is synchronous by default: it carries one document, and SEFAZ
+  rejects an asynchronous request for a single-document batch as `cStat` 452.
+  When SEFAZ answers a receipt anyway — it may, under load — the protocol is
+  collected later with `authorization_result/1`.
 
   XSD validation runs only when `SefazNfe.Schema` is configured, and then it
   fails before the network — a local error naming the offending element beats
@@ -59,9 +63,11 @@ defmodule SefazNfe do
     end
   end
 
-  # The MOC leaves the choice to the caller; v1 defaults to asynchronous, so a
-  # lote answers a receipt that `authorization_result/1` then consults.
-  defp ind_sinc(opts), do: if(Map.get(opts, :sync, false), do: 1, else: 0)
+  # Synchronous, because this library sends one document per lote and SEFAZ
+  # rejects an asynchronous request for a single-document batch outright
+  # (cStat 452). Asynchronous only makes sense for a real batch, which is not
+  # what v1 builds; `sync: false` is kept for a caller who assembles one.
+  defp ind_sinc(opts), do: if(Map.get(opts, :sync, true), do: 1, else: 0)
 
   @doc """
   `NFeRetAutorizacao4` for a receipt (`n_rec`).

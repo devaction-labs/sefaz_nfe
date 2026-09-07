@@ -19,8 +19,9 @@ defmodule SefazNfe.Result do
   A batch answer wraps the real outcome one level down — `protNFe/infProt` for a
   document, `retEvento/infEvento` for an event — so `parse/1` reads the nested
   `cStat` when there is one and the envelope's otherwise. `150` is `100` with
-  the authorization recorded outside the deadline, and `135` and `136` are the
-  event equivalents of `100`, so all four are `:authorized`.
+  the authorization recorded outside the deadline, `135` and `136` are the
+  event equivalents, and `102` is the one for a voided number range, so all
+  five are `:authorized`.
   """
 
   @type status ::
@@ -112,6 +113,7 @@ defmodule SefazNfe.Result do
   end
 
   defp status(100), do: :authorized
+  defp status(102), do: :authorized
   defp status(103), do: :batch_received
   defp status(104), do: :batch_processed
   defp status(105), do: :processing

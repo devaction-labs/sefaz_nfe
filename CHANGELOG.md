@@ -37,12 +37,25 @@ library talks to SEFAZ.
 
 ### Verified against production SEFAZ
 
-### Not yet proven
+### The full lifecycle, against SEFAZ BA homologation
 
-No `cStat` 100. Reaching it needs an emitter CNPJ credenciado in a UF's
-homologation with its real IE and address, which is registration data rather
-than code. Until then the authorized-document path — parsing a real `protNFe`
-and consulting a real receipt — is covered by fixtures only.
+| step | result |
+| --- | --- |
+| `authorize/1` | **`cStat` 100, Autorizado o uso da NF-e** — protocol 129262000191061 |
+| `nfeProc` | assembled and well formed, signature and totals intact |
+| `cce/1` | `cStat` 135, evento registrado e vinculado à NF-e |
+| `cancel/1` | `cStat` 135, evento registrado e vinculado à NF-e |
+| `void_numbers/1` | `cStat` 102, inutilização homologada |
+| `dist_dfe/1` | `cStat` 137 / 656 with a live cursor |
+| `manifest/2` | `cStat` 136, evento registrado |
+| `service_status/1` | `cStat` 107 |
+
+### Still unproven
+
+`authorization_result/1` has not run against a real receipt: a single-document
+lote is synchronous and never produces one. `consult_protocol/1` builds and
+parses correctly, but SEFAZ BA's homologation does not retain authorized
+documents and answers `cStat` 217.
 
 ### Verified against production SEFAZ
 
@@ -53,6 +66,9 @@ service that decides inbound cost, and it is reachable from every state
 because it lives on the AN.
 
 `service_status/1` returns `cStat` 107 from **SP, MG, BA, GO, MT, MS and MA**.
+
+**An NF-e was authorized.** `cStat` 100 against SEFAZ BA homologation, protocol
+129262000191061, with the `nfeProc` assembled and archivable.
 
 **Manifestação do destinatário is registered by SEFAZ.** A `:awareness` and a
 `:not_performed` event sent to the Ambiente Nacional in homologation both came

@@ -107,6 +107,7 @@
 - **Status**: active
 
 ### AD-014
+- **Status note (2026-09-07, later the same day)**: superseded by measurement. A `cStat` 100 was obtained against SEFAZ BA homologação once the emitter's real IE was supplied. What follows is the reasoning from before that.
 - **Decision**: The emit path is considered verified by SEFAZ's own processing order rather than by a `cStat` 100, which cannot be reached without registering an emitter.
 - **Reason**: A homologação round trip against SEFAZ SP with a real ICP-Brasil A1 walked the rejections in order: 225 (schema), 897 (`cNF` equal to `nNF`, NT 2019.001), 1115 (IBS/CBS absent, NT 2025.002), 1026 (IBS rate), and finally **245, CNPJ emitente não cadastrado**. No code in the 280–297 range — certificate and signature errors — was ever returned. SEFAZ validates schema and signature before reaching taxpayer registration, so every layer this library owns is exercised and accepted: PKCS#12, mTLS, SOAP 1.2, XMLDSig with C14N, and response parsing.
 - **Trade-off**: The spec's success criterion (`cStat` 100 in homologação) stays unmet, and it is unmeetable here: it needs the certificate holder's CNPJ credenciado as an NF-e emitter in that UF's homologação, with its real IE and address. That is an administrative step on real registration data, not code. The remaining risk this leaves untested is small and specific: the authorized-document path (`protNFe` parsing on a real 100, and `authorization_result/1` against a real receipt).
@@ -146,13 +147,21 @@
 - **Date**: 2026-09-07
 - **Status**: active
 
+### AD-019
+- **Decision**: The lote is synchronous by default (`indSinc` 1). `:sync false` remains for a caller who assembles a real multi-document batch.
+- **Reason**: SEFAZ rejects an asynchronous request for a single-document lote outright — `cStat` 452, "Solicitada resposta assincrona para lote com somente 1 (uma) NF-e". This library sends one document per call (AD-003 scope), so the previous asynchronous default guaranteed a rejection on every emission. It was found by running the async path against SEFAZ BA, not by reading.
+- **Trade-off**: `authorization_result/1` is no longer the normal continuation. It stays as the recovery path, because SEFAZ may still answer a receipt under load, and because a caller who batches documents will need it.
+- **Scope**: `SefazNfe.authorize/1`
+- **Date**: 2026-09-07
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: transport-mvp (`.specs/features/transport-mvp/`)
-- **Phase / Task**: All eight services live over mTLS. `service_status/1` returns `cStat` 107 from SP, MT and MG; `authorize/1` reaches SEFAZ SP's taxpayer-registration check (`cStat` 245) with schema and signature accepted (AD-014).
+- **Phase / Task**: **`cStat` 100.** A homologação NF-e was authorized against SEFAZ BA (protocol 129262000191061), and the whole lifecycle followed: CCe and cancellation both `cStat` 135 against that document, inutilização `cStat` 102, DistDFe and manifestação on the Ambiente Nacional. The spec's success criterion, and its gate for a Hex release, is met.
 - **Completed**: spec, design, public API in English (AD-008), endpoints snapshot + IBGE cUF, DistDFe poller (AD-006), PKCS#12 reader verified against a real A1 (AD-007), `:httpc` mTLS client and `:xmerl` parser (AD-010), SOAP 1.2 envelopes, `Result.parse/1`, SEFAZ-05 and SEFAZ-14 done, 67 offline tests
 - **In-progress**: none
-- **Next step**: Credenciar an emitter CNPJ in a UF's homologação, with its real IE and address, and run the emit path for a `cStat` 100. That is the spec's gate before any Hex publish, and it needs registration data rather than code.
-- **Known gaps**: no `cStat` 100 yet (AD-014), so the authorized-document path — `protNFe` on a real 100 and `authorization_result/1` against a real receipt — is covered by fixtures only; events, CCe and inutilização are built and signed but never accepted by SEFAZ for the same registration reason; `SefazNfe.Certificate.PKCS12` is hand-written and wants a security review.
+- **Next step**: Publish to Hex (needs the maintainer's 2FA), then CT-e once erlang/otp#11595 lands.
+- **Known gaps**: `authorization_result/1` is still unexercised against a real receipt, because a single-document lote is synchronous and never produces one (AD-019); `consult_protocol/1` builds and parses correctly but SEFAZ BA's homologação base does not retain authorized documents, answering `cStat` 217; `SefazNfe.Certificate.PKCS12` is hand-written and wants a security review.
 - **Blockers**: none
 - **Branch**: main

@@ -93,6 +93,23 @@ defmodule SefazNfe.ProcTest do
       end
     end
 
+    test "the lote is synchronous: SEFAZ rejects async for a single document" do
+      Process.register(self(), :sefaz_nfe_proc_test)
+      Application.put_env(:sefaz_nfe, :soap, AuthorizedStub)
+
+      %{xml: xml} = SefazNfe.NFeBuilder.build(tax_id: "00000000000191")
+
+      SefazNfe.authorize(%{
+        xml: xml,
+        cert: SefazNfe.Fixtures.cert(),
+        uf: "SP",
+        environment: :homologation
+      })
+
+      assert_receive {:sent, sent}
+      assert sent =~ "<indSinc>1</indSinc>"
+    end
+
     test "an authorized document comes back ready to archive" do
       Process.register(self(), :sefaz_nfe_proc_test)
       Application.put_env(:sefaz_nfe, :soap, AuthorizedStub)

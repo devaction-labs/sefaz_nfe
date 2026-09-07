@@ -84,7 +84,8 @@ defmodule SefazNfe.NFeBuilder do
         ~s(<infNFe Id="NFe#{key}" versao="4.00">) <>
         ide(uf_code, c_nf, serie, number, emitted_at, tp_amb, String.last(key), municipality) <>
         emit(tax_id, ie, uf, municipality, city) <>
-        dest(tp_amb, uf, municipality, city) <>
+        dest(tp_amb, uf, municipality, city, Keyword.get(opts, :dest_tax_id, "99999999000191")) <>
+        aut_xml(Keyword.get(opts, :auth_tax_id)) <>
         det() <>
         total() <>
         ~s(<transp><modFrete>9</modFrete></transp>) <>
@@ -99,6 +100,16 @@ defmodule SefazNfe.NFeBuilder do
   end
 
   defp trim_precision(stamp), do: stamp
+
+  # autXML identifies whoever else may download the XML — typically the
+  # accounting office. Bahia rejects a document without it (cStat 486) and the
+  # rejection itself names the SEFAZ CNPJ to use when there is no office.
+  # It sits between dest and det in the schema sequence.
+  defp aut_xml(nil), do: ""
+  defp aut_xml(id), do: ~s(<autXML>#{tax_id_element(id)}</autXML>)
+
+  defp tax_id_element(id) when byte_size(id) == 11, do: ~s(<CPF>#{id}</CPF>)
+  defp tax_id_element(id), do: ~s(<CNPJ>#{id}</CNPJ>)
 
   @doc """
   The 44 digit access key, with its modulo 11 check digit.
@@ -163,10 +174,12 @@ defmodule SefazNfe.NFeBuilder do
       ~s(<IE>#{ie}</IE><CRT>3</CRT></emit>)
   end
 
-  defp dest(tp_amb, uf, municipality, city) do
+  # A CPF recipient is a natural person, so the document goes out as CPF and
+  # never as a short CNPJ. In homologação the name is fixed by the MOC.
+  defp dest(tp_amb, uf, municipality, city, dest_tax_id) do
     name = if tp_amb == 2, do: @homologation_name, else: "CLIENTE TESTE"
 
-    ~s(<dest><CNPJ>99999999000191</CNPJ><xNome>#{name}</xNome>) <>
+    ~s(<dest>#{tax_id_element(dest_tax_id)}<xNome>#{name}</xNome>) <>
       ~s(<enderDest><xLgr>RUA CLIENTE</xLgr><nro>200</nro><xBairro>CENTRO</xBairro>) <>
       ~s(<cMun>#{municipality}</cMun><xMun>#{city}</xMun><UF>#{uf}</UF><CEP>01001000</CEP>) <>
       ~s(<cPais>1058</cPais><xPais>BRASIL</xPais></enderDest>) <>

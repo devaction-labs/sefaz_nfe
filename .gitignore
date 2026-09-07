@@ -22,3 +22,8 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 sefaz_nfe-*.tar
 
+
+# Scripts e artefatos de teste contra a SEFAZ: carregam certificado e dados
+# reais, e nunca devem ser versionados.
+/scripts/homolog.exs
+/tmp/homolog/
