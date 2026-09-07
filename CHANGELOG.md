@@ -69,15 +69,27 @@ The field is only a hint for choosing a client certificate, and
 `ssl_certificate:handle_cert_auths/4` already treats an empty list as "accept
 first choice", so skipping undecodable entries degrades into an existing path.
 
-**OTP already fixed this on `maint` (OTP-20327), and it ships in OTP 29.1.** No
-released OTP carries it — not 29.0.x, not 28, not 27 — and `maint` and
-`maint-29` both report `SSL_VSN = 11.7.5`, so the version string does not
-distinguish a patched runtime. A backport is requested in
-[erlang/otp#11595](https://github.com/erlang/otp/issues/11595).
+**OTP already fixed this on `maint` (OTP-20327)**, and it will ship in the next
+minor. That release does not exist yet: as of 2026-09-07 the newest is OTP
+29.0.6, and no released runtime carries the fix — not 29.0.x, not 28, not 27.
+`maint` and `maint-29` both report `SSL_VSN = 11.7.5`, so the version string
+does not distinguish a patched runtime; test a connection instead. A backport
+is requested in [erlang/otp#11595](https://github.com/erlang/otp/issues/11595).
 
-Upgrading to OTP 29.1 is the fix. `patches/` carries the same change for the
-interval before then, and is explicit about what pinning a module inside `ssl`
-costs. With it, all 27 endpoints answer `cStat` 107 instead of 7 of 27.
+Until that release exists there is nothing to upgrade to. `patches/` carries
+the same change for the interval and is explicit about what pinning a module
+inside `ssl` costs. With it, all 27 endpoints answer `cStat` 107 instead of 7
+of 27.
+
+### What works on a stock OTP
+
+| | |
+|---|---|
+| DistDFe on the Ambiente Nacional | works, homologation and production |
+| SVC-AN contingency | works |
+| Per-UF services in BA, GO, MA, MG, MS, MT, SP | work |
+| Per-UF services in the other 20 states | blocked |
+| SVC-RS contingency | blocked |
 
 There is no workaround inside the library itself: the handshake transcript is
 hashed, so the bytes cannot be corrected in flight. DistDFe is unaffected.
