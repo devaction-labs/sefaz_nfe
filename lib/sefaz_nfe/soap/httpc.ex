@@ -24,6 +24,10 @@ defmodule SefazNfe.SOAP.HTTPC do
   handshake and OTP negotiates the highest offered version first. A host whose
   endpoints have moved on can add 1.3 back through `:tls_options`.
 
+  A `decode_error` surfaces as `{:tls, :decode_error, :otp_cert_auths_bug}`
+  rather than a bare alert, because it names a runtime limitation rather than
+  anything the caller configured.
+
   ## A known incompatibility
 
   `:ssl` cannot complete a handshake with the SVRS and PR endpoints, which
@@ -86,7 +90,7 @@ defmodule SefazNfe.SOAP.HTTPC do
   def connect_error(details) when is_list(details) do
     details
     |> Enum.find_value(:unreachable, fn
-      {:inet, _transports, {:tls_alert, {alert, _description}}} -> {:tls, alert}
+      {:inet, _transports, {:tls_alert, {alert, _description}}} -> tls_error(alert)
       {:inet, _transports, :nxdomain} -> {:dns, :nxdomain}
       {:inet, _transports, :timeout} -> :timeout
       _other -> nil
@@ -94,6 +98,13 @@ defmodule SefazNfe.SOAP.HTTPC do
   end
 
   def connect_error(_details), do: :unreachable
+
+  # A `decode_error` against SEFAZ is almost never a local misconfiguration: it
+  # is the runtime refusing a malformed CA name these servers advertise. Left as
+  # a bare TLS alert it reads like a certificate problem, and the reader goes
+  # looking in the wrong place.
+  defp tls_error(:decode_error), do: {:tls, :decode_error, :otp_cert_auths_bug}
+  defp tls_error(alert), do: {:tls, alert}
 
   @doc """
   Client options for an mTLS connection, with `:tls_options` from `opts`

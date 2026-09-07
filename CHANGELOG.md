@@ -81,6 +81,10 @@ the same change for the interval and is explicit about what pinning a module
 inside `ssl` costs. With it, all 27 endpoints answer `cStat` 107 instead of 7
 of 27.
 
+When a blocked endpoint is reached, the error is
+`{:tls, :decode_error, :otp_cert_auths_bug}` rather than a bare alert, so it
+names the runtime limitation instead of looking like a certificate problem.
+
 ### What works on a stock OTP
 
 | | |

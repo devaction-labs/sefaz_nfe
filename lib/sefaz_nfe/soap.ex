@@ -66,6 +66,7 @@ defmodule SefazNfe.SOAP do
   end
 
   defp record(uf, {:error, {:tls, _alert}}), do: CircuitBreaker.record_failure(uf)
+  defp record(uf, {:error, {:tls, _alert, _detail}}), do: CircuitBreaker.record_failure(uf)
   defp record(uf, {:error, {:dns, _reason}}), do: CircuitBreaker.record_failure(uf)
   defp record(uf, {:error, {:soap_crash, _reason}}), do: CircuitBreaker.record_failure(uf)
 
@@ -91,6 +92,7 @@ defmodule SefazNfe.SOAP do
   defp outcome({:ok, _body}), do: :ok
   defp outcome({:error, reason}) when is_atom(reason), do: reason
   defp outcome({:error, {tag, _detail}}) when is_atom(tag), do: tag
+  defp outcome({:error, {tag, _detail, _more}}) when is_atom(tag), do: tag
   defp outcome({:error, _reason}), do: :error
 
   defmodule NotImplemented do

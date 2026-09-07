@@ -183,6 +183,31 @@ defmodule SefazNfe.SOAPTest do
     end
   end
 
+  describe "connect_error/1" do
+    alias SefazNfe.SOAP.HTTPC
+
+    test "a TLS decode_error is tagged as the runtime limitation it is" do
+      details = [
+        {:to_address, {~c"nfe.svrs.rs.gov.br", 443}},
+        {:inet, [:inet], {:tls_alert, {:decode_error, ~c"..."}}}
+      ]
+
+      assert {:tls, :decode_error, :otp_cert_auths_bug} = HTTPC.connect_error(details)
+    end
+
+    test "other TLS alerts keep their own name" do
+      details = [{:inet, [:inet], {:tls_alert, {:unknown_ca, ~c"..."}}}]
+
+      assert {:tls, :unknown_ca} = HTTPC.connect_error(details)
+    end
+
+    test "DNS and timeouts are told apart from unreachable" do
+      assert {:dns, :nxdomain} = HTTPC.connect_error([{:inet, [:inet], :nxdomain}])
+      assert :timeout = HTTPC.connect_error([{:inet, [:inet], :timeout}])
+      assert :unreachable = HTTPC.connect_error([{:to_address, {~c"x", 443}}])
+    end
+  end
+
   test "mix test cannot open a socket: the configured client is the stub" do
     assert SefazNfe.SOAP.client() == SefazNfe.SOAP.NotImplemented
   end
