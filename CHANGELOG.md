@@ -65,13 +65,17 @@ invalid — `PrintableString` does not even admit `@`. OTP's
 every entry and lets the ASN.1 error abort the handshake, so one malformed name
 in an advisory list kills the connection. OpenSSL is lenient and connects.
 
-There is no workaround inside the library: the handshake transcript is hashed,
-so the bytes cannot be corrected in flight. It needs a fix in OTP — skipping
-entries it cannot parse — or in the CA lists those SEFAZ servers publish. Until
-then, a host can supply its own transport through the `SefazNfe.SOAP`
-behaviour, which is why that behaviour exists.
+The field is only a hint for choosing a client certificate, and
+`ssl_certificate:handle_cert_auths/4` already treats an empty list as "accept
+first choice", so skipping undecodable entries degrades into an existing path.
 
-DistDFe is unaffected.
+Reported upstream with a verified fix: **erlang/otp#11595**. With that six-line
+change compiled and loaded ahead of the shipped module, all 27 endpoints answer
+`cStat` 107 instead of 7 of 27. `patches/` carries the patch and the procedure,
+along with what you take on by pinning a module inside `ssl`.
+
+There is no workaround inside the library itself: the handshake transcript is
+hashed, so the bytes cannot be corrected in flight. DistDFe is unaffected.
 
 ### Known limits
 

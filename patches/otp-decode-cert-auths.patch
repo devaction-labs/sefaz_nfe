@@ -1,0 +1,21 @@
+--- a/lib/ssl/src/ssl_handshake.erl	2026-09-01 18:50:54.762731043 -0300
++++ b/lib/ssl/src/ssl_handshake.erl	2026-09-07 12:04:17.319566419 -0300
+@@ -3506,7 +3506,17 @@
+ decode_cert_auths(<<>>, Acc) ->
+     lists:reverse(Acc);
+ decode_cert_auths(<<?UINT16(Len), Auth:Len/binary, Rest/binary>>, Acc) ->
+-    decode_cert_auths(Rest, [public_key:pkix_normalize_name(Auth) | Acc]).
++    %% certificate_authorities is a hint for picking a client certificate
++    %% (RFC 5246 7.4.4). Entries that cannot be decoded are skipped rather
++    %% than aborting the handshake: an empty list is already handled by
++    %% ssl_certificate:handle_cert_auths/4 as "accept first choice".
++    try public_key:pkix_normalize_name(Auth) of
++        Name ->
++            decode_cert_auths(Rest, [Name | Acc])
++    catch
++        _:_ ->
++            decode_cert_auths(Rest, Acc)
++    end.
+ 
+ %% encode/decode stream of certificate data to/from list of certificate data
+ certs_to_list(ASN1Certs) ->
