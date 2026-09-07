@@ -14,7 +14,8 @@ Load `.agents/skills/elixir-masters-patterns/SKILL.md` when writing or reviewing
 
 - Facade is `SefazNfe` only.
 - SOAP through `SefazNfe.SOAP.isolated_call/4`.
-- DistDFe: one process per CNPJ, labelled, via Registry.
+- DistDFe: one process per `tax_id` (CNPJ or CPF), labelled, via Registry.
+- DistDFe poller delivers every page to a required `:handler`; the host owns the cursor.
 - `mix test` never opens a socket.
 - Timeouts: `to_timeout/1`, not raw `30_000`.
 

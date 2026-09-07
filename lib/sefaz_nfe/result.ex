@@ -1,10 +1,17 @@
 defmodule SefazNfe.Result do
+  alias SefazNfe.SOAP.Fault
+  alias SefazNfe.XML
+
   @moduledoc """
   Parsed SEFAZ business outcome. A SOAP envelope that we understood is
   `{:ok, t}` even when `c_stat != 100` — that is a rejection, not a crash.
+
+  `104` (lote processado) wraps the real outcome in `protNFe`, so a caller
+  reading a batch result reads the nested `cStat`, not the envelope one.
   """
 
-  @type status :: :autorizada | :lote_recebido | :rejeitada | :processando
+  @type status ::
+          :authorized | :batch_received | :batch_processed | :processing | :rejected
 
   @type t :: %__MODULE__{
           status: status(),
@@ -18,4 +25,48 @@ defmodule SefazNfe.Result do
 
   @enforce_keys [:status, :c_stat, :x_motivo]
   defstruct [:status, :c_stat, :x_motivo, :ch_nfe, :n_prot, :n_rec, :xml]
+
+  @doc """
+  Maps a SEFAZ SOAP body to `t:t/0`.
+
+  A body we could read is `{:ok, t}` even when `cStat` is a rejection: 204
+  (duplicate) is a business outcome, not a transport failure (SEFAZ-03). Only an
+  unreadable body or a SOAP fault is `{:error, _}`.
+
+  The `cStat` values mapped to a status are the ones the MOC defines for these
+  flows — 100 authorized, 103 lote received, 104 lote processed, 105 in
+  processing. Everything else is `:rejected` with the raw code preserved; this
+  library does not ship a `cStat` dictionary it would have to chase.
+  """
+  @spec parse(String.t()) :: {:ok, t()} | {:error, term()}
+  def parse(body) when is_binary(body) do
+    with {:ok, doc} <- XML.parse(body),
+         :ok <- Fault.check(doc) do
+      from_doc(doc)
+    end
+  end
+
+  defp from_doc(doc) do
+    case XML.integer(doc, "cStat") do
+      nil ->
+        {:error, {:xml, :no_c_stat}}
+
+      c_stat ->
+        {:ok,
+         %__MODULE__{
+           status: status(c_stat),
+           c_stat: c_stat,
+           x_motivo: XML.text(doc, "xMotivo") || "",
+           ch_nfe: XML.text(doc, "chNFe"),
+           n_prot: XML.text(doc, "nProt"),
+           n_rec: XML.text(doc, "nRec")
+         }}
+    end
+  end
+
+  defp status(100), do: :authorized
+  defp status(103), do: :batch_received
+  defp status(104), do: :batch_processed
+  defp status(105), do: :processing
+  defp status(_other), do: :rejected
 end

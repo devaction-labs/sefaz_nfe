@@ -42,13 +42,53 @@
 - **Date**: 2026-09-07
 - **Status**: active
 
+### AD-006
+- **Decision**: The DistDFe party identifier is `:tax_id` (CNPJ **or** CPF) across the public API, the `Registry` key and the process label — not `:cnpj`. `SefazNfe.dist_dfe/1` requires it, and `SefazNfe.DistDFe.Poller` requires a `:handler` that receives every page and returns the cursor to continue from.
+- **Reason**: DistDFe serves both CNPJ and CPF, so `cnpj` was wrong for half the callers. And the poller previously discarded the result and never advanced `ult_nsu` — a timer with no output. Making `:handler` mandatory turns that silent no-op into a start-time error.
+- **Trade-off**: Delivery is at-least-once — the handler runs before the cursor moves, so a raising handler replays the page after the supervisor restart. DistDFe documents are idempotent by NSU, so a replay beats a silent gap. The poller child is `:transient` so a handler answering `:stop` stays down.
+- **Scope**: `SefazNfe.dist_dfe/1`, `SefazNfe.DistDFe.Poller`, `SefazNfe.start_dist_dfe_poller/1`
+- **Date**: 2026-09-07
+- **Status**: active
+
+### AD-007
+- **Decision**: PKCS#12 is decoded in-tree by `SefazNfe.Certificate.PKCS12` — a hand-written RFC 7292 reader — rather than by OTP, a Hex dependency or a shell-out to `openssl`.
+- **Reason**: OTP 29 ships **no** PKCS#12 support (`:public_key` exports no `pkcs12_to_der`; `:pubkey_pbe` has pbkdf1/pbkdf2 but not the RFC 7292 B.2 KDF, and is an undocumented internal module). Hex has no package for it. Shelling out to `openssl` would put a binary on the runtime path of a Hex library. A1 loading is on the critical path for both mTLS and XMLDSig, so it cannot stay a placeholder.
+- **Trade-off**: This is hand-written crypto-adjacent code and warrants review before production. Only `pbeWithSHAAnd3-KeyTripleDES-CBC` with a SHA-1 MAC is supported — verified byte-for-byte against a real ICP-Brasil A1 PJ file and against `openssl` output. PBES2/AES-256 (the OpenSSL 3 export default) is **not** supported and fails as `{:error, {:unsupported_pbe, oid}}` / `{:error, {:unsupported_mac, oid}}`, never as an empty result or a misleading "invalid password".
+- **Scope**: `SefazNfe.Certificate`, `SefazNfe.Certificate.PKCS12`
+- **Date**: 2026-09-07
+- **Status**: active
+
+### AD-008
+- **Decision**: Everything this project names is in English. Identifiers that mirror SEFAZ artefacts keep the official name: XSD fields (`ch_nfe`↔`chNFe`, `c_stat`↔`cStat`, `x_motivo`, `n_prot`, `n_rec`, `ult_nsu`), service atoms (`:nfe_status_servico`↔`NFeStatusServico4`) and proper nouns (Ambiente Nacional, DistDFe, CCe, UF, NSU).
+- **Reason**: A mixed-language API reads as an accident. But renaming SEFAZ's own field names breaks the 1:1 mapping to the MOC and the XSD, which is what makes the library debuggable against the official docs.
+- **Trade-off**: `:homologation` / `:production` are English renderings of `tpAmb` 2 / 1. `environment` replaced `ambiente`, `justification` replaced `justificativa`, and the public functions are now `service_status/1`, `consult_protocol/1`, `authorization_result/1`, `cancel/1`, `void_numbers/1`. `ch_nfe` stays: `key` would collide with `Certificate.key`, the private key.
+- **Scope**: entire library
+- **Date**: 2026-09-07
+- **Status**: active
+
+### AD-009
+- **Decision**: The library ships **no** TLS trust anchors. Hosts supply ICP-Brasil roots through `config :sefaz_nfe, :cacerts` (a PEM path or DER list), which is added to the system bundle rather than replacing it. `verify_peer` is never relaxed.
+- **Reason**: Measured against production: SP and MT serve certificates chained to *Autoridade Certificadora Raiz Brasileira v10*, which is in no OS bundle and is **not** the v5 root embedded in a typical A1 chain. MG and the Ambiente Nacional chain to ordinary commercial roots (Sectigo, GlobalSign) and work out of the box. Without the root, SP fails the handshake.
+- **Trade-off**: SP and MT need one configuration line. The alternative — vendoring a CA bundle from a download whose own host cannot be verified (`acraiz.icpbrasil.gov.br` is itself served under ICP-Brasil) — would ship an unaudited trust anchor, which is a man-in-the-middle vector. Operators fetch the roots and check fingerprints themselves. `{:tls, :unknown_ca}` is surfaced by name so the cause is obvious.
+- **Scope**: `SefazNfe.Certificate.ssl_options/1`, `SefazNfe.SOAP.HTTPC`
+- **Date**: 2026-09-07
+- **Status**: active
+
+### AD-010
+- **Decision**: `:httpc` on a private profile is the default SOAP transport, and `:xmerl` the parser. Both are OTP.
+- **Reason**: A transport library that drags Finch, Mint, NimblePool and Jason into every host is paying a dependency tax for one HTTP call. `:xmerl` is also the only stdlib option that yields the namespace-aware tree XMLDSig canonicalisation will need.
+- **Trade-off**: Erlang-shaped APIs, contained inside `SefazNfe.SOAP.HTTPC` and `SefazNfe.XML`. `:xmerl` has no defence against XXE or entity expansion, so a DTD is refused outright before parsing.
+- **Scope**: `SefazNfe.SOAP.HTTPC`, `SefazNfe.XML`
+- **Date**: 2026-09-07
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: transport-mvp (`.specs/features/transport-mvp/`)
-- **Phase / Task**: Package shell + OTP tree on main; SOAP/XMLDSig still `:not_implemented`
-- **Completed**: spec, design, public API, endpoints snapshot, masters skill, DistDFe poller, isolated SOAP, offline tests
+- **Phase / Task**: mTLS transport live. `service_status/1` verified end to end against SEFAZ SP, MT and MG (`cStat` 107) with a real ICP-Brasil A1. XMLDSig still unwritten.
+- **Completed**: spec, design, public API in English (AD-008), endpoints snapshot + IBGE cUF, DistDFe poller (AD-006), PKCS#12 reader verified against a real A1 (AD-007), `:httpc` mTLS client and `:xmerl` parser (AD-010), SOAP 1.2 envelopes, `Result.parse/1`, SEFAZ-05 and SEFAZ-14 done, 67 offline tests
 - **In-progress**: none
-- **Next step**: Tasks.md then implement Signer + SOAP mTLS (homologação)
+- **Next step**: XMLDSig (`Signer.sign_nfe/2`) with C14N, then `authorize/1` for a real `cStat` 100 in homologação — which is the gate the spec sets before any Hex publish.
+- **Known gaps**: XMLDSig is unwritten, so `authorize/1`, `cancel/1`, `cce/1` and `void_numbers/1` stop at the Signer; `dist_dfe/1`, `consult_protocol/1`, `authorization_result/1` and `void_numbers/1` still need their message builders and response parsers (`retDistDFeInt` also needs gzip+base64, SEFAZ-07); no circuit breaker per UF yet — required before this carries emission traffic; PBES2/AES-256 PFX files are rejected rather than read (AD-007); the AD-004 refresh procedure for the endpoint snapshot is still not written; `SefazNfe.Certificate.PKCS12` is hand-written and wants a security review.
 - **Blockers**: none
-- **Uncommitted files**: none after this commit
 - **Branch**: main

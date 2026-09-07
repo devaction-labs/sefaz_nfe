@@ -1,9 +1,11 @@
 defmodule SefazNfeTest do
   use ExUnit.Case, async: true
 
-  @cert elem(SefazNfe.Certificate.load(<<"pkcs12-placeholder">>, "secret"), 1)
+  @cert SefazNfe.Fixtures.cert()
 
   @ch String.duplicate("1", 44)
+  @cnpj "00000000000191"
+  @cpf "00000000191"
   @xml_homolog "<NFe><infNFe><ide><tpAmb>2</tpAmb></ide></infNFe></NFe>"
   @xml_prod "<NFe><infNFe><ide><tpAmb>1</tpAmb></ide></infNFe></NFe>"
 
@@ -24,17 +26,17 @@ defmodule SefazNfeTest do
                xml: @xml_homolog,
                cert: @cert,
                uf: "SP",
-               ambiente: :homologacao
+               environment: :homologation
              })
   end
 
-  test "authorize refuses producao XML in homologacao" do
-    assert {:error, :ambiente_mismatch} =
+  test "authorize refuses production XML in homologation" do
+    assert {:error, :environment_mismatch} =
              SefazNfe.authorize(%{
                xml: @xml_prod,
                cert: @cert,
                uf: "SP",
-               ambiente: :homologacao
+               environment: :homologation
              })
   end
 
@@ -44,57 +46,127 @@ defmodule SefazNfeTest do
                xml: @xml_homolog,
                cert: @cert,
                uf: "AN",
-               ambiente: :homologacao
+               environment: :homologation
              })
   end
 
-  test "consulta_protocolo rejects short chave" do
+  test "consult_protocol rejects short chave" do
     assert {:error, :invalid_ch_nfe} =
-             SefazNfe.consulta_protocolo(%{
+             SefazNfe.consult_protocol(%{
                ch_nfe: "123",
                cert: @cert,
                uf: "SP",
-               ambiente: :homologacao
+               environment: :homologation
              })
   end
 
-  test "consulta_protocolo 44-digit chave reaches not_implemented" do
+  test "consult_protocol 44-digit chave reaches not_implemented" do
     assert {:error, :not_implemented} =
-             SefazNfe.consulta_protocolo(%{
+             SefazNfe.consult_protocol(%{
                ch_nfe: @ch,
                cert: @cert,
                uf: "SP",
-               ambiente: :homologacao
+               environment: :homologation
              })
   end
 
-  test "cancela rejects short justificativa" do
-    assert {:error, :justificativa_curta} =
-             SefazNfe.cancela(%{
+  test "cancel rejects short justification" do
+    assert {:error, :justification_too_short} =
+             SefazNfe.cancel(%{
                ch_nfe: @ch,
                n_prot: "1",
-               justificativa: "curto",
+               justification: "curto",
                cert: @cert,
                uf: "SP",
-               ambiente: :homologacao
+               environment: :homologation
              })
+  end
+
+  test "dist_dfe requires the interested party tax_id" do
+    assert {:error, {:missing_keys, [:tax_id]}} =
+             SefazNfe.dist_dfe(%{cert: @cert, environment: :homologation, ult_nsu: "0"})
   end
 
   test "dist_dfe requires a query cursor" do
     assert {:error, {:missing_keys, [:ult_nsu]}} =
-             SefazNfe.dist_dfe(%{cert: @cert, ambiente: :homologacao})
+             SefazNfe.dist_dfe(%{tax_id: @cnpj, cert: @cert, environment: :homologation})
   end
 
   test "dist_dfe with ult_nsu reaches not_implemented" do
     assert {:error, :not_implemented} =
-             SefazNfe.dist_dfe(%{cert: @cert, ambiente: :producao, ult_nsu: "0"})
+             SefazNfe.dist_dfe(%{
+               tax_id: @cnpj,
+               cert: @cert,
+               environment: :production,
+               ult_nsu: "0"
+             })
   end
 
-  test "status_servico missing keys" do
-    assert {:error, {:missing_keys, [:cert, :uf, :ambiente]}} = SefazNfe.status_servico(%{})
+  test "dist_dfe accepts a CPF and the alphanumeric CNPJ (NT 2025.002)" do
+    for id <- [@cpf, @cnpj, "12ABC34501DE35"] do
+      assert {:error, :not_implemented} =
+               SefazNfe.dist_dfe(%{
+                 tax_id: id,
+                 cert: @cert,
+                 environment: :production,
+                 ult_nsu: "0"
+               })
+    end
   end
 
-  test "SOAP default client is NotImplemented" do
+  test "dist_dfe rejects a malformed tax_id before SOAP" do
+    for id <- ["123", "0000000000019", "0000000000019X", "12abc34501de35", :not_a_binary] do
+      assert {:error, :invalid_tax_id} =
+               SefazNfe.dist_dfe(%{
+                 tax_id: id,
+                 cert: @cert,
+                 environment: :production,
+                 ult_nsu: "0"
+               })
+    end
+  end
+
+  test "service_status missing keys" do
+    assert {:error, {:missing_keys, [:cert, :uf, :environment]}} = SefazNfe.service_status(%{})
+  end
+
+  test "an already signed XML is passed through, not signed again" do
+    signed = "<NFe><infNFe/><Signature xmlns=\"http://www.w3.org/2000/09/xmldsig#\"/></NFe>"
+
+    assert SefazNfe.Signer.signed?(signed)
+    assert {:ok, ^signed} = SefazNfe.Signer.sign_nfe(signed, @cert)
+
+    refute SefazNfe.Signer.signed?(@xml_homolog)
+    assert {:error, :not_implemented} = SefazNfe.Signer.sign_nfe(@xml_homolog, @cert)
+  end
+
+  test "SOAP emits telemetry without leaking cert or body (SEFAZ-14)" do
+    handler = {__MODULE__, :telemetry_handler}
+
+    :telemetry.attach(handler, [:sefaz_nfe, :soap, :stop], &__MODULE__.forward/4, self())
+    on_exit(fn -> :telemetry.detach(handler) end)
+
+    SefazNfe.SOAP.isolated_call("https://example.test", "<nfe/>", @cert,
+      uf: "SP",
+      service: :nfe_status_servico
+    )
+
+    assert_receive {:telemetry, measurements, metadata}
+    assert is_integer(measurements.duration)
+    assert metadata.uf == "SP"
+    assert metadata.service == :nfe_status_servico
+    assert metadata.outcome == :not_implemented
+
+    refute Map.has_key?(metadata, :cert)
+    refute Map.has_key?(metadata, :body)
+    refute inspect(metadata) =~ "pkcs12"
+  end
+
+  def forward(_event, measurements, metadata, test) do
+    send(test, {:telemetry, measurements, metadata})
+  end
+
+  test "the configured test client is the offline stub" do
     assert {:error, :not_implemented} =
              SefazNfe.SOAP.client().call("https://example", "<x/>", @cert, [])
   end

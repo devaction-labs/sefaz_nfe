@@ -1,7 +1,9 @@
 defmodule SefazNfe.SOAP do
   @moduledoc """
-  HTTP+mTLS POST of a SOAP envelope. `mix test` must never open a socket:
-  point `:sefaz_nfe, :soap` at a stub (the default is `NotImplemented`).
+  HTTP+mTLS POST of a SOAP envelope.
+
+  A behaviour, so a host can substitute its own transport and so `mix test`
+  never opens a socket. `SefazNfe.SOAP.HTTPC` is the default implementation.
   """
 
   @type cert :: SefazNfe.Certificate.t()
@@ -9,21 +11,45 @@ defmodule SefazNfe.SOAP do
   @callback call(String.t(), iodata(), cert(), keyword()) ::
               {:ok, String.t()} | {:error, term()}
 
+  @doc """
+  The configured client, defaulting to the real mTLS one.
+
+  The default is deliberately the working client: a host that installs this
+  library should be able to call SEFAZ without extra configuration. The test
+  suite swaps it for `SefazNfe.SOAP.NotImplemented` in `config/test.exs`, which
+  is what keeps `mix test` off the network.
+  """
   @spec client() :: module()
   def client do
-    Application.get_env(:sefaz_nfe, :soap, SefazNfe.SOAP.NotImplemented)
+    Application.get_env(:sefaz_nfe, :soap, SefazNfe.SOAP.HTTPC)
   end
 
   @doc """
   Runs `c:call/4` in `SefazNfe.TaskSupervisor` so an SSL/SOAP abort
   does not take down the caller (Jurić: I/O failure domain).
+
+  Emits `[:sefaz_nfe, :soap, :start | :stop | :exception]` (SEFAZ-14). The
+  `:uf` and `:service` options are consumed here as telemetry metadata; every
+  other option is forwarded to `c:call/4`. Metadata never carries the
+  certificate, the password or the XML body — only the endpoint, the UF, the
+  service and an outcome tag. That tag is deliberately low cardinality: the raw
+  reason would drag a whole `{:soap_crash, stacktrace}` into every metrics
+  label.
   """
   @spec isolated_call(String.t(), iodata(), cert(), keyword()) ::
           {:ok, String.t()} | {:error, term()}
   def isolated_call(endpoint, body, cert, opts \\ []) do
-    timeout = Keyword.get_lazy(opts, :timeout, fn -> to_timeout(second: 30) end)
-    task_opts = Keyword.delete(opts, :timeout)
+    {timeout, opts} = Keyword.pop_lazy(opts, :timeout, fn -> to_timeout(second: 30) end)
+    {meta, task_opts} = Keyword.split(opts, [:uf, :service])
+    metadata = meta |> Map.new() |> Map.put(:endpoint, endpoint)
 
+    :telemetry.span([:sefaz_nfe, :soap], metadata, fn ->
+      result = run(endpoint, body, cert, task_opts, timeout)
+      {result, Map.put(metadata, :outcome, outcome(result))}
+    end)
+  end
+
+  defp run(endpoint, body, cert, task_opts, timeout) do
     task =
       Task.Supervisor.async_nolink(SefazNfe.TaskSupervisor, fn ->
         client().call(endpoint, body, cert, task_opts)
@@ -35,6 +61,11 @@ defmodule SefazNfe.SOAP do
       {:exit, reason} -> {:error, {:soap_crash, reason}}
     end
   end
+
+  defp outcome({:ok, _body}), do: :ok
+  defp outcome({:error, reason}) when is_atom(reason), do: reason
+  defp outcome({:error, {tag, _detail}}) when is_atom(tag), do: tag
+  defp outcome({:error, _reason}), do: :error
 
   defmodule NotImplemented do
     @moduledoc false

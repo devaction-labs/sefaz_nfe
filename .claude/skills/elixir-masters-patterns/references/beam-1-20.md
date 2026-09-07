@@ -12,7 +12,7 @@ Elixir 1.20 requires OTP 27+ and is compatible with OTP 29 (this machine: OTP 29
 | `Kernel.to_timeout/1` | SOAP yield + poller `send_after` |
 | `Process.set_label/1` / `get_label/1` | DistDFe poller |
 | `Task.Supervisor.async_nolink/2` | `SOAP.isolated_call/4` |
-| `Registry` unique | `{:dist_dfe, cnpj}` |
+| `Registry` unique | `{:dist_dfe, tax_id}` |
 | `:telemetry` | SOAP stop events (when SOAP is real) |
 
 ## OTP 29 notes

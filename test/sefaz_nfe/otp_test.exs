@@ -1,26 +1,119 @@
 defmodule SefazNfe.OTPTest do
   use ExUnit.Case, async: false
 
-  @cert elem(SefazNfe.Certificate.load(<<"pkcs12-placeholder">>, "secret"), 1)
+  @cert SefazNfe.Fixtures.cert()
 
-  test "DistDFe poller is labelled and registered per CNPJ" do
-    cnpj = "00000000000191"
+  @tax_id "00000000000191"
 
-    assert {:ok, pid} =
-             SefazNfe.start_dist_dfe_poller(
-               cnpj: cnpj,
-               cert: @cert,
-               ambiente: :homologacao,
-               interval: Duration.new!(day: 1)
-             )
+  test "DistDFe poller is labelled and registered per tax_id" do
+    assert {:ok, pid} = start_poller(handler: fn _page -> :ok end)
 
-    assert Process.get_label(pid) == {:sefaz_nfe, :dist_dfe, cnpj}
-    assert [{^pid, _}] = Registry.lookup(SefazNfe.Registry, {:dist_dfe, cnpj})
+    assert Process.get_label(pid) == {:sefaz_nfe, :dist_dfe, @tax_id}
+    assert [{^pid, _}] = Registry.lookup(SefazNfe.Registry, {:dist_dfe, @tax_id})
 
-    assert {:error, {:already_started, ^pid}} =
-             SefazNfe.start_dist_dfe_poller(cnpj: cnpj, cert: @cert)
+    assert {:error, {:already_started, ^pid}} = start_poller(handler: fn _page -> :ok end)
   after
-    stop_poller("00000000000191")
+    stop_poller(@tax_id)
+  end
+
+  test "poller sends tax_id downstream and hands the page to the handler" do
+    test = self()
+
+    {:ok, pid} =
+      start_poller(
+        ult_nsu: "000000000000010",
+        handler: fn page ->
+          send(test, {:page, page})
+          :ok
+        end
+      )
+
+    send(pid, :poll)
+
+    assert_receive {:fetched, opts}
+    assert opts.tax_id == @tax_id
+    assert opts.ult_nsu == "000000000000010"
+
+    assert_receive {:page, %SefazNfe.DistDFe{c_stat: 138}}
+  after
+    stop_poller(@tax_id)
+  end
+
+  test "handler owns the cursor: the next poll starts where it committed" do
+    {:ok, pid} = start_poller(handler: fn _page -> {:ok, "000000000000042"} end)
+
+    send(pid, :poll)
+    assert_receive {:fetched, %{ult_nsu: "0"}}
+
+    send(pid, :poll)
+    assert_receive {:fetched, %{ult_nsu: "000000000000042"}}
+
+    refute_received {:fetched, _}
+    assert Process.alive?(pid)
+  after
+    stop_poller(@tax_id)
+  end
+
+  test "handler returning :stop stops the poller normally" do
+    {:ok, pid} = start_poller(handler: fn _page -> :stop end)
+    ref = Process.monitor(pid)
+
+    send(pid, :poll)
+
+    assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
+  end
+
+  test "a transport error keeps the cursor and does not crash the poller" do
+    {:ok, pid} =
+      start_poller(
+        fetch: fn _opts -> {:error, :timeout} end,
+        handler: fn _page -> flunk("handler must not see a transport error") end
+      )
+
+    ref = Process.monitor(pid)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        send(pid, :poll)
+        _ = :sys.get_state(pid)
+      end)
+
+    assert log =~ "DistDFe poll failed"
+    assert log =~ ":timeout"
+    # LGPD: the identifier is masked to its last four characters.
+    assert log =~ "**********0191"
+    refute log =~ @tax_id
+    refute_receive {:DOWN, ^ref, _, _, _}, 50
+  after
+    stop_poller(@tax_id)
+  end
+
+  test "poller refuses to start without a handler" do
+    assert {:error, {%KeyError{key: :handler}, _}} =
+             SefazNfe.start_dist_dfe_poller(tax_id: @tax_id, cert: @cert)
+  end
+
+  # The seam that keeps `mix test` off the network: a fetch stub that reports
+  # what the poller asked for and answers a canned page (cursor caught up with
+  # maxNSU, so the poller re-arms on :interval and not on the catch-up delay).
+  defp start_poller(opts) do
+    test = self()
+
+    fetch = fn opts ->
+      send(test, {:fetched, opts})
+
+      {:ok,
+       %SefazNfe.DistDFe{
+         ult_nsu: "000000000000010",
+         max_nsu: "000000000000010",
+         c_stat: 138,
+         documents: []
+       }}
+    end
+
+    [tax_id: @tax_id, cert: @cert, interval: Duration.new!(day: 1), fetch: fetch]
+    |> Keyword.merge(opts)
+    |> SefazNfe.start_dist_dfe_poller()
   end
 
   test "isolated SOAP crash does not take down the caller" do
@@ -50,8 +143,8 @@ defmodule SefazNfe.OTPTest do
     refute Map.has_key?(map, "xml")
   end
 
-  defp stop_poller(cnpj) do
-    case Registry.lookup(SefazNfe.Registry, {:dist_dfe, cnpj}) do
+  defp stop_poller(tax_id) do
+    case Registry.lookup(SefazNfe.Registry, {:dist_dfe, tax_id}) do
       [{pid, _}] -> DynamicSupervisor.terminate_child(SefazNfe.DistDFe.Supervisor, pid)
       [] -> :ok
     end
