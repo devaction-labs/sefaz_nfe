@@ -32,6 +32,7 @@ defmodule SefazNfe.OTPTest do
 
     assert_receive {:fetched, opts}
     assert opts.tax_id == @tax_id
+    assert opts.uf == "SP"
     assert opts.ult_nsu == "000000000000010"
 
     assert_receive {:page, %SefazNfe.DistDFe{c_stat: 138}}
@@ -90,7 +91,7 @@ defmodule SefazNfe.OTPTest do
 
   test "poller refuses to start without a handler" do
     assert {:error, {%KeyError{key: :handler}, _}} =
-             SefazNfe.start_dist_dfe_poller(tax_id: @tax_id, cert: @cert)
+             SefazNfe.start_dist_dfe_poller(tax_id: @tax_id, uf: "SP", cert: @cert)
   end
 
   # The seam that keeps `mix test` off the network: a fetch stub that reports
@@ -111,7 +112,7 @@ defmodule SefazNfe.OTPTest do
        }}
     end
 
-    [tax_id: @tax_id, cert: @cert, interval: Duration.new!(day: 1), fetch: fetch]
+    [tax_id: @tax_id, uf: "SP", cert: @cert, interval: Duration.new!(day: 1), fetch: fetch]
     |> Keyword.merge(opts)
     |> SefazNfe.start_dist_dfe_poller()
   end

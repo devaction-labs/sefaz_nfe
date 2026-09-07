@@ -103,19 +103,25 @@ defmodule SefazNfeTest do
   end
 
   test "dist_dfe requires the interested party tax_id" do
-    assert {:error, {:missing_keys, [:tax_id]}} =
+    assert {:error, {:missing_keys, [:tax_id, :uf]}} =
              SefazNfe.dist_dfe(%{cert: @cert, environment: :homologation, ult_nsu: "0"})
   end
 
   test "dist_dfe requires a query cursor" do
     assert {:error, {:missing_keys, [:ult_nsu]}} =
-             SefazNfe.dist_dfe(%{tax_id: @cnpj, cert: @cert, environment: :homologation})
+             SefazNfe.dist_dfe(%{
+               tax_id: @cnpj,
+               uf: "SP",
+               cert: @cert,
+               environment: :homologation
+             })
   end
 
   test "dist_dfe with ult_nsu reaches not_implemented" do
     assert {:error, :not_implemented} =
              SefazNfe.dist_dfe(%{
                tax_id: @cnpj,
+               uf: "SP",
                cert: @cert,
                environment: :production,
                ult_nsu: "0"
@@ -127,6 +133,7 @@ defmodule SefazNfeTest do
       assert {:error, :not_implemented} =
                SefazNfe.dist_dfe(%{
                  tax_id: id,
+                 uf: "SP",
                  cert: @cert,
                  environment: :production,
                  ult_nsu: "0"
@@ -139,6 +146,7 @@ defmodule SefazNfeTest do
       assert {:error, :invalid_tax_id} =
                SefazNfe.dist_dfe(%{
                  tax_id: id,
+                 uf: "SP",
                  cert: @cert,
                  environment: :production,
                  ult_nsu: "0"

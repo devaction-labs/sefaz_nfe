@@ -122,6 +122,22 @@
 - **Date**: 2026-09-07
 - **Status**: active
 
+### AD-016
+- **Decision**: Ship with 20 of 27 UF endpoints unreachable, documented and diagnosed, rather than weakening TLS or delaying. DistDFe, which runs on the Ambiente Nacional, is unaffected and works.
+- **Reason**: Root-caused by proxying the handshake and reading OTP's own log. These servers request a client certificate and advertise their acceptable CAs; some of those distinguished names encode `emailAddress` as `PrintableString` rather than `IA5String` — invalid, since `PrintableString` does not admit `@`. `ssl_handshake:decode_cert_auths/2` calls `public_key:pkix_normalize_name/1` on every entry and lets the ASN.1 error (`Type not compatible with table constraint`) abort the handshake. Re-encoding the same DN as `IA5String` decodes cleanly, which confirms the tag is the cause. OpenSSL is lenient and connects.
+- **Trade-off**: No workaround exists inside the library. The handshake transcript is hashed, so a transport shim cannot correct the bytes in flight without breaking `Finished`. The fix belongs in OTP — skip entries it cannot parse in an advisory list — or in the CA lists those SEFAZ servers publish. Hosts blocked today can supply their own transport through the `SefazNfe.SOAP` behaviour. `verify_peer` is never relaxed: a TLS failure is not a reason to stop verifying a fiscal authority.
+- **Scope**: `SefazNfe.SOAP.HTTPC`
+- **Date**: 2026-09-07
+- **Status**: active
+
+### AD-017
+- **Decision**: The SOAP action is sent as the `action` parameter of the content type, and `NFeDistribuicaoDFe` nests `nfeDadosMsg` inside `nfeDistDFeInteresse` while the UF services keep it flat in the body. `dist_dfe/1` requires `:uf`.
+- **Reason**: All three were found against the live Ambiente Nacional, and each produced a different failure that named nothing useful. Without the action it answers "Please supply a valid soap action"; with a flat `nfeDadosMsg` it answers a .NET null reference; with `cUFAutor` set to the AN's own code (91) it answers `cStat` 215, a schema failure. The UF endpoints enforce none of this, so the emit path looked correct while DistDFe was broken.
+- **Trade-off**: `:uf` on `dist_dfe/1` and on the poller is a required option rather than a default, because `cUFAutor` is the querying party's own state and the library cannot infer it.
+- **Scope**: `SefazNfe.SOAP.Envelope`, `SefazNfe.SOAP.HTTPC`, `SefazNfe.dist_dfe/1`, `SefazNfe.DistDFe.Poller`
+- **Date**: 2026-09-07
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: transport-mvp (`.specs/features/transport-mvp/`)

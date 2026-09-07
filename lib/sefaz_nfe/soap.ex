@@ -45,7 +45,8 @@ defmodule SefazNfe.SOAP do
           {:ok, String.t()} | {:error, term()}
   def isolated_call(endpoint, body, cert, opts \\ []) do
     {timeout, opts} = Keyword.pop_lazy(opts, :timeout, fn -> to_timeout(second: 30) end)
-    {meta, task_opts} = Keyword.split(opts, [:uf, :service])
+    {meta, rest} = Keyword.split(opts, [:uf, :service])
+    task_opts = Keyword.take(meta, [:service]) ++ rest
     metadata = meta |> Map.new() |> Map.put(:endpoint, endpoint)
     uf = Keyword.get(meta, :uf, "")
 

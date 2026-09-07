@@ -25,25 +25,68 @@ defmodule SefazNfe.SOAP.Envelope do
     nfe_distribuicao_dfe: "NFeDistribuicaoDFe"
   }
 
+  # The WSDL operation each service exposes. SOAP 1.2 carries it as the
+  # `action` parameter of the content type, and the Ambiente Nacional refuses a
+  # request without one ("Please supply a valid soap action"); the UF endpoints
+  # happen not to enforce it.
+  @operation %{
+    nfe_autorizacao: "nfeAutorizacaoLote",
+    nfe_ret_autorizacao: "nfeRetAutorizacao",
+    nfe_consulta_protocolo: "nfeConsultaNF",
+    nfe_status_servico: "nfeStatusServicoNF",
+    nfe_recepcao_evento: "nfeRecepcaoEvento",
+    nfe_inutilizacao: "nfeInutilizacaoNF",
+    nfe_distribuicao_dfe: "nfeDistDFeInteresse"
+  }
+
   @type service :: SefazNfe.Endpoints.service()
 
-  @doc "Wraps `message` for `service`."
+  @doc "SOAPAction URI for `service`."
+  @spec action(service()) :: {:ok, String.t()} | {:error, {:unknown_service, term()}}
+  def action(service) do
+    case {@wsdl[service], @operation[service]} do
+      {nil, _operation} -> {:error, {:unknown_service, service}}
+      {wsdl, operation} -> {:ok, "#{@wsdl_base}/#{wsdl}/#{operation}"}
+    end
+  end
+
+  @doc """
+  Wraps `message` for `service`.
+
+  The UF services take `nfeDadosMsg` directly in the body. `NFeDistribuicaoDFe`
+  nests it one level deeper, inside the operation element — sending it flat
+  makes the Ambiente Nacional answer a null reference from its own .NET stack
+  rather than a `cStat`.
+  """
   @spec wrap(service(), iodata()) :: {:ok, binary()} | {:error, {:unknown_service, term()}}
   def wrap(service, message) do
     case @wsdl[service] do
-      nil ->
-        {:error, {:unknown_service, service}}
-
-      wsdl ->
-        {:ok,
-         IO.iodata_to_binary([
-           ~s(<?xml version="1.0" encoding="UTF-8"?>),
-           ~s(<soap:Envelope xmlns:soap="#{@envelope_ns}"><soap:Body>),
-           ~s(<nfeDadosMsg xmlns="#{@wsdl_base}/#{wsdl}">),
-           message,
-           ~s(</nfeDadosMsg></soap:Body></soap:Envelope>)
-         ])}
+      nil -> {:error, {:unknown_service, service}}
+      wsdl -> {:ok, envelope(service, wsdl, message)}
     end
+  end
+
+  defp envelope(:nfe_distribuicao_dfe, wsdl, message) do
+    body(
+      ~s(<nfeDistDFeInteresse xmlns="#{@wsdl_base}/#{wsdl}"><nfeDadosMsg>),
+      message,
+      ~s(</nfeDadosMsg></nfeDistDFeInteresse>)
+    )
+  end
+
+  defp envelope(_service, wsdl, message) do
+    body(~s(<nfeDadosMsg xmlns="#{@wsdl_base}/#{wsdl}">), message, ~s(</nfeDadosMsg>))
+  end
+
+  defp body(open, message, close) do
+    IO.iodata_to_binary([
+      ~s(<?xml version="1.0" encoding="UTF-8"?>),
+      ~s(<soap:Envelope xmlns:soap="#{@envelope_ns}"><soap:Body>),
+      open,
+      message,
+      close,
+      ~s(</soap:Body></soap:Envelope>)
+    ])
   end
 
   @doc """

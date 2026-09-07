@@ -76,6 +76,33 @@ defmodule SefazNfe.DistDFeTest do
     assert {:error, {:dist_dfe, {:bad_gzip, "9"}}} = DistDFe.parse(body)
   end
 
+  describe "the DistDFe envelope shape" do
+    test "nests nfeDadosMsg inside the operation element" do
+      assert {:ok, envelope} = Envelope.wrap(:nfe_distribuicao_dfe, "<distDFeInt/>")
+
+      assert envelope =~
+               ~s(<nfeDistDFeInteresse xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe"><nfeDadosMsg><distDFeInt/></nfeDadosMsg></nfeDistDFeInteresse>)
+    end
+
+    test "the UF services keep nfeDadosMsg flat in the body" do
+      assert {:ok, envelope} = Envelope.wrap(:nfe_status_servico, "<consStatServ/>")
+
+      assert envelope =~ ~s(<soap:Body><nfeDadosMsg xmlns=)
+      refute envelope =~ "nfeDistDFeInteresse"
+    end
+
+    test "each service carries its own SOAPAction" do
+      assert {:ok,
+              "http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe/nfeDistDFeInteresse"} =
+               Envelope.action(:nfe_distribuicao_dfe)
+
+      assert {:ok, "http://www.portalfiscal.inf.br/nfe/wsdl/NFeStatusServico4/nfeStatusServicoNF"} =
+               Envelope.action(:nfe_status_servico)
+
+      assert {:error, {:unknown_service, :nope}} = Envelope.action(:nope)
+    end
+  end
+
   describe "the distDFeInt envelope" do
     test "an NSU cursor is padded to fifteen digits" do
       message = Envelope.dist_dfe("00000000000191", 91, 2, {:ult_nsu, "15"})

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0
+## 0.1.0-alpha.1
 
 First release. SEFAZ NF-e transport for modelo 55: sign, send, consult,
 distribute. It does not calculate taxes — the ERP builds the XML and this
@@ -30,21 +30,48 @@ library talks to SEFAZ.
 
 ### Verified against production SEFAZ
 
-`service_status/1` returns `cStat` 107 from SP, MT and MG homologation and from
-SP production, using a real ICP-Brasil A1.
-
-`authorize/1` reaches SEFAZ SP's taxpayer-registration check and stops at
-`cStat` **245, CNPJ emitente não cadastrado**. No code in the 280–297 range —
-where certificate and signature failures live — was ever returned, and SEFAZ
-validates schema and signature before registration. Every layer this library
-owns is therefore exercised and accepted.
-
 ### Not yet proven
 
 No `cStat` 100. Reaching it needs an emitter CNPJ credenciado in a UF's
 homologation with its real IE and address, which is registration data rather
 than code. Until then the authorized-document path — parsing a real `protNFe`
 and consulting a real receipt — is covered by fixtures only.
+
+### Verified against production SEFAZ
+
+**DistDFe works**, in homologation and production. The Ambiente Nacional
+answers `cStat` 137 for an empty page and returns a real cursor — for the
+certificate used in testing, production reported `ultNSU` 2728. This is the
+service that decides inbound cost, and it is reachable from every state
+because it lives on the AN.
+
+`service_status/1` returns `cStat` 107 from **SP, MG, BA, GO, MT, MS and MA**.
+
+`authorize/1` reaches SEFAZ SP's taxpayer-registration check and stops at
+`cStat` **245, CNPJ emitente não cadastrado** — schema and signature accepted,
+nothing in the 280–297 range where certificate and signature failures live.
+
+### A known OTP limitation: 20 of 27 UF endpoints
+
+The per-UF services cannot connect to SVRS, PR, RS, PE or AM — 20 states in
+total. `:ssl` aborts with `{:tls, :decode_error}` where `openssl s_client
+-tls1_2` connects to the same host without complaint.
+
+The cause is precise and is not configuration. These servers request a client
+certificate and list their acceptable CAs; some of those distinguished names
+encode `emailAddress` as `PrintableString` instead of `IA5String`, which is
+invalid — `PrintableString` does not even admit `@`. OTP's
+`ssl_handshake:decode_cert_auths/2` calls `public_key:pkix_normalize_name/1` on
+every entry and lets the ASN.1 error abort the handshake, so one malformed name
+in an advisory list kills the connection. OpenSSL is lenient and connects.
+
+There is no workaround inside the library: the handshake transcript is hashed,
+so the bytes cannot be corrected in flight. It needs a fix in OTP — skipping
+entries it cannot parse — or in the CA lists those SEFAZ servers publish. Until
+then, a host can supply its own transport through the `SefazNfe.SOAP`
+behaviour, which is why that behaviour exists.
+
+DistDFe is unaffected.
 
 ### Known limits
 

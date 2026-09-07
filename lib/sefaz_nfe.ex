@@ -101,7 +101,9 @@ defmodule SefazNfe do
 
   `:tax_id` is the CNPJ or CPF of the interested party — the `distDFeInt`
   envelope carries it, so it is required even though the URL is always the AN.
-  `:uf` sets `cUFAutor` and defaults to the AN's own code.
+  `:uf` is the querying party's own state, which the envelope carries as
+  `cUFAutor`. It is required and must be a real UF: the Ambiente Nacional's own
+  code is rejected there as `cStat` 215.
 
   A CPF is 11 digits; a CNPJ is 14 and alphanumeric since NT 2025.002 (CNPJ
   alfa), meaning 12 characters of `[A-Z0-9]` plus a two digit DV. Only the shape
@@ -110,12 +112,12 @@ defmodule SefazNfe do
   """
   @spec dist_dfe(map()) :: {:ok, SefazNfe.DistDFe.t()} | {:error, term()}
   def dist_dfe(opts) when is_map(opts) do
-    with :ok <- require_keys(opts, [:tax_id, :cert, :environment]),
+    with :ok <- require_keys(opts, [:tax_id, :uf, :cert, :environment]),
          :ok <- validate_environment(opts.environment),
          :ok <- validate_tax_id(opts.tax_id),
          {:ok, cursor} <- dist_cursor(opts),
          {:ok, url} <- Endpoints.url("AN", opts.environment, :nfe_distribuicao_dfe),
-         {:ok, uf_code} <- Endpoints.uf_code(Map.get(opts, :uf, "AN")),
+         {:ok, uf_code} <- Endpoints.uf_code(opts.uf),
          message =
            Envelope.dist_dfe(
              opts.tax_id,
@@ -124,7 +126,7 @@ defmodule SefazNfe do
              cursor
            ),
          {:ok, envelope} <- Envelope.wrap(:nfe_distribuicao_dfe, message),
-         {:ok, body} <- call(url, envelope, Map.put_new(opts, :uf, "AN"), :nfe_distribuicao_dfe) do
+         {:ok, body} <- call(url, envelope, opts, :nfe_distribuicao_dfe) do
       DistDFe.parse(body)
     end
   end

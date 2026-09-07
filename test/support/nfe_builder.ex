@@ -13,6 +13,38 @@ defmodule SefazNfe.NFeBuilder do
 
   @homologation_name "NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
 
+  # cMunFG has to sit inside the emitter's own UF, or SEFAZ answers cStat 271.
+  # One capital per state is enough for a fixture.
+  @capitals %{
+    "AC" => {1_200_401, "RIO BRANCO"},
+    "AL" => {2_704_302, "MACEIO"},
+    "AM" => {1_302_603, "MANAUS"},
+    "AP" => {1_600_303, "MACAPA"},
+    "BA" => {2_927_408, "SALVADOR"},
+    "CE" => {2_304_400, "FORTALEZA"},
+    "DF" => {5_300_108, "BRASILIA"},
+    "ES" => {3_205_309, "VITORIA"},
+    "GO" => {5_208_707, "GOIANIA"},
+    "MA" => {2_111_300, "SAO LUIS"},
+    "MG" => {3_106_200, "BELO HORIZONTE"},
+    "MS" => {5_002_704, "CAMPO GRANDE"},
+    "MT" => {5_103_403, "CUIABA"},
+    "PA" => {1_501_402, "BELEM"},
+    "PB" => {2_507_507, "JOAO PESSOA"},
+    "PE" => {2_611_606, "RECIFE"},
+    "PI" => {2_211_001, "TERESINA"},
+    "PR" => {4_106_902, "CURITIBA"},
+    "RJ" => {3_304_557, "RIO DE JANEIRO"},
+    "RN" => {2_408_102, "NATAL"},
+    "RO" => {1_100_205, "PORTO VELHO"},
+    "RR" => {1_400_100, "BOA VISTA"},
+    "RS" => {4_314_902, "PORTO ALEGRE"},
+    "SC" => {4_205_407, "FLORIANOPOLIS"},
+    "SE" => {2_800_308, "ARACAJU"},
+    "SP" => {3_550_308, "SAO PAULO"},
+    "TO" => {1_721_000, "PALMAS"}
+  }
+
   @doc """
   A single-item NF-e for `tax_id`.
 
@@ -44,13 +76,15 @@ defmodule SefazNfe.NFeBuilder do
 
     key = access_key(uf_code, emitted_at, tax_id, serie, number, c_nf)
 
+    {municipality, city} = Map.fetch!(@capitals, uf)
+
     xml =
       ~s(<?xml version="1.0" encoding="UTF-8"?>) <>
         ~s(<NFe xmlns="http://www.portalfiscal.inf.br/nfe">) <>
         ~s(<infNFe Id="NFe#{key}" versao="4.00">) <>
-        ide(uf_code, c_nf, serie, number, emitted_at, tp_amb, String.last(key)) <>
-        emit(tax_id, ie, uf) <>
-        dest(tp_amb) <>
+        ide(uf_code, c_nf, serie, number, emitted_at, tp_amb, String.last(key), municipality) <>
+        emit(tax_id, ie, uf, municipality, city) <>
+        dest(tp_amb, uf, municipality, city) <>
         det() <>
         total() <>
         ~s(<transp><modFrete>9</modFrete></transp>) <>
@@ -111,30 +145,30 @@ defmodule SefazNfe.NFeBuilder do
     end
   end
 
-  defp ide(uf_code, c_nf, serie, number, emitted_at, tp_amb, c_dv) do
+  defp ide(uf_code, c_nf, serie, number, emitted_at, tp_amb, c_dv, municipality) do
     ~s(<ide><cUF>#{uf_code}</cUF><cNF>#{c_nf}</cNF><natOp>VENDA DE MERCADORIA</natOp>) <>
       ~s(<mod>55</mod><serie>#{serie}</serie><nNF>#{number}</nNF>) <>
       ~s(<dhEmi>#{emitted_at}</dhEmi><tpNF>1</tpNF><idDest>1</idDest>) <>
-      ~s(<cMunFG>3550308</cMunFG><tpImp>1</tpImp><tpEmis>1</tpEmis><cDV>#{c_dv}</cDV>) <>
+      ~s(<cMunFG>#{municipality}</cMunFG><tpImp>1</tpImp><tpEmis>1</tpEmis><cDV>#{c_dv}</cDV>) <>
       ~s(<tpAmb>#{tp_amb}</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal>) <>
       ~s(<indPres>1</indPres><procEmi>0</procEmi><verProc>sefaz_nfe</verProc></ide>)
   end
 
-  defp emit(tax_id, ie, uf) do
+  defp emit(tax_id, ie, uf, municipality, city) do
     ~s(<emit><CNPJ>#{tax_id}</CNPJ><xNome>EMPRESA TESTE LTDA</xNome>) <>
       ~s(<xFant>TESTE</xFant>) <>
       ~s(<enderEmit><xLgr>RUA TESTE</xLgr><nro>100</nro><xBairro>CENTRO</xBairro>) <>
-      ~s(<cMun>3550308</cMun><xMun>SAO PAULO</xMun><UF>#{uf}</UF><CEP>01001000</CEP>) <>
+      ~s(<cMun>#{municipality}</cMun><xMun>#{city}</xMun><UF>#{uf}</UF><CEP>01001000</CEP>) <>
       ~s(<cPais>1058</cPais><xPais>BRASIL</xPais></enderEmit>) <>
       ~s(<IE>#{ie}</IE><CRT>3</CRT></emit>)
   end
 
-  defp dest(tp_amb) do
+  defp dest(tp_amb, uf, municipality, city) do
     name = if tp_amb == 2, do: @homologation_name, else: "CLIENTE TESTE"
 
     ~s(<dest><CNPJ>99999999000191</CNPJ><xNome>#{name}</xNome>) <>
       ~s(<enderDest><xLgr>RUA CLIENTE</xLgr><nro>200</nro><xBairro>CENTRO</xBairro>) <>
-      ~s(<cMun>3550308</cMun><xMun>SAO PAULO</xMun><UF>SP</UF><CEP>01001000</CEP>) <>
+      ~s(<cMun>#{municipality}</cMun><xMun>#{city}</xMun><UF>#{uf}</UF><CEP>01001000</CEP>) <>
       ~s(<cPais>1058</cPais><xPais>BRASIL</xPais></enderDest>) <>
       ~s(<indIEDest>9</indIEDest></dest>)
   end

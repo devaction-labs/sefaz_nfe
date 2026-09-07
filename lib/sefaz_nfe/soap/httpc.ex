@@ -20,18 +20,35 @@ defmodule SefazNfe.SOAP.HTTPC do
   defeat the point of mTLS. `:customize_hostname_check` is set because several
   SEFAZ hosts serve wildcard certificates.
 
-  TLS 1.2 is pinned as the floor. Some UF endpoints still fail the 1.3
-  handshake, and a silent downgrade is worse than a named error.
+  TLS 1.2 only, measured rather than assumed: these endpoints refuse a 1.3
+  handshake and OTP negotiates the highest offered version first. A host whose
+  endpoints have moved on can add 1.3 back through `:tls_options`.
+
+  ## A known incompatibility
+
+  `:ssl` cannot complete a handshake with the SVRS and PR endpoints, which
+  authorize for 17 of the 27 states. They answer `{:tls, :decode_error}` —
+  raised by the *client* while decoding the server hello — where `openssl
+  s_client -tls1_2` connects to the same host and negotiates
+  `ECDHE-RSA-AES256-GCM-SHA384` without complaint. The server hello is
+  well-formed when captured that way, and restricting versions, ciphers,
+  curves, signature algorithms or SNI changes nothing.
+
+  The ten UFs served by SP, RS, MG, BA, GO, PE, MT, MS, AM and SVAN work. For
+  the rest, a host can supply its own transport through the `SefazNfe.SOAP`
+  behaviour — which is why the behaviour exists.
   """
+
+  alias SefazNfe.SOAP.Envelope
 
   @behaviour SefazNfe.SOAP
 
   @profile :sefaz_nfe
-  @content_type ~c"application/soap+xml; charset=utf-8"
 
   @impl SefazNfe.SOAP
   def call(endpoint, body, cert, opts) do
-    request = {String.to_charlist(endpoint), headers(), @content_type, IO.iodata_to_binary(body)}
+    request =
+      {String.to_charlist(endpoint), headers(), content_type(opts), IO.iodata_to_binary(body)}
 
     http_options = [
       ssl: ssl_options(cert, opts),
@@ -92,13 +109,32 @@ defmodule SefazNfe.SOAP.HTTPC do
         [
           verify: :verify_peer,
           depth: 5,
-          versions: [:"tlsv1.2", :"tlsv1.3"],
+          versions: [:"tlsv1.2"],
+          ciphers: ciphers(),
           customize_hostname_check: [
             match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
           ]
         ]
 
     Keyword.merge(defaults, Keyword.get(opts, :tls_options, []))
+  end
+
+  # OTP's default list dropped the CBC suites, and PR negotiates
+  # ECDHE-RSA-AES128-CBC-SHA256 — with defaults it answers handshake_failure.
+  # Offering everything TLS 1.2 defines costs nothing here: the peer picks, and
+  # `verify_peer` is what carries the security, not the suite list.
+  defp ciphers, do: :ssl.cipher_suites(:all, :"tlsv1.2")
+
+  # SOAP 1.2 carries the action in the content type rather than in a header.
+  # Without it the Ambiente Nacional answers a fault; the UF endpoints do not
+  # mind either way, so it is always sent when the service is known.
+  defp content_type(opts) do
+    with service when not is_nil(service) <- Keyword.get(opts, :service),
+         {:ok, action} <- Envelope.action(service) do
+      String.to_charlist(~s(application/soap+xml; charset=utf-8; action="#{action}"))
+    else
+      _unknown -> ~c"application/soap+xml; charset=utf-8"
+    end
   end
 
   defp headers do

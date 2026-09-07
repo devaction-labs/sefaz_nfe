@@ -6,11 +6,14 @@ It does **not** calculate taxes. The ERP (or Nexus Pro) builds the XML; this lib
 
 > Status: transport live, emission not yet. `service_status/1` is verified end to end
 > against SEFAZ **SP, MT and MG** (`cStat` 107) over real mTLS with an ICP-Brasil A1.
-> All eight services are live over mTLS. Against SEFAZ SP homologação, `authorize/1`
-> gets past schema and signature validation and stops at `cStat` **245, CNPJ
-> emitente não cadastrado** — no certificate or signature error was ever returned.
-> A `cStat` 100 needs an emitter credenciado in that UF, which is registration
-> data rather than code, and per the spec no Hex release happens before it.
+> **DistDFe works** against the Ambiente Nacional in homologação and produção.
+> `service_status/1` answers `cStat` 107 from SP, MG, BA, GO, MT, MS and MA, and
+> `authorize/1` gets past schema and signature validation, stopping at `cStat`
+> **245, CNPJ emitente não cadastrado**.
+>
+> Twenty UF endpoints — SVRS, PR, RS, PE, AM — cannot be reached at all: OTP's
+> `:ssl` aborts on malformed CA names in their `CertificateRequest`. See the
+> CHANGELOG; DistDFe is unaffected.
 
 ## Package shell
 

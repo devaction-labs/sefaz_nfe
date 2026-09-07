@@ -50,6 +50,7 @@ defmodule SefazNfe.DistDFe.Poller do
   ## Options
 
     * `:tax_id` (required) — CNPJ (14) or CPF (11) of the interested party
+    * `:uf` (required) — the querying party's own state, sent as `cUFAutor`
     * `:cert` (required) — `t:SefazNfe.Certificate.t/0`
     * `:handler` (required) — see above
     * `:environment` — `:homologation` (default) or `:production`
@@ -92,6 +93,7 @@ defmodule SefazNfe.DistDFe.Poller do
 
     state = %{
       tax_id: tax_id,
+      uf: Keyword.fetch!(opts, :uf),
       cert: Keyword.fetch!(opts, :cert),
       handler: validate_handler!(Keyword.fetch!(opts, :handler)),
       fetch: Keyword.get(opts, :fetch, &SefazNfe.dist_dfe/1),
@@ -107,6 +109,7 @@ defmodule SefazNfe.DistDFe.Poller do
   def handle_info(:poll, state) do
     %{
       tax_id: state.tax_id,
+      uf: state.uf,
       cert: state.cert,
       environment: state.environment,
       ult_nsu: state.ult_nsu
