@@ -19,9 +19,12 @@ library talks to SEFAZ.
   `xmerl_c14n`. Every canonical form in the test suite is compared byte for
   byte against `xmllint --c14n`, including the apex rule that renders a
   namespace `infNFe` only inherits.
-- **All eight services**: `authorize/1`, `authorization_result/1`,
+- **Nine services**: `authorize/1`, `authorization_result/1`,
   `service_status/1`, `dist_dfe/1`, `consult_protocol/1`, `cancel/1`, `cce/1`,
-  `void_numbers/1`, plus a DistDFe poller per tax ID.
+  `void_numbers/1` and `manifest/2`, plus a DistDFe poller per tax ID.
+- **Manifestação do destinatário** — `:confirmation`, `:awareness`, `:unaware`
+  and `:not_performed`. These pair with DistDFe: confirming an operation is
+  what releases the full XML of a note you only received a summary of.
 - **Optional XSD validation**, off unless a schema directory is configured.
 - **Per-UF circuit breaker**, so a SEFAZ that stops answering cannot stall
   callers working with other states. Only transport failures trip it.
@@ -46,6 +49,12 @@ service that decides inbound cost, and it is reachable from every state
 because it lives on the AN.
 
 `service_status/1` returns `cStat` 107 from **SP, MG, BA, GO, MT, MS and MA**.
+
+**Manifestação do destinatário is registered by SEFAZ.** A `:awareness` and a
+`:not_performed` event sent to the Ambiente Nacional in homologation both came
+back `cStat` **136, Evento registrado** — signature validated and the event
+recorded. This is the first document this library gets SEFAZ to actually
+store, rather than answer a query about.
 
 `authorize/1` reaches SEFAZ SP's taxpayer-registration check and stops at
 `cStat` **245, CNPJ emitente não cadastrado** — schema and signature accepted,

@@ -193,6 +193,43 @@ defmodule SefazNfe do
     end
   end
 
+  @doc """
+  Manifestação do destinatário for a document received through DistDFe.
+
+  `type` is one of `:confirmation`, `:awareness`, `:unaware` or
+  `:not_performed`; the last one needs a `:justification`. Confirming an
+  operation is also what releases the full XML of a note DistDFe only
+  summarised.
+
+  These events are processed by the Ambiente Nacional, so no `:uf` is needed.
+  """
+  @spec manifest(atom(), map()) :: {:ok, Result.t()} | {:error, term()}
+  def manifest(type, opts) when is_atom(type) and is_map(opts) do
+    with :ok <- require_keys(opts, [:ch_nfe, :tax_id, :cert, :environment]),
+         :ok <- validate_environment(opts.environment),
+         :ok <- validate_ch_nfe(opts.ch_nfe),
+         :ok <- validate_tax_id(opts.tax_id),
+         :ok <- validate_manifestation(type, opts) do
+      opts
+      |> Map.put(:uf, "AN")
+      |> send_event(&Events.manifestation(type, &1))
+    end
+  end
+
+  defp validate_manifestation(type, opts) do
+    cond do
+      type not in [:confirmation, :awareness, :unaware, :not_performed] ->
+        {:error, {:unknown_manifestation, type}}
+
+      type == :not_performed ->
+        with :ok <- require_keys(opts, [:justification]),
+             do: validate_justification(opts.justification)
+
+      true ->
+        :ok
+    end
+  end
+
   defp send_event(opts, build) do
     with {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_recepcao_evento),
          {:ok, uf_code} <- Endpoints.uf_code(opts.uf),

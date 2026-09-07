@@ -104,6 +104,43 @@ defmodule SefazNfe.SOAPTest do
       assert is_nil(result.n_prot)
     end
 
+    test "an event reports its own outcome, not the batch's" do
+      body =
+        soap("""
+        <retEnvEvento versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+          <cStat>128</cStat><xMotivo>Lote de evento processado</xMotivo>
+          <retEvento versao="1.00"><infEvento>
+            <cStat>135</cStat><xMotivo>Evento registrado e vinculado a NF-e</xMotivo>
+            <chNFe>35240100000000000191550010000000011000000017</chNFe>
+            <nProt>891240000000001</nProt>
+          </infEvento></retEvento>
+        </retEnvEvento>
+        """)
+
+      assert {:ok, result} = Result.parse(body)
+      assert result.c_stat == 135
+      assert result.status == :authorized
+      assert result.n_prot == "891240000000001"
+    end
+
+    test "an event rejection is read from the nested element too" do
+      body =
+        soap("""
+        <retEnvEvento xmlns="http://www.portalfiscal.inf.br/nfe">
+          <cStat>128</cStat><xMotivo>Lote de evento processado</xMotivo>
+          <retEvento><infEvento>
+            <cStat>236</cStat>
+            <xMotivo>Rejeicao: Chave de Acesso com digito verificador invalido</xMotivo>
+          </infEvento></retEvento>
+        </retEnvEvento>
+        """)
+
+      assert {:ok, result} = Result.parse(body)
+      assert result.c_stat == 236
+      assert result.status == :rejected
+      assert result.x_motivo =~ "digito verificador"
+    end
+
     test "a rejection is {:ok, _}, never {:error, _} (SEFAZ-03)" do
       body =
         soap("""

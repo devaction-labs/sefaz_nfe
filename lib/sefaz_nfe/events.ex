@@ -19,6 +19,15 @@ defmodule SefazNfe.Events do
   @cancel "110111"
   @correction "110110"
 
+  # Manifestação do destinatário. The description strings are compared verbatim
+  # by SEFAZ, so they are data here rather than something a caller passes.
+  @manifestation %{
+    confirmation: {"210200", "Confirmacao da Operacao"},
+    awareness: {"210210", "Ciencia da Operacao"},
+    unaware: {"210220", "Desconhecimento da Operacao"},
+    not_performed: {"210240", "Operacao nao Realizada"}
+  }
+
   @correction_notice "A Carta de Correcao e disciplinada pelo paragrafo " <>
                        "1o-A do art. 7o do Convenio S/N, de 15 de dezembro de 1970 e pode ser " <>
                        "utilizada para regularizacao de erro ocorrido na emissao de documento " <>
@@ -54,6 +63,34 @@ defmodule SefazNfe.Events do
 
     event(@correction, "1.00", detail, opts)
   end
+
+  @doc """
+  Manifestação do destinatário: events 210200, 210210, 210220 and 210240.
+
+  This is how a recipient answers a document that DistDFe delivered, and it is
+  what unlocks the full XML of a note you only received a summary of. Unlike
+  cancel and CCe, these are processed by the Ambiente Nacional rather than by
+  the issuing state, so `cOrgao` is 91.
+
+  `:not_performed` requires a justification; the other three take none.
+  """
+  @spec manifestation(atom(), map()) :: binary()
+  def manifestation(type, opts) do
+    {code, description} = Map.fetch!(@manifestation, type)
+
+    event(code, "1.00", detail(type, description, opts), Map.put(opts, :uf_code, 91))
+  end
+
+  @doc "The four manifestação types this library builds."
+  @spec manifestation_types() :: [atom()]
+  def manifestation_types, do: Map.keys(@manifestation)
+
+  defp detail(:not_performed, description, opts) do
+    ~s(<descEvento>#{description}</descEvento>) <>
+      ~s(<xJust>#{escape(opts.justification)}</xJust>)
+  end
+
+  defp detail(_type, description, _opts), do: ~s(<descEvento>#{description}</descEvento>)
 
   @doc "`inutNFe` for `NFeInutilizacao4`."
   @spec void_numbers(map()) :: binary()
@@ -92,11 +129,24 @@ defmodule SefazNfe.Events do
       ~s(</infEvento></evento>)
   end
 
-  # The MOC wants a local time with an explicit offset, never UTC with a Z.
+  # The MOC wants a local time with an explicit offset, never UTC with a Z, and
+  # second precision: a microsecond field fails the schema as cStat 225. Both
+  # DateTime.to_iso8601/1 and NaiveDateTime.to_iso8601/1 emit one when the
+  # struct carries it, so it is trimmed here rather than left to the caller.
   defp timestamp(opts) do
-    Map.get_lazy(opts, :timestamp, fn -> DateTime.utc_now() |> DateTime.to_iso8601() end)
+    opts
+    |> Map.get_lazy(:timestamp, fn ->
+      DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+    end)
     |> String.replace("Z", "+00:00")
+    |> trim_precision()
   end
+
+  defp trim_precision(<<stamp::binary-size(19), rest::binary>>) do
+    stamp <> String.replace(rest, ~r/^\.\d+/, "")
+  end
+
+  defp trim_precision(stamp), do: stamp
 
   defp pad(value, size), do: value |> to_string() |> String.pad_leading(size, "0")
 

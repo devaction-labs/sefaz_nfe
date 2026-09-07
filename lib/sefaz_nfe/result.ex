@@ -6,10 +6,11 @@ defmodule SefazNfe.Result do
   Parsed SEFAZ business outcome. A SOAP envelope that we understood is
   `{:ok, t}` even when `c_stat != 100` — that is a rejection, not a crash.
 
-  A batch answer wraps the real outcome in `protNFe/infProt`, so `parse/1`
-  reads the nested `cStat` when there is one and the envelope's otherwise.
-  `150` is `100` with the authorization recorded outside the deadline, so both
-  are `:authorized`.
+  A batch answer wraps the real outcome one level down — `protNFe/infProt` for a
+  document, `retEvento/infEvento` for an event — so `parse/1` reads the nested
+  `cStat` when there is one and the envelope's otherwise. `150` is `100` with
+  the authorization recorded outside the deadline, and `135` and `136` are the
+  event equivalents of `100`, so all four are `:authorized`.
   """
 
   @type status ::
@@ -48,11 +49,13 @@ defmodule SefazNfe.Result do
     end
   end
 
-  # cStat 104 means the batch was processed, not that the document was
-  # authorized: the real outcome sits inside protNFe/infProt. Reading the
-  # envelope's own cStat there would report every rejected document as fine.
+  # A batch answer reports on the batch, not on the document: 104 means "lote
+  # processado" and 128 "lote de evento processado". The outcome that matters
+  # is nested — in protNFe/infProt for a document, in retEvento/infEvento for
+  # an event. Reading the envelope's own cStat would report every rejection as
+  # a success.
   defp from_doc(doc) do
-    outcome = XML.element(doc, "infProt") || doc
+    outcome = XML.element(doc, "infProt") || XML.element(doc, "infEvento") || doc
 
     case XML.integer(outcome, "cStat") do
       nil -> {:error, {:xml, :no_c_stat}}
@@ -76,5 +79,7 @@ defmodule SefazNfe.Result do
   defp status(104), do: :batch_processed
   defp status(105), do: :processing
   defp status(150), do: :authorized
+  defp status(135), do: :authorized
+  defp status(136), do: :authorized
   defp status(_other), do: :rejected
 end
