@@ -33,6 +33,12 @@ defmodule SefazNfe do
   fails before the network — a local error naming the offending element beats
   `cStat` 225, which names nothing.
 
+  The result carries `:signed_xml` — what was sent — and, once a protocol
+  exists, `:xml` holding the `nfeProc`. Store `:signed_xml` even on a receipt:
+  an asynchronous lote answers `cStat` 103 with no protocol, and without those
+  bytes the protocol collected later by `authorization_result/1` cannot be
+  attached to anything. `SefazNfe.Result.proc/2` joins the two.
+
   `tpAmb` is MOC data rather than a boolean — 1 is produção, 2 is homologação —
   so a mismatch against `:environment` is refused before anything is sent.
   """
@@ -47,8 +53,9 @@ defmodule SefazNfe do
          {:ok, signed} <- Signer.sign_nfe(opts.xml, opts.cert),
          message = Envelope.send_nfe(signed, Map.get(opts, :id_lote, "1"), ind_sinc(opts)),
          {:ok, envelope} <- Envelope.wrap(:nfe_autorizacao, message),
-         {:ok, body} <- call(url, envelope, opts, :nfe_autorizacao) do
-      Result.parse(body)
+         {:ok, body} <- call(url, envelope, opts, :nfe_autorizacao),
+         {:ok, result} <- Result.parse(body) do
+      {:ok, %{result | signed_xml: signed, xml: Result.proc(signed, body)}}
     end
   end
 

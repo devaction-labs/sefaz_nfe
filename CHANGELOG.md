@@ -25,6 +25,10 @@ library talks to SEFAZ.
 - **Manifestação do destinatário** — `:confirmation`, `:awareness`, `:unaware`
   and `:not_performed`. These pair with DistDFe: confirming an operation is
   what releases the full XML of a note you only received a summary of.
+- **The authorized document comes back.** `authorize/1` returns `:signed_xml`
+  (what was sent) and, once a protocol exists, `:xml` holding the `nfeProc` —
+  the document that must be archived and delivered. `SefazNfe.Result.proc/2`
+  joins the two halves for an asynchronous lote, whose protocol arrives later.
 - **Optional XSD validation**, off unless a schema directory is configured.
 - **Per-UF circuit breaker**, so a SEFAZ that stops answering cannot stall
   callers working with other states. Only transport failures trip it.
