@@ -1,8 +1,7 @@
 defmodule SefazNfeTest do
   use ExUnit.Case
-  doctest SefazNfe
 
-  test "greets the world" do
-    assert SefazNfe.hello() == :world
+  test "library module is defined" do
+    assert {:module, SefazNfe} = Code.ensure_loaded(SefazNfe)
   end
 end
