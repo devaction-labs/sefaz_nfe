@@ -131,6 +131,21 @@ defmodule SefazNfe.XML do
   @spec element(doc(), String.t()) :: doc() | nil
   def element(doc, name), do: find(doc, name)
 
+  @doc "Text of `element` itself, without searching its descendants."
+  @spec own_text(doc()) :: String.t() | nil
+  def own_text(element) do
+    case element |> collect_text() |> List.flatten() |> List.to_string() |> String.trim() do
+      "" -> nil
+      text -> text
+    end
+  end
+
+  @doc "Attribute `attr` on `element` itself, without searching its descendants."
+  @spec own_attribute(doc(), String.t()) :: String.t() | nil
+  def own_attribute(element, attr) do
+    element |> xml_element(:attributes) |> Enum.find_value(&match_attribute(&1, attr))
+  end
+
   defp find(doc, name) do
     doc |> elements() |> Enum.find(&(local_name(&1) == name))
   end

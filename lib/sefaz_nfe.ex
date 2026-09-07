@@ -5,13 +5,15 @@ defmodule SefazNfe do
   Does not calculate taxes. The ERP builds the XML; this library signs and
   talks to the official 4.00 webservices (and DistDFe 1.00 on the AN).
 
-  `service_status/1` is live over mTLS. The remaining services validate input
-  and resolve endpoints, then return `{:error, :not_implemented}` until their
-  message builders and XMLDSig land.
+  Every service is live over mTLS. The library signs, sends and parses; it
+  never composes an NF-e (AD-001), so `authorize/1` takes the XML the ERP
+  built and returns it to SEFAZ byte for byte.
   """
 
+  alias SefazNfe.DistDFe
   alias SefazNfe.DistDFe.Poller
   alias SefazNfe.Endpoints
+  alias SefazNfe.Events
   alias SefazNfe.Result
   alias SefazNfe.Signer
   alias SefazNfe.SOAP
@@ -23,8 +25,8 @@ defmodule SefazNfe do
   @doc """
   Sign + `NFeAutorizacao4`. Does not mutate tax nodes once SOAP exists.
 
-  The whole pipeline is `sign -> POST -> parse`; it currently stops at
-  `SefazNfe.Signer.sign_nfe/2` with `{:error, :not_implemented}`.
+  The pipeline is sign, wrap in `enviNFe`, POST, parse. `:sync` asks SEFAZ to
+  answer with the protocol in the same call instead of a receipt.
 
   `tpAmb` is MOC data rather than a boolean — 1 is produção, 2 is homologação —
   so a mismatch against `:environment` is refused before anything is sent.
@@ -37,22 +39,33 @@ defmodule SefazNfe do
          :ok <- environment_matches_xml(opts.environment, opts.xml),
          {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_autorizacao),
          {:ok, signed} <- Signer.sign_nfe(opts.xml, opts.cert),
-         {:ok, body} <-
-           SOAP.isolated_call(url, signed, opts.cert,
-             uf: opts.uf,
-             service: :nfe_autorizacao
-           ) do
+         message = Envelope.send_nfe(signed, Map.get(opts, :id_lote, "1"), ind_sinc(opts)),
+         {:ok, envelope} <- Envelope.wrap(:nfe_autorizacao, message),
+         {:ok, body} <- call(url, envelope, opts, :nfe_autorizacao) do
       Result.parse(body)
     end
   end
 
-  @doc "`NFeRetAutorizacao4` for a recibo (`n_rec`)."
-  @spec authorization_result(map()) :: {:ok, SefazNfe.Result.t()} | {:error, term()}
+  # The MOC leaves the choice to the caller; v1 defaults to asynchronous, so a
+  # lote answers a receipt that `authorization_result/1` then consults.
+  defp ind_sinc(opts), do: if(Map.get(opts, :sync, false), do: 1, else: 0)
+
+  @doc """
+  `NFeRetAutorizacao4` for a receipt (`n_rec`).
+
+  What an asynchronous `authorize/1` leaves to be collected. `cStat` 105 means
+  the batch is still processing and the caller should ask again; 104 means it
+  finished, and the document's own outcome is read from the nested protocol.
+  """
+  @spec authorization_result(map()) :: {:ok, Result.t()} | {:error, term()}
   def authorization_result(opts) when is_map(opts) do
     with :ok <- require_keys(opts, [:n_rec, :cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
-         {:ok, _url} <- Endpoints.url(opts.uf, opts.environment, :nfe_ret_autorizacao) do
-      {:error, :not_implemented}
+         {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_ret_autorizacao),
+         message = Envelope.authorization_result(opts.n_rec, Envelope.tp_amb(opts.environment)),
+         {:ok, envelope} <- Envelope.wrap(:nfe_ret_autorizacao, message),
+         {:ok, body} <- call(url, envelope, opts, :nfe_ret_autorizacao) do
+      Result.parse(body)
     end
   end
 
@@ -82,6 +95,7 @@ defmodule SefazNfe do
 
   `:tax_id` is the CNPJ or CPF of the interested party — the `distDFeInt`
   envelope carries it, so it is required even though the URL is always the AN.
+  `:uf` sets `cUFAutor` and defaults to the AN's own code.
 
   A CPF is 11 digits; a CNPJ is 14 and alphanumeric since NT 2025.002 (CNPJ
   alfa), meaning 12 characters of `[A-Z0-9]` plus a two digit DV. Only the shape
@@ -93,44 +107,98 @@ defmodule SefazNfe do
     with :ok <- require_keys(opts, [:tax_id, :cert, :environment]),
          :ok <- validate_environment(opts.environment),
          :ok <- validate_tax_id(opts.tax_id),
-         :ok <- dist_query(opts),
-         {:ok, _url} <- Endpoints.url("AN", opts.environment, :nfe_distribuicao_dfe) do
-      {:error, :not_implemented}
+         {:ok, cursor} <- dist_cursor(opts),
+         {:ok, url} <- Endpoints.url("AN", opts.environment, :nfe_distribuicao_dfe),
+         {:ok, uf_code} <- Endpoints.uf_code(Map.get(opts, :uf, "AN")),
+         message =
+           Envelope.dist_dfe(
+             opts.tax_id,
+             uf_code,
+             Envelope.tp_amb(opts.environment),
+             cursor
+           ),
+         {:ok, envelope} <- Envelope.wrap(:nfe_distribuicao_dfe, message),
+         {:ok, body} <- call(url, envelope, Map.put_new(opts, :uf, "AN"), :nfe_distribuicao_dfe) do
+      DistDFe.parse(body)
     end
   end
 
-  @doc "`NFeConsultaProtocolo4` by 44-digit access key."
-  @spec consult_protocol(map()) :: {:ok, SefazNfe.Result.t()} | {:error, term()}
+  @doc """
+  `NFeConsultaProtocolo4` by 44-digit access key.
+
+  The idempotent way back after a crash between a receipt and a protocol: ask
+  SEFAZ what it did with a document instead of sending the batch again.
+  """
+  @spec consult_protocol(map()) :: {:ok, Result.t()} | {:error, term()}
   def consult_protocol(opts) when is_map(opts) do
     with :ok <- require_keys(opts, [:ch_nfe, :cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
          :ok <- validate_ch_nfe(opts.ch_nfe),
-         {:ok, _url} <- Endpoints.url(opts.uf, opts.environment, :nfe_consulta_protocolo) do
-      {:error, :not_implemented}
+         {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_consulta_protocolo),
+         message = Envelope.consult_protocol(opts.ch_nfe, Envelope.tp_amb(opts.environment)),
+         {:ok, envelope} <- Envelope.wrap(:nfe_consulta_protocolo, message),
+         {:ok, body} <- call(url, envelope, opts, :nfe_consulta_protocolo) do
+      Result.parse(body)
     end
   end
 
-  @doc "Event 110111 via `NFeRecepcaoEvento4`."
-  @spec cancel(map()) :: {:ok, SefazNfe.Result.t()} | {:error, term()}
+  @doc """
+  Event 110111, cancelling an authorized NF-e via `NFeRecepcaoEvento4`.
+
+  Needs the protocol the authorization returned, and a justification of at
+  least 15 characters as the MOC requires.
+  """
+  @spec cancel(map()) :: {:ok, Result.t()} | {:error, term()}
   def cancel(opts) when is_map(opts) do
-    with :ok <- require_keys(opts, [:ch_nfe, :n_prot, :justification, :cert, :uf, :environment]),
+    with :ok <-
+           require_keys(opts, [
+             :ch_nfe,
+             :n_prot,
+             :justification,
+             :tax_id,
+             :cert,
+             :uf,
+             :environment
+           ]),
          :ok <- validate_environment(opts.environment),
          :ok <- validate_ch_nfe(opts.ch_nfe),
-         :ok <- validate_justification(opts.justification),
-         {:ok, _url} <- Endpoints.url(opts.uf, opts.environment, :nfe_recepcao_evento) do
-      {:error, :not_implemented}
+         :ok <- validate_tax_id(opts.tax_id),
+         :ok <- validate_justification(opts.justification) do
+      send_event(opts, &Events.cancel/1)
     end
   end
 
-  @doc "Event 110110 (CCe) via `NFeRecepcaoEvento4`."
-  @spec cce(map()) :: {:ok, SefazNfe.Result.t()} | {:error, term()}
+  @doc """
+  Event 110110, the Carta de Correção Eletrônica, via `NFeRecepcaoEvento4`.
+
+  `:sequence` numbers the correction; each one replaces the previous text
+  rather than adding to it.
+  """
+  @spec cce(map()) :: {:ok, Result.t()} | {:error, term()}
   def cce(opts) when is_map(opts) do
-    with :ok <- require_keys(opts, [:ch_nfe, :correcao, :cert, :uf, :environment]),
+    with :ok <- require_keys(opts, [:ch_nfe, :correction, :tax_id, :cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
          :ok <- validate_ch_nfe(opts.ch_nfe),
-         {:ok, _url} <- Endpoints.url(opts.uf, opts.environment, :nfe_recepcao_evento) do
-      {:error, :not_implemented}
+         :ok <- validate_tax_id(opts.tax_id),
+         :ok <- validate_justification(opts.correction) do
+      send_event(opts, &Events.correction/1)
     end
+  end
+
+  defp send_event(opts, build) do
+    with {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_recepcao_evento),
+         {:ok, uf_code} <- Endpoints.uf_code(opts.uf),
+         event = build.(event_opts(opts, uf_code)),
+         {:ok, signed} <- Signer.sign(event, opts.cert, "infEvento", "evento"),
+         message = Envelope.send_event(signed, Map.get(opts, :id_lote, "1")),
+         {:ok, envelope} <- Envelope.wrap(:nfe_recepcao_evento, message),
+         {:ok, body} <- call(url, envelope, opts, :nfe_recepcao_evento) do
+      Result.parse(body)
+    end
+  end
+
+  defp event_opts(opts, uf_code) do
+    Map.merge(opts, %{uf_code: uf_code, tp_amb: Envelope.tp_amb(opts.environment)})
   end
 
   @doc """
@@ -146,16 +214,44 @@ defmodule SefazNfe do
     DynamicSupervisor.start_child(SefazNfe.DistDFe.Supervisor, {Poller, opts})
   end
 
-  @doc "`NFeInutilizacao4`."
-  @spec void_numbers(map()) :: {:ok, SefazNfe.Result.t()} | {:error, term()}
+  @doc """
+  `NFeInutilizacao4`, closing a range of NF-e numbers that was never used.
+
+  A broken sequence still has to be accounted for, and this is how. `:model`
+  defaults to 55 and `:year` to the current one.
+  """
+  @spec void_numbers(map()) :: {:ok, Result.t()} | {:error, term()}
   def void_numbers(opts) when is_map(opts) do
     with :ok <-
-           require_keys(opts, [:serie, :n_ini, :n_fim, :justification, :cert, :uf, :environment]),
+           require_keys(opts, [
+             :serie,
+             :n_ini,
+             :n_fim,
+             :justification,
+             :tax_id,
+             :cert,
+             :uf,
+             :environment
+           ]),
          :ok <- validate_environment(opts.environment),
+         :ok <- validate_tax_id(opts.tax_id),
          :ok <- validate_justification(opts.justification),
-         {:ok, _url} <- Endpoints.url(opts.uf, opts.environment, :nfe_inutilizacao) do
-      {:error, :not_implemented}
+         {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_inutilizacao),
+         {:ok, uf_code} <- Endpoints.uf_code(opts.uf),
+         message = Events.void_numbers(void_opts(opts, uf_code)),
+         {:ok, signed} <- Signer.sign(message, opts.cert, "infInut", "inutNFe"),
+         {:ok, envelope} <- Envelope.wrap(:nfe_inutilizacao, signed),
+         {:ok, body} <- call(url, envelope, opts, :nfe_inutilizacao) do
+      Result.parse(body)
     end
+  end
+
+  defp void_opts(opts, uf_code) do
+    Map.merge(opts, %{
+      uf_code: uf_code,
+      tp_amb: Envelope.tp_amb(opts.environment),
+      model: Map.get(opts, :model, 55)
+    })
   end
 
   defp call(url, envelope, opts, service) do
@@ -224,12 +320,16 @@ defmodule SefazNfe do
 
   defp validate_justification(_), do: {:error, :justification_too_short}
 
-  defp dist_query(opts) do
+  defp dist_cursor(opts) do
     cond do
-      Map.has_key?(opts, :ult_nsu) -> :ok
-      Map.has_key?(opts, :nsu) -> :ok
-      Map.has_key?(opts, :ch_nfe) -> validate_ch_nfe(opts.ch_nfe)
+      Map.has_key?(opts, :ult_nsu) -> {:ok, {:ult_nsu, opts.ult_nsu}}
+      Map.has_key?(opts, :nsu) -> {:ok, {:nsu, opts.nsu}}
+      Map.has_key?(opts, :ch_nfe) -> chave_cursor(opts.ch_nfe)
       true -> {:error, {:missing_keys, [:ult_nsu]}}
     end
+  end
+
+  defp chave_cursor(ch_nfe) do
+    with :ok <- validate_ch_nfe(ch_nfe), do: {:ok, {:ch_nfe, ch_nfe}}
   end
 end

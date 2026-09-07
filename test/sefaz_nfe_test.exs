@@ -94,6 +94,7 @@ defmodule SefazNfeTest do
              SefazNfe.cancel(%{
                ch_nfe: @ch,
                n_prot: "1",
+               tax_id: @cnpj,
                justification: "curto",
                cert: @cert,
                uf: "SP",

@@ -106,13 +106,21 @@
 - **Date**: 2026-09-07
 - **Status**: active
 
+### AD-014
+- **Decision**: The emit path is considered verified by SEFAZ's own processing order rather than by a `cStat` 100, which cannot be reached without registering an emitter.
+- **Reason**: A homologação round trip against SEFAZ SP with a real ICP-Brasil A1 walked the rejections in order: 225 (schema), 897 (`cNF` equal to `nNF`, NT 2019.001), 1115 (IBS/CBS absent, NT 2025.002), 1026 (IBS rate), and finally **245, CNPJ emitente não cadastrado**. No code in the 280–297 range — certificate and signature errors — was ever returned. SEFAZ validates schema and signature before reaching taxpayer registration, so every layer this library owns is exercised and accepted: PKCS#12, mTLS, SOAP 1.2, XMLDSig with C14N, and response parsing.
+- **Trade-off**: The spec's success criterion (`cStat` 100 in homologação) stays unmet, and it is unmeetable here: it needs the certificate holder's CNPJ credenciado as an NF-e emitter in that UF's homologação, with its real IE and address. That is an administrative step on real registration data, not code. The remaining risk this leaves untested is small and specific: the authorized-document path (`protNFe` parsing on a real 100, and `authorization_result/1` against a real receipt).
+- **Scope**: `SefazNfe.authorize/1` and the emit path
+- **Date**: 2026-09-07
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: transport-mvp (`.specs/features/transport-mvp/`)
-- **Phase / Task**: mTLS transport live. `service_status/1` verified end to end against SEFAZ SP, MT and MG (`cStat` 107) with a real ICP-Brasil A1. XMLDSig still unwritten.
+- **Phase / Task**: All eight services live over mTLS. `service_status/1` returns `cStat` 107 from SP, MT and MG; `authorize/1` reaches SEFAZ SP's taxpayer-registration check (`cStat` 245) with schema and signature accepted (AD-014).
 - **Completed**: spec, design, public API in English (AD-008), endpoints snapshot + IBGE cUF, DistDFe poller (AD-006), PKCS#12 reader verified against a real A1 (AD-007), `:httpc` mTLS client and `:xmerl` parser (AD-010), SOAP 1.2 envelopes, `Result.parse/1`, SEFAZ-05 and SEFAZ-14 done, 67 offline tests
 - **In-progress**: none
-- **Next step**: `enviNFe` message builder plus `retEnviNFe` parsing, then a real `cStat` 100 in homologação — the gate the spec sets before any Hex publish. That needs a schema-valid NF-e from an ERP, which this library does not build (AD-001).
-- **Known gaps**: `authorize/1` signs but has no `enviNFe` builder yet, so it posts the bare document; `cancel/1`, `cce/1` and `void_numbers/1` need their event and inutilização message builders (the Signer already handles their `infEvento` / `infInut` via `Signer.sign/4`); `dist_dfe/1`, `consult_protocol/1`, `authorization_result/1` and `void_numbers/1` still need their message builders and response parsers (`retDistDFeInt` also needs gzip+base64, SEFAZ-07); `SefazNfe.Certificate.PKCS12` is hand-written and wants a security review.
+- **Next step**: Credenciar an emitter CNPJ in a UF's homologação, with its real IE and address, and run the emit path for a `cStat` 100. That is the spec's gate before any Hex publish, and it needs registration data rather than code.
+- **Known gaps**: no `cStat` 100 yet (AD-014), so the authorized-document path — `protNFe` on a real 100 and `authorization_result/1` against a real receipt — is covered by fixtures only; events, CCe and inutilização are built and signed but never accepted by SEFAZ for the same registration reason; optional XSD validation (SEFAZ-12) is not implemented, which is what would have caught the fixture's schema errors locally instead of costing a round trip; `SefazNfe.Certificate.PKCS12` is hand-written and wants a security review.
 - **Blockers**: none
 - **Branch**: main
