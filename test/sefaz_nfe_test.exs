@@ -6,8 +6,15 @@ defmodule SefazNfeTest do
   @ch String.duplicate("1", 44)
   @cnpj "00000000000191"
   @cpf "00000000191"
-  @xml_homolog "<NFe><infNFe><ide><tpAmb>2</tpAmb></ide></infNFe></NFe>"
-  @xml_prod "<NFe><infNFe><ide><tpAmb>1</tpAmb></ide></infNFe></NFe>"
+  @nfe_ns "http://www.portalfiscal.inf.br/nfe"
+  @id "NFe35260100000000000191550010000000011000000017"
+  @body ~s(<total><ICMSTot><vICMS>10.00</vICMS></ICMSTot></total></infNFe></NFe>)
+
+  @xml_homolog ~s(<NFe xmlns="#{@nfe_ns}"><infNFe Id="#{@id}" versao="4.00">) <>
+                 ~s(<ide><tpAmb>2</tpAmb></ide>) <> @body
+
+  @xml_prod ~s(<NFe xmlns="#{@nfe_ns}"><infNFe Id="#{@id}" versao="4.00">) <>
+              ~s(<ide><tpAmb>1</tpAmb></ide>) <> @body
 
   test "certificate load rejects empty pfx or password" do
     assert {:error, :invalid_certificate} = SefazNfe.Certificate.load("", "x")
@@ -20,10 +27,22 @@ defmodule SefazNfeTest do
     assert inspect(@cert) =~ "redacted"
   end
 
-  test "authorize resolves SP homolog then not_implemented" do
+  test "authorize signs, then reaches the transport" do
     assert {:error, :not_implemented} =
              SefazNfe.authorize(%{
                xml: @xml_homolog,
+               cert: @cert,
+               uf: "SP",
+               environment: :homologation
+             })
+  end
+
+  test "authorize refuses an infNFe with no Id, rather than signing nothing" do
+    without_id = String.replace(@xml_homolog, ~s( Id="#{@id}"), "")
+
+    assert {:error, {:signer, {:missing_id, "infNFe"}}} =
+             SefazNfe.authorize(%{
+               xml: without_id,
                cert: @cert,
                uf: "SP",
                environment: :homologation
@@ -137,7 +156,8 @@ defmodule SefazNfeTest do
     assert {:ok, ^signed} = SefazNfe.Signer.sign_nfe(signed, @cert)
 
     refute SefazNfe.Signer.signed?(@xml_homolog)
-    assert {:error, :not_implemented} = SefazNfe.Signer.sign_nfe(@xml_homolog, @cert)
+    assert {:ok, output} = SefazNfe.Signer.sign_nfe(@xml_homolog, @cert)
+    assert SefazNfe.Signer.signed?(output)
   end
 
   test "SOAP emits telemetry without leaking cert or body (SEFAZ-14)" do

@@ -6,8 +6,9 @@ It does **not** calculate taxes. The ERP (or Nexus Pro) builds the XML; this lib
 
 > Status: transport live, emission not yet. `service_status/1` is verified end to end
 > against SEFAZ **SP, MT and MG** (`cStat` 107) over real mTLS with an ICP-Brasil A1.
-> XMLDSig is unwritten, so nothing is authorized yet — and per the spec, no Hex
-> release happens before a homologação `cStat` 100.
+> XMLDSig signs (C14N verified byte for byte against `xmllint`), but `authorize/1`
+> still lacks its `enviNFe` builder, so nothing is authorized yet — and per the
+> spec, no Hex release happens before a homologação `cStat` 100.
 
 ## Package shell
 

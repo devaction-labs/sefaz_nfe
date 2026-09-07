@@ -18,6 +18,9 @@ defmodule SefazNfe.XML do
   rejection carries accents — so `:xmerl` must do the decoding itself. Passing
   already-decoded codepoints makes it decode twice and reject the document.
 
+  Scanning is namespace conformant, which is what populates the namespace axis
+  `SefazNfe.XML.C14N` needs to canonicalise a subtree for signing.
+
   ## Reading
 
   `text/2` and `attribute/3` take a local element name and ignore namespace
@@ -69,6 +72,7 @@ defmodule SefazNfe.XML do
     {doc, _rest} =
       :xmerl_scan.string(:binary.bin_to_list(body),
         quiet: true,
+        namespace_conformant: true,
         fetch_fun: fn _uri, state -> {:ok, {:string, ~c""}, state} end
       )
 
@@ -122,6 +126,10 @@ defmodule SefazNfe.XML do
       attribute |> xml_attribute(:value) |> List.to_string()
     end
   end
+
+  @doc "The first element whose local name is `name`, as an `:xmerl` record."
+  @spec element(doc(), String.t()) :: doc() | nil
+  def element(doc, name), do: find(doc, name)
 
   defp find(doc, name) do
     doc |> elements() |> Enum.find(&(local_name(&1) == name))

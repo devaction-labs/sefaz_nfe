@@ -82,13 +82,21 @@
 - **Date**: 2026-09-07
 - **Status**: active
 
+### AD-011
+- **Decision**: Canonical XML 1.0 is implemented in-tree (`SefazNfe.XML.C14N`) and XMLDSig uses RSA-SHA1 with SHA-1 digests, per the MOC 4.00.
+- **Reason**: OTP ships no `xmerl_c14n`. SHA-1 is weak everywhere else and is nonetheless what SEFAZ requires; anything stronger is rejected. The signature is spliced into the original bytes rather than produced by re-serialising the parse, because rewriting the ERP's XML would invalidate the signature being added and break SEFAZ-04.
+- **Trade-off**: Hand-written canonicalisation, where a one-byte drift yields a well-formed signature that SEFAZ refuses without explaining why. Mitigated by golden tests: every canonical form is compared byte for byte against `xmllint --c14n`, including the apex rule that renders a namespace `infNFe` only inherits. `xmlsec1` could not serve as a whole-signature oracle — the build here fails to load any key, even to sign with an explicit PEM — so verification decomposes into canonical form (xmllint), digest (over that form) and RSA (against the certificate's public key). A homologação `cStat` 100 remains the only end-to-end proof.
+- **Scope**: `SefazNfe.XML.C14N`, `SefazNfe.Signer`
+- **Date**: 2026-09-07
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: transport-mvp (`.specs/features/transport-mvp/`)
 - **Phase / Task**: mTLS transport live. `service_status/1` verified end to end against SEFAZ SP, MT and MG (`cStat` 107) with a real ICP-Brasil A1. XMLDSig still unwritten.
 - **Completed**: spec, design, public API in English (AD-008), endpoints snapshot + IBGE cUF, DistDFe poller (AD-006), PKCS#12 reader verified against a real A1 (AD-007), `:httpc` mTLS client and `:xmerl` parser (AD-010), SOAP 1.2 envelopes, `Result.parse/1`, SEFAZ-05 and SEFAZ-14 done, 67 offline tests
 - **In-progress**: none
-- **Next step**: XMLDSig (`Signer.sign_nfe/2`) with C14N, then `authorize/1` for a real `cStat` 100 in homologação — which is the gate the spec sets before any Hex publish.
-- **Known gaps**: XMLDSig is unwritten, so `authorize/1`, `cancel/1`, `cce/1` and `void_numbers/1` stop at the Signer; `dist_dfe/1`, `consult_protocol/1`, `authorization_result/1` and `void_numbers/1` still need their message builders and response parsers (`retDistDFeInt` also needs gzip+base64, SEFAZ-07); no circuit breaker per UF yet — required before this carries emission traffic; PBES2/AES-256 PFX files are rejected rather than read (AD-007); the AD-004 refresh procedure for the endpoint snapshot is still not written; `SefazNfe.Certificate.PKCS12` is hand-written and wants a security review.
+- **Next step**: `enviNFe` message builder plus `retEnviNFe` parsing, then a real `cStat` 100 in homologação — the gate the spec sets before any Hex publish. That needs a schema-valid NF-e from an ERP, which this library does not build (AD-001).
+- **Known gaps**: `authorize/1` signs but has no `enviNFe` builder yet, so it posts the bare document; `cancel/1`, `cce/1` and `void_numbers/1` need their event and inutilização message builders (the Signer already handles their `infEvento` / `infInut` via `Signer.sign/4`); `dist_dfe/1`, `consult_protocol/1`, `authorization_result/1` and `void_numbers/1` still need their message builders and response parsers (`retDistDFeInt` also needs gzip+base64, SEFAZ-07); no circuit breaker per UF yet — required before this carries emission traffic; PBES2/AES-256 PFX files are rejected rather than read (AD-007); the AD-004 refresh procedure for the endpoint snapshot is still not written; `SefazNfe.Certificate.PKCS12` is hand-written and wants a security review.
 - **Blockers**: none
 - **Branch**: main
