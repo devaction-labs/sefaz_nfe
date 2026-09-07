@@ -45,10 +45,10 @@
 ## Handoff
 
 - **Feature**: transport-mvp (`.specs/features/transport-mvp/`)
-- **Phase / Task**: Specify + Design drafted; Execute not started
-- **Completed**: repo scaffold, spec, context, design, wiki sources
+- **Phase / Task**: Package shell on main; SOAP/XMLDSig still `:not_implemented`
+- **Completed**: spec, design, public API, endpoints snapshot, offline tests
 - **In-progress**: none
-- **Next step**: User confirms spec; then Tasks (`tasks.md`) then Execute (homologação with Fabmed A1)
-- **Blockers**: none — waiting for spec confirmation
-- **Uncommitted files**: initial commit
+- **Next step**: Tasks.md then implement Signer + SOAP mTLS (homologação)
+- **Blockers**: none
+- **Uncommitted files**: none after this commit
 - **Branch**: main

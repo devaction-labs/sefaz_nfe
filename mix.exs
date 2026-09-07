@@ -8,7 +8,8 @@ defmodule SefazNfe.MixProject do
       elixir: "~> 1.20",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      description: "SEFAZ NF-e transport for Elixir (sign, authorize, DistDFe). No tax calculation.",
+      description:
+        "SEFAZ NF-e transport for Elixir (sign, authorize, DistDFe). No tax calculation.",
       package: [
         licenses: ["Apache-2.0"],
         links: %{"GitHub" => "https://github.com/devaction-labs/sefaz_nfe"}
@@ -19,7 +20,7 @@ defmodule SefazNfe.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger, :crypto, :public_key, :ssl]
     ]
   end
 

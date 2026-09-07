@@ -6,6 +6,22 @@ It does **not** calculate taxes. The ERP (or Nexus Pro) builds the XML; this lib
 
 > Status: spec only. No production emission yet. Homologação against a real CNPJ is the first proof.
 
+## Package shell
+
+Public API is in `SefazNfe` (`authorize/1`, `ret_autorizacao/1`, `status_servico/1`,
+`dist_dfe/1`, `consulta_protocolo/1`, `cancela/1`, `cce/1`, `inutiliza/1`).
+
+Input is validated and the UF URL is resolved from `priv/endpoints/nfe_4.00.json`.
+SOAP/XMLDSig still return `{:error, :not_implemented}` — no network in `mix test`.
+
+```elixir
+{:ok, cert} = SefazNfe.Certificate.load(pfx_binary, "senha")
+SefazNfe.status_servico(%{cert: cert, uf: "SP", ambiente: :homologacao})
+# => {:error, :not_implemented}
+
+{:ok, url} = SefazNfe.Endpoints.url("SP", :homologacao, :nfe_autorizacao)
+```
+
 ## What this is
 
 ```
