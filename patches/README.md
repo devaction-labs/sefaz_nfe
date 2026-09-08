@@ -17,17 +17,20 @@ empty list as "accept first choice".
 
 OTP fixed it on `maint` as **OTP-20327**, merged 2026-08-19, with a
 `drop_undecodable_certificate_authorities` test whose fixture is an ICP-Brasil
-DN. It will ship in the next OTP minor.
+DN. It ships in **OTP 29.1**.
 
-That release does not exist yet. As of 2026-09-07 the newest is OTP 29.0.6, and
-no released OTP carries the fix — not 29.0.x, not 28, not 27. `maint` and
-`maint-29` both report `SSL_VSN = 11.7.5`, so the version string does not tell
-a patched runtime from an unpatched one; test the connection instead. A
-backport to the maintenance branches is requested in
-[erlang/otp#11595](https://github.com/erlang/otp/issues/11595).
+On OTP 29 that is the whole answer: 29.1 is the next patch of the line, so
+there is nothing earlier to wait for. It is not released yet.
 
-Until that lands there is no released runtime to upgrade to, which is what this
-patch is for. Measured against all 27 endpoints
+On OTP 28 and 27 there is no imminent minor, so the fix is proposed as a
+backport — [erlang/otp#11604](https://github.com/erlang/otp/pull/11604) and
+[erlang/otp#11605](https://github.com/erlang/otp/pull/11605).
+
+Do not read `SSL_VSN` to decide whether you need this: `maint` and `maint-29`
+both report 11.7.5. Attempt a connection instead.
+
+Until a runtime carrying the fix exists for your line, this patch is the
+alternative. Measured against all 27 endpoints
 with a real ICP-Brasil certificate: 7 of 27 answered before, 27 of 27 after.
 
 ## Checking whether your runtime needs it

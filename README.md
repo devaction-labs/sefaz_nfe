@@ -13,10 +13,10 @@ It does **not** calculate taxes. The ERP (or Nexus Pro) builds the XML; this lib
 >
 > On a stock OTP the per-UF services reach **BA, GO, MA, MG, MS, MT and SP**;
 > the other twenty states abort on malformed CA names in their
-> `CertificateRequest`. OTP fixed that as OTP-20327, but the release carrying it
-> does not exist yet ([erlang/otp#11595](https://github.com/erlang/otp/issues/11595));
-> `patches/` covers the interval. **DistDFe on the Ambiente Nacional is
-> unaffected** and works everywhere.
+> `CertificateRequest`. **OTP 29.1 fixes it** (OTP-20327) and is not out yet;
+> on OTP 28 and 27 the fix is proposed as a backport. `patches/` covers the
+> interval. **DistDFe on the Ambiente Nacional is unaffected** and works
+> everywhere.
 
 ## Package shell
 

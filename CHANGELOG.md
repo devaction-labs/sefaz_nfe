@@ -120,12 +120,17 @@ The field is only a hint for choosing a client certificate, and
 `ssl_certificate:handle_cert_auths/4` already treats an empty list as "accept
 first choice", so skipping undecodable entries degrades into an existing path.
 
-**OTP already fixed this on `maint` (OTP-20327)**, and it will ship in the next
-minor. That release does not exist yet: as of 2026-09-07 the newest is OTP
-29.0.6, and no released runtime carries the fix — not 29.0.x, not 28, not 27.
-`maint` and `maint-29` both report `SSL_VSN = 11.7.5`, so the version string
-does not distinguish a patched runtime; test a connection instead. A backport
-is requested in [erlang/otp#11595](https://github.com/erlang/otp/issues/11595).
+**OTP fixed this on `maint` as OTP-20327, and it ships in OTP 29.1.** On OTP 29,
+upgrading to 29.1 is the answer — the maintainer confirmed it is the next patch
+of that line, so there is no 29.0.7 to wait for. As of 2026-09-08 it is not out
+yet, and no released runtime carries the fix.
+
+For OTP 28 and 27 there is no imminent minor, so the fix is proposed as a
+backport: [erlang/otp#11604](https://github.com/erlang/otp/pull/11604) and
+[erlang/otp#11605](https://github.com/erlang/otp/pull/11605).
+
+Do not check the version to tell whether your runtime is affected: `maint` and
+`maint-29` both report `SSL_VSN = 11.7.5`. Attempt a connection instead.
 
 Until that release exists there is nothing to upgrade to. `patches/` carries
 the same change for the interval and is explicit about what pinning a module
