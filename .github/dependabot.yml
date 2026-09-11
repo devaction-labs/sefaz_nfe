@@ -1,0 +1,18 @@
+# A SHA pin is immutable, which is the point, and also means nothing updates on
+# its own. Without this the workflow would simply freeze on whatever commit was
+# current the day it was pinned — trading a supply chain risk for a staleness
+# one. Dependabot raises the pin and rewrites the version comment with it.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: mix
+    directory: /
+    schedule:
+      interval: weekly
