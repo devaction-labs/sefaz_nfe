@@ -27,8 +27,7 @@ defmodule SefazNfe.SignerTest do
          ~s(<total><ICMSTot><vICMS>10.00</vICMS><vNF>100.00</vNF></ICMSTot></total>) <>
          ~s(</infNFe></NFe>)
 
-  # Every real NF-e carries an accent somewhere. A fixture that does not is a
-  # fixture that cannot catch a byte/grapheme confusion.
+  # Every real NF-e carries an accent somewhere.
   @accented ~s(<?xml version="1.0" encoding="UTF-8"?><NFe xmlns="#{@nfe_ns}">) <>
               ~s(<infNFe Id="#{@id}" versao="4.00">) <>
               ~s(<ide><cUF>35</cUF><natOp>VENDA</natOp></ide>) <>

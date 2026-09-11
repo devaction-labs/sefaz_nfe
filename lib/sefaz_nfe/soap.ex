@@ -32,12 +32,10 @@ defmodule SefazNfe.SOAP do
 
   Emits `[:sefaz_nfe, :soap, :start | :stop | :exception]` (SEFAZ-14). The
   `:uf` option is consumed here as telemetry metadata; every other option,
-  `:timeout` included, is forwarded to `c:call/4`. The timeout has to reach the
-  client: it governs the request, and supervising a task for longer than the
-  request it contains would let the option shorten a call and never lengthen
-  one. Metadata never carries the
-  certificate, the password or the XML body — only the endpoint, the UF, the
-  service and an outcome tag. That tag is deliberately low cardinality: the raw
+  `:timeout` and `:connect_timeout` included, is forwarded to `c:call/4`: they
+  govern the request, and the task window follows them rather than the other way
+  round. Metadata never carries the certificate, the password or the XML body —
+  only the endpoint, the UF, the service and an outcome tag. That tag is deliberately low cardinality: the raw
   reason would drag a whole `{:soap_crash, stacktrace}` into every metrics
   label.
 
@@ -80,15 +78,8 @@ defmodule SefazNfe.SOAP do
 
   defp record(uf, _reached_sefaz), do: CircuitBreaker.record_success(uf)
 
-  # The task waits a little longer than the request it supervises, so a request
-  # that times out is reported by the client — which knows it was a request
-  # timeout — instead of being killed a moment earlier by the supervisor, which
-  # would only know that something took too long. Without the grace the two
-  # deadlines are identical and the race decides which error the caller sees.
-  #
-  # The window is the longer of the two client deadlines. A connect timeout
-  # raised past the request timeout would otherwise be cut short by the task,
-  # and connecting is the part of a SEFAZ call that actually hangs.
+  # The window is the longer of the two client deadlines plus a grace, so the
+  # client reports its own timeout instead of the supervisor killing it first.
   @grace to_timeout(second: 5)
 
   defp run(endpoint, body, cert, task_opts, deadline) do
