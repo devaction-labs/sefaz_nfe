@@ -317,6 +317,7 @@ defmodule SefazNfe do
       uf: to_string(opts.uf),
       service: service,
       timeout: Map.get(opts, :timeout, to_timeout(second: 30)),
+      connect_timeout: Map.get(opts, :connect_timeout, to_timeout(second: 10)),
       tls_options: Map.get(opts, :tls_options, [])
     )
   end

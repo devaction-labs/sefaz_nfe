@@ -2,6 +2,13 @@
 
 ## 0.1.1
 
+`:connect_timeout` never left `SefazNfe.authorize/1` and its siblings, so the
+client's 10 second default was the only value there was. Measured against
+SEFAZ-BA, `time_connect` ranged from 3.5 seconds to 68.7 across consecutive
+requests — connecting is the part of a SEFAZ call that hangs, and a caller had
+no way to wait for it. It is forwarded now, and the task window is the longer of
+the two deadlines rather than the request one.
+
 `isolated_call/4` consumed `:timeout` for the task supervising the request and
 never forwarded it to the client, which kept its own 30 second default. The
 option could therefore shorten a call and never lengthen one — a caller raising

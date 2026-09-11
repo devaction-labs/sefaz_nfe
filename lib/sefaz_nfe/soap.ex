@@ -50,12 +50,13 @@ defmodule SefazNfe.SOAP do
     {timeout, opts} = Keyword.pop_lazy(opts, :timeout, fn -> to_timeout(second: 30) end)
     {meta, rest} = Keyword.split(opts, [:uf, :service])
     task_opts = Keyword.take(meta, [:service]) ++ rest ++ [timeout: timeout]
+    deadline = max(timeout, Keyword.get(rest, :connect_timeout, 0))
     metadata = meta |> Map.new() |> Map.put(:endpoint, endpoint)
     uf = Keyword.get(meta, :uf, "")
 
     with :ok <- CircuitBreaker.check(uf) do
       :telemetry.span([:sefaz_nfe, :soap], metadata, fn ->
-        result = run(endpoint, body, cert, task_opts, timeout)
+        result = run(endpoint, body, cert, task_opts, deadline)
         record(uf, result)
         {result, Map.put(metadata, :outcome, outcome(result))}
       end)
@@ -84,15 +85,19 @@ defmodule SefazNfe.SOAP do
   # timeout — instead of being killed a moment earlier by the supervisor, which
   # would only know that something took too long. Without the grace the two
   # deadlines are identical and the race decides which error the caller sees.
+  #
+  # The window is the longer of the two client deadlines. A connect timeout
+  # raised past the request timeout would otherwise be cut short by the task,
+  # and connecting is the part of a SEFAZ call that actually hangs.
   @grace to_timeout(second: 5)
 
-  defp run(endpoint, body, cert, task_opts, timeout) do
+  defp run(endpoint, body, cert, task_opts, deadline) do
     task =
       Task.Supervisor.async_nolink(SefazNfe.TaskSupervisor, fn ->
         client().call(endpoint, body, cert, task_opts)
       end)
 
-    case Task.yield(task, timeout + @grace) || Task.shutdown(task, :brutal_kill) do
+    case Task.yield(task, deadline + @grace) || Task.shutdown(task, :brutal_kill) do
       {:ok, result} -> result
       nil -> {:error, :timeout}
       {:exit, reason} -> {:error, {:soap_crash, reason}}

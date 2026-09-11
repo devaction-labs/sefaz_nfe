@@ -281,6 +281,20 @@ defmodule SefazNfe.SOAPTest do
       assert Keyword.get(opts, :timeout) == to_timeout(second: 120)
     end
 
+    # Measured against SEFAZ-BA: `time_connect` ranged from 3.5 seconds to 68.7
+    # across consecutive requests. Connecting is the part that hangs, so a task
+    # window keyed on the request timeout alone would cut the connect short.
+    test "a connect timeout past the request timeout is not cut short by the task" do
+      SefazNfe.SOAP.isolated_call("https://example.test", "<x/>", SefazNfe.Fixtures.cert(),
+        uf: "BA",
+        timeout: to_timeout(second: 30),
+        connect_timeout: to_timeout(second: 90)
+      )
+
+      assert_receive {:opts, opts}
+      assert Keyword.get(opts, :connect_timeout) == to_timeout(second: 90)
+    end
+
     test "the default reaches it as well, rather than being left to the client" do
       SefazNfe.SOAP.isolated_call("https://example.test", "<x/>", SefazNfe.Fixtures.cert(),
         uf: "MG"
