@@ -27,6 +27,14 @@ defmodule SefazNfe.SignerTest do
          ~s(<total><ICMSTot><vICMS>10.00</vICMS><vNF>100.00</vNF></ICMSTot></total>) <>
          ~s(</infNFe></NFe>)
 
+  # Every real NF-e carries an accent somewhere. A fixture that does not is a
+  # fixture that cannot catch a byte/grapheme confusion.
+  @accented ~s(<?xml version="1.0" encoding="UTF-8"?><NFe xmlns="#{@nfe_ns}">) <>
+              ~s(<infNFe Id="#{@id}" versao="4.00">) <>
+              ~s(<ide><cUF>35</cUF><natOp>VENDA</natOp></ide>) <>
+              ~s(<emit><xNome>Móveis Nogueira</xNome></emit>) <>
+              ~s(</infNFe></NFe>)
+
   defp signed do
     {:ok, xml} = Signer.sign_nfe(@nfe, Fixtures.cert())
     xml
@@ -42,6 +50,25 @@ defmodule SefazNfe.SignerTest do
 
     assert xml =~ ~s(</infNFe><Signature xmlns="http://www.w3.org/2000/09/xmldsig#">)
     assert String.ends_with?(xml, "</Signature></NFe>")
+  end
+
+  test "an accented document stays well-formed, signature in place" do
+    {:ok, xml} = Signer.sign_nfe(@accented, Fixtures.cert())
+
+    assert xml =~ ~s(</infNFe><Signature xmlns="http://www.w3.org/2000/09/xmldsig#">)
+    assert String.ends_with?(xml, "</Signature></NFe>")
+    refute xml =~ "<<"
+    assert {:ok, _parsed} = XML.parse(xml)
+  end
+
+  test "the cut is counted in bytes, whatever the accents cost" do
+    for name <- ["ASCII", "Móveis", "Açaí e Çedilha", "日本語"] do
+      nfe = String.replace(@accented, "Móveis Nogueira", name)
+      {:ok, xml} = Signer.sign_nfe(nfe, Fixtures.cert())
+
+      assert String.ends_with?(xml, "</Signature></NFe>"), "cut moved for #{name}"
+      assert {:ok, _parsed} = XML.parse(xml)
+    end
   end
 
   test "the original bytes are untouched, tax nodes included (SEFAZ-04)" do

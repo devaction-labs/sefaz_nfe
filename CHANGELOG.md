@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.1
+
+`Signer` spliced the `Signature` at a grapheme offset where the match had been
+measured in bytes. One accented character before the closing tag — `Móveis`,
+`Açaí`, any real emitter name — moved the cut one position early, producing
+`</infNFe><<Signature ...</Signature>/NFe>`: a document that is no longer
+well-formed.
+
+SEFAZ answers that with a bare `HTTP 400 Bad Request` and an empty body, so the
+failure names nothing and reads like a transport or certificate problem. It is
+neither. Every document the library signed for a Brazilian issuer was affected
+unless the whole note happened to be ASCII.
+
+The signer test fixture was ASCII, which is why 174 passing tests said nothing
+about it. It carries an accent now, and a second test signs the same document
+under Latin-1 and CJK names to keep the byte count honest.
+
 ## 0.1.0
 
 SEFAZ NF-e transport for modelo 55: sign, send, consult, distribute. It does

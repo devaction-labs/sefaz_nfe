@@ -132,13 +132,18 @@ defmodule SefazNfe.Signer do
       ~s(</X509Certificate></X509Data></KeyInfo></Signature>)
   end
 
+  # `return: :index` counts bytes and every split here has to count the same.
+  # `String.split_at/2` counts graphemes, so one accented character upstream of
+  # the closing tag moved the cut one position early and wrote `<<Signature`
+  # with a stray `/NFe>` trailing the block. The document stopped being
+  # well-formed, and SEFAZ answered a bare HTTP 400 rather than a `cStat` —
+  # which names nothing and sends the reader looking at TLS.
   defp splice(xml, parent, signature) do
     closing = ~r/<\/(?:[\w.-]+:)?#{Regex.escape(parent)}>/
 
     case Regex.run(closing, xml, return: :index) do
       [{at, _length}] ->
-        {before, rest} = String.split_at(xml, at)
-        {:ok, before <> signature <> rest}
+        {:ok, binary_part(xml, 0, at) <> signature <> binary_part(xml, at, byte_size(xml) - at)}
 
       nil ->
         {:error, {:signer, {:missing_element, parent}}}
