@@ -18,8 +18,8 @@ This is a **stateless transport library** plus an **optional OTP tree**.
 
 | Master | One-liner | sefaz_nfe |
 |--------|-----------|-----------|
-| **Valim** | Data shapes the code | Multi-clause + guards on UF/ambiente/`cStat`; `with` on the facade; `@spec` on `SefazNfe.*` |
-| **Jurić** | Processes and failure domains | SOAP in `Task.Supervisor` (I/O crash ≠ caller crash); DistDFe = one process per CNPJ; `{:error,_}` for SEFAZ/TLS; crash on programmer bugs |
+| **Valim** | Data shapes the code | Multi-clause + guards on UF/environment/`cStat`; `with` on the facade; `@spec` on `SefazNfe.*` |
+| **Jurić** | Processes and failure domains | SOAP in `Task.Supervisor` (I/O crash ≠ caller crash); DistDFe = one process per `tax_id`; `{:error,_}` for SEFAZ/TLS; crash on programmer bugs |
 | **McCord** | One public context | `SefazNfe` is the only entry. Host apps (Nexus) never call `SOAP.client` directly |
 | **Thomas** | Orthogonal, small, intentional | Endpoints / Signer / SOAP / Poller do **one** thing; docs explain *why* |
 | **Tate** | Patterns on purpose | OTP tree exists because DistDFe *is* a process problem — not because “libraries need a GenServer” |
@@ -65,10 +65,11 @@ Never `try/rescue` to keep a DistDFe poller “alive” over a logic bug. The su
 
 ### 4. BEAM abuse (this repo’s point)
 
-- **One DistDFe poller per CNPJ** — `Registry` unique key `{:dist_dfe, cnpj}`. Thousands of CNPJs = thousands of cheap processes, not a Focus invoice.
+- **One DistDFe poller per tax ID** — `Registry` unique key `{:dist_dfe, tax_id}` (CNPJ *or* CPF; DistDFe serves both). Thousands of tax IDs = thousands of cheap processes, not a Focus invoice.
+- **A poller must deliver** — `:handler` is required and owns the cursor. A poll loop that drops its page is a no-op with a timer.
 - **SOAP isolated** — `SefazNfe.SOAP.isolated_call/4` so a NIFless SSL abort does not take down the Nexus request process.
 - **Circuit per UF** — when SOAP exists, a down SP must not block MG (PartitionSupervisor / per-UF breaker). Not in the empty shell; do not skip it when implementing SOAP.
-- **Labels** — every poller `Process.set_label({:sefaz_nfe, :dist_dfe, cnpj})`.
+- **Labels** — every poller `Process.set_label({:sefaz_nfe, :dist_dfe, tax_id})`.
 - **Telemetry** — `[:sefaz_nfe, :soap, :stop]` with UF, service, duration, `c_stat`. Never cert, never XML body, never password.
 
 ### 5. Secrets
@@ -79,7 +80,7 @@ Never `try/rescue` to keep a DistDFe poller “alive” over a logic bug. The su
 ## Pre-merge checklist
 
 ```
-[ ] Multi-clause / with, not nested if for cStat / ambiente
+[ ] Multi-clause / with, not nested if for cStat / environment
 [ ] Domain/SEFAZ outcomes are {:ok, result}; bugs crash
 [ ] SefazNfe. facade is the only public entry
 [ ] @spec + @doc on new facade functions
@@ -99,7 +100,7 @@ Never `try/rescue` to keep a DistDFe poller “alive” over a logic bug. The su
 | Porting NFePHP `Make` | ERP builds XML |
 | Auto SVC contingency | Return error; host rebuilds `tpEmis` (AD-005) |
 | Retry Autorizacao inside the lib | Host consults chave/recibo |
-| God GenServer for all UFs | One process per CNPJ (DistDFe) / isolated task per SOAP |
+| God GenServer for all UFs | One process per tax ID (DistDFe) / isolated task per SOAP |
 | `String.to_atom/1` on UF from XML | Allowlist / `String.upcase/1` binaries |
 
 ## Smell scans

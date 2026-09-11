@@ -1,6 +1,6 @@
 # Masters checklist (sefaz_nfe)
 
-- [ ] Multi-clause / guards / `with` — no nested `if` for `cStat` or ambiente
+- [ ] Multi-clause / guards / `with` — no nested `if` for `cStat` or environment
 - [ ] `{:ok, %Result{}}` for SEFAZ business; `{:error, _}` for I/O; crash for bugs
 - [ ] `@spec` + `@doc` on `SefazNfe` public functions
 - [ ] SOAP via `SefazNfe.SOAP.isolated_call/4` (Task.Supervisor)

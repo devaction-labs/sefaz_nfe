@@ -1,0 +1,202 @@
+# Changelog
+
+## 0.1.1
+
+`:connect_timeout` never left `SefazNfe.authorize/1` and its siblings, so the
+client's 10 second default was the only value there was. Measured against
+SEFAZ-BA, `time_connect` ranged from 3.5 seconds to 68.7 across consecutive
+requests — connecting is the part of a SEFAZ call that hangs, and a caller had
+no way to wait for it. It is forwarded now, and the task window is the longer of
+the two deadlines rather than the request one.
+
+`isolated_call/4` consumed `:timeout` for the task supervising the request and
+never forwarded it to the client, which kept its own 30 second default. The
+option could therefore shorten a call and never lengthen one — a caller raising
+it to two minutes still got `{:error, :timeout}` at thirty seconds, from a
+deadline it had no way to reach. It now reaches the client, and the task waits a
+five second grace beyond it so a request timeout is reported by the client that
+knows it was one.
+
+`Signer` spliced the `Signature` at a grapheme offset where the match had been
+measured in bytes. One accented character before the closing tag — `Móveis`,
+`Açaí`, any real emitter name — moved the cut one position early, producing
+`</infNFe><<Signature ...</Signature>/NFe>`: a document that is no longer
+well-formed.
+
+SEFAZ answers that with a bare `HTTP 400 Bad Request` and an empty body, so the
+failure names nothing and reads like a transport or certificate problem. It is
+neither. Every document the library signed for a Brazilian issuer was affected
+unless the whole note happened to be ASCII.
+
+The signer test fixture was ASCII, which is why 174 passing tests said nothing
+about it. It carries an accent now, and a second test signs the same document
+under Latin-1 and CJK names to keep the byte count honest.
+
+## 0.1.0
+
+SEFAZ NF-e transport for modelo 55: sign, send, consult, distribute. It does
+not calculate taxes — the ERP builds the XML and this library talks to SEFAZ.
+
+### Since 0.1.0-alpha.1
+
+The alpha shipped without a single authorized document; that is what the
+designation meant. An NF-e has since been authorized in homologação, along with
+the events around it, so this release drops it.
+
+Three defects surfaced while doing that, none of which a unit test would have
+caught:
+
+- The lote defaulted to asynchronous, and SEFAZ rejects an asynchronous request
+  for a single-document batch (`cStat` 452). Since this library sends one
+  document per call, the default guaranteed a rejection on every emission. It
+  is synchronous now.
+- `cStat` 102 — how SEFAZ reports a voided number range — was mapped as a
+  rejection, so `void_numbers/1` reported failure on success.
+- `authorize/1` discarded the signed document and never filled `Result.xml`,
+  losing the `nfeProc` that has to be archived and delivered. A protocol number
+  alone proves nothing without the bytes it refers to.
+
+Also new: `manifest/2` for manifestação do destinatário, which is the other
+half of the DistDFe flow — confirming an operation is what releases the full
+XML of a note that arrived as a summary.
+
+### What works
+
+- **A1 certificates.** OTP 29 ships no PKCS#12 support and Hex has no package
+  for it, so `SefazNfe.Certificate.PKCS12` reads the PFX itself per RFC 7292.
+  Verified byte for byte against `openssl` on a real ICP-Brasil A1. Supports
+  `PBE-SHA1-3DES` (what ICP-Brasil issues) and PBES2 with AES. A wrong password
+  fails on the MAC before any network call.
+- **mTLS transport** over `:httpc`, on a private profile so the library never
+  touches the host's global HTTP settings. Zero new dependencies.
+- **XMLDSig** with Canonical XML 1.0, written here because OTP has no
+  `xmerl_c14n`. Every canonical form in the test suite is compared byte for
+  byte against `xmllint --c14n`, including the apex rule that renders a
+  namespace `infNFe` only inherits.
+- **Nine services**: `authorize/1`, `authorization_result/1`,
+  `service_status/1`, `dist_dfe/1`, `consult_protocol/1`, `cancel/1`, `cce/1`,
+  `void_numbers/1` and `manifest/2`, plus a DistDFe poller per tax ID.
+- **Manifestação do destinatário** — `:confirmation`, `:awareness`, `:unaware`
+  and `:not_performed`. These pair with DistDFe: confirming an operation is
+  what releases the full XML of a note you only received a summary of.
+- **The authorized document comes back.** `authorize/1` returns `:signed_xml`
+  (what was sent) and, once a protocol exists, `:xml` holding the `nfeProc` —
+  the document that must be archived and delivered. `SefazNfe.Result.proc/2`
+  joins the two halves for an asynchronous lote, whose protocol arrives later.
+- **Optional XSD validation**, off unless a schema directory is configured.
+- **Per-UF circuit breaker**, so a SEFAZ that stops answering cannot stall
+  callers working with other states. Only transport failures trip it.
+- **Telemetry** on `[:sefaz_nfe, :soap, :start | :stop | :exception]`, carrying
+  UF, service and outcome — never the certificate, the password or the body.
+
+### Verified against production SEFAZ
+
+### The full lifecycle, against SEFAZ BA homologation
+
+| step | result |
+| --- | --- |
+| `authorize/1` | **`cStat` 100, Autorizado o uso da NF-e** — protocol 129262000191061 |
+| `nfeProc` | assembled and well formed, signature and totals intact |
+| `cce/1` | `cStat` 135, evento registrado e vinculado à NF-e |
+| `cancel/1` | `cStat` 135, evento registrado e vinculado à NF-e |
+| `void_numbers/1` | `cStat` 102, inutilização homologada |
+| `dist_dfe/1` | `cStat` 137 / 656 with a live cursor |
+| `manifest/2` | `cStat` 136, evento registrado |
+| `service_status/1` | `cStat` 107 |
+
+### Still unproven
+
+`authorization_result/1` has not run against a real receipt: a single-document
+lote is synchronous and never produces one. `consult_protocol/1` builds and
+parses correctly, but SEFAZ BA's homologation does not retain authorized
+documents and answers `cStat` 217.
+
+### Verified against production SEFAZ
+
+**DistDFe works**, in homologation and production. The Ambiente Nacional
+answers `cStat` 137 for an empty page and returns a real cursor — for the
+certificate used in testing, production reported `ultNSU` 2728. This is the
+service that decides inbound cost, and it is reachable from every state
+because it lives on the AN.
+
+`service_status/1` returns `cStat` 107 from **SP, MG, BA, GO, MT, MS and MA**.
+
+**An NF-e was authorized.** `cStat` 100 against SEFAZ BA homologation, protocol
+129262000191061, with the `nfeProc` assembled and archivable.
+
+**Manifestação do destinatário is registered by SEFAZ.** A `:awareness` and a
+`:not_performed` event sent to the Ambiente Nacional in homologation both came
+back `cStat` **136, Evento registrado** — signature validated and the event
+recorded. This is the first document this library gets SEFAZ to actually
+store, rather than answer a query about.
+
+`authorize/1` reaches SEFAZ SP's taxpayer-registration check and stops at
+`cStat` **245, CNPJ emitente não cadastrado** — schema and signature accepted,
+nothing in the 280–297 range where certificate and signature failures live.
+
+### A known OTP limitation: 20 of 27 UF endpoints
+
+The per-UF services cannot connect to SVRS, PR, RS, PE or AM — 20 states in
+total. `:ssl` aborts with `{:tls, :decode_error}` where `openssl s_client
+-tls1_2` connects to the same host without complaint.
+
+The cause is precise and is not configuration. These servers request a client
+certificate and list their acceptable CAs; some of those distinguished names
+encode `emailAddress` as `PrintableString` instead of `IA5String`, which is
+invalid — `PrintableString` does not even admit `@`. OTP's
+`ssl_handshake:decode_cert_auths/2` calls `public_key:pkix_normalize_name/1` on
+every entry and lets the ASN.1 error abort the handshake, so one malformed name
+in an advisory list kills the connection. OpenSSL is lenient and connects.
+
+The field is only a hint for choosing a client certificate, and
+`ssl_certificate:handle_cert_auths/4` already treats an empty list as "accept
+first choice", so skipping undecodable entries degrades into an existing path.
+
+**OTP fixed this on `maint` as OTP-20327, and it ships in OTP 29.1.** On OTP 29,
+upgrading to 29.1 is the answer — the maintainer confirmed it is the next patch
+of that line, so there is no 29.0.7 to wait for. As of 2026-09-08 it is not out
+yet, and no released runtime carries the fix.
+
+For OTP 28 and 27 there is no imminent minor, so the fix is proposed as a
+backport: [erlang/otp#11604](https://github.com/erlang/otp/pull/11604) and
+[erlang/otp#11605](https://github.com/erlang/otp/pull/11605).
+
+Do not check the version to tell whether your runtime is affected: `maint` and
+`maint-29` both report `SSL_VSN = 11.7.5`. Attempt a connection instead.
+
+Until that release exists there is nothing to upgrade to. `patches/` carries
+the same change for the interval and is explicit about what pinning a module
+inside `ssl` costs. With it, all 27 endpoints answer `cStat` 107 instead of 7
+of 27.
+
+When a blocked endpoint is reached, the error is
+`{:tls, :decode_error, :otp_cert_auths_bug}` rather than a bare alert, so it
+names the runtime limitation instead of looking like a certificate problem.
+
+### What works on a stock OTP
+
+| | |
+|---|---|
+| DistDFe on the Ambiente Nacional | works, homologation and production |
+| SVC-AN contingency | works |
+| Per-UF services in BA, GO, MA, MG, MS, MT, SP | work |
+| Per-UF services in the other 20 states | blocked |
+| SVC-RS contingency | blocked |
+
+There is no workaround inside the library itself: the handshake transcript is
+hashed, so the bytes cannot be corrected in flight. DistDFe is unaffected.
+
+### Known limits
+
+- Contingency (SVC-AN, SVC-RS, EPEC, FS-DA) is not automatic. A down SEFAZ
+  returns an error and the caller chooses; silent failover can duplicate an
+  authorization.
+- No trust anchors ship with the package. SP and MT serve certificates chained
+  to *Autoridade Certificadora Raiz Brasileira*, which no OS bundle carries;
+  supply it with `config :sefaz_nfe, :cacerts`. Vendoring a CA bundle from a
+  download whose own host cannot be verified would be a man-in-the-middle
+  vector.
+- `SefazNfe.Certificate.PKCS12` and `SefazNfe.XML.C14N` are hand-written
+  crypto-adjacent code. They are tested against reference implementations, and
+  they deserve a security review before carrying production emission traffic.
+- NFC-e (65), CT-e, MDF-e, NFS-e and DANFE are out of scope.
