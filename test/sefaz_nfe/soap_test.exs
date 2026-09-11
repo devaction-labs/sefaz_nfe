@@ -268,9 +268,7 @@ defmodule SefazNfe.SOAPTest do
       on_exit(fn -> Application.put_env(:sefaz_nfe, :soap, previous) end)
     end
 
-    # The option has to govern the request, not only the task supervising it.
-    # Forwarded to the task alone it can shorten a call and never lengthen one,
-    # which is the opposite of what a caller raising it wants.
+    # The option governs the request, not only the task supervising it.
     test "reaches the client, so it can raise the request deadline too" do
       SefazNfe.SOAP.isolated_call("https://example.test", "<x/>", SefazNfe.Fixtures.cert(),
         uf: "SP",
@@ -281,9 +279,8 @@ defmodule SefazNfe.SOAPTest do
       assert Keyword.get(opts, :timeout) == to_timeout(second: 120)
     end
 
-    # Measured against SEFAZ-BA: `time_connect` ranged from 3.5 seconds to 68.7
-    # across consecutive requests. Connecting is the part that hangs, so a task
-    # window keyed on the request timeout alone would cut the connect short.
+    # `time_connect` to SEFAZ-BA, measured: 3.5 to 68.7 seconds. Connecting is the
+    # part that hangs.
     test "a connect timeout past the request timeout is not cut short by the task" do
       SefazNfe.SOAP.isolated_call("https://example.test", "<x/>", SefazNfe.Fixtures.cert(),
         uf: "BA",
