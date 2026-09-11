@@ -2,6 +2,14 @@
 
 ## 0.1.1
 
+`isolated_call/4` consumed `:timeout` for the task supervising the request and
+never forwarded it to the client, which kept its own 30 second default. The
+option could therefore shorten a call and never lengthen one — a caller raising
+it to two minutes still got `{:error, :timeout}` at thirty seconds, from a
+deadline it had no way to reach. It now reaches the client, and the task waits a
+five second grace beyond it so a request timeout is reported by the client that
+knows it was one.
+
 `Signer` spliced the `Signature` at a grapheme offset where the match had been
 measured in bytes. One accented character before the closing tag — `Móveis`,
 `Açaí`, any real emitter name — moved the cut one position early, producing

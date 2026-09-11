@@ -1,5 +1,5 @@
 defmodule SefazNfe.SOAPTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias SefazNfe.Result
   alias SefazNfe.SOAP.Envelope
@@ -247,5 +247,47 @@ defmodule SefazNfe.SOAPTest do
 
   test "mix test cannot open a socket: the configured client is the stub" do
     assert SefazNfe.SOAP.client() == SefazNfe.SOAP.NotImplemented
+  end
+
+  describe "isolated_call/4 timeout" do
+    defmodule RecordsOpts do
+      @moduledoc false
+      @behaviour SefazNfe.SOAP
+
+      @impl SefazNfe.SOAP
+      def call(_endpoint, _body, _cert, opts) do
+        send(:soap_timeout_test, {:opts, opts})
+        {:ok, "<x/>"}
+      end
+    end
+
+    setup do
+      Process.register(self(), :soap_timeout_test)
+      previous = Application.get_env(:sefaz_nfe, :soap)
+      Application.put_env(:sefaz_nfe, :soap, RecordsOpts)
+      on_exit(fn -> Application.put_env(:sefaz_nfe, :soap, previous) end)
+    end
+
+    # The option has to govern the request, not only the task supervising it.
+    # Forwarded to the task alone it can shorten a call and never lengthen one,
+    # which is the opposite of what a caller raising it wants.
+    test "reaches the client, so it can raise the request deadline too" do
+      SefazNfe.SOAP.isolated_call("https://example.test", "<x/>", SefazNfe.Fixtures.cert(),
+        uf: "SP",
+        timeout: to_timeout(second: 120)
+      )
+
+      assert_receive {:opts, opts}
+      assert Keyword.get(opts, :timeout) == to_timeout(second: 120)
+    end
+
+    test "the default reaches it as well, rather than being left to the client" do
+      SefazNfe.SOAP.isolated_call("https://example.test", "<x/>", SefazNfe.Fixtures.cert(),
+        uf: "MG"
+      )
+
+      assert_receive {:opts, opts}
+      assert Keyword.get(opts, :timeout) == to_timeout(second: 30)
+    end
   end
 end

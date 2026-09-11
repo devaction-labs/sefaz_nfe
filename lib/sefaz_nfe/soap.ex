@@ -31,8 +31,11 @@ defmodule SefazNfe.SOAP do
   does not take down the caller (Jurić: I/O failure domain).
 
   Emits `[:sefaz_nfe, :soap, :start | :stop | :exception]` (SEFAZ-14). The
-  `:uf` and `:service` options are consumed here as telemetry metadata; every
-  other option is forwarded to `c:call/4`. Metadata never carries the
+  `:uf` option is consumed here as telemetry metadata; every other option,
+  `:timeout` included, is forwarded to `c:call/4`. The timeout has to reach the
+  client: it governs the request, and supervising a task for longer than the
+  request it contains would let the option shorten a call and never lengthen
+  one. Metadata never carries the
   certificate, the password or the XML body — only the endpoint, the UF, the
   service and an outcome tag. That tag is deliberately low cardinality: the raw
   reason would drag a whole `{:soap_crash, stacktrace}` into every metrics
@@ -46,7 +49,7 @@ defmodule SefazNfe.SOAP do
   def isolated_call(endpoint, body, cert, opts \\ []) do
     {timeout, opts} = Keyword.pop_lazy(opts, :timeout, fn -> to_timeout(second: 30) end)
     {meta, rest} = Keyword.split(opts, [:uf, :service])
-    task_opts = Keyword.take(meta, [:service]) ++ rest
+    task_opts = Keyword.take(meta, [:service]) ++ rest ++ [timeout: timeout]
     metadata = meta |> Map.new() |> Map.put(:endpoint, endpoint)
     uf = Keyword.get(meta, :uf, "")
 
@@ -76,13 +79,20 @@ defmodule SefazNfe.SOAP do
 
   defp record(uf, _reached_sefaz), do: CircuitBreaker.record_success(uf)
 
+  # The task waits a little longer than the request it supervises, so a request
+  # that times out is reported by the client — which knows it was a request
+  # timeout — instead of being killed a moment earlier by the supervisor, which
+  # would only know that something took too long. Without the grace the two
+  # deadlines are identical and the race decides which error the caller sees.
+  @grace to_timeout(second: 5)
+
   defp run(endpoint, body, cert, task_opts, timeout) do
     task =
       Task.Supervisor.async_nolink(SefazNfe.TaskSupervisor, fn ->
         client().call(endpoint, body, cert, task_opts)
       end)
 
-    case Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill) do
+    case Task.yield(task, timeout + @grace) || Task.shutdown(task, :brutal_kill) do
       {:ok, result} -> result
       nil -> {:error, :timeout}
       {:exit, reason} -> {:error, {:soap_crash, reason}}
