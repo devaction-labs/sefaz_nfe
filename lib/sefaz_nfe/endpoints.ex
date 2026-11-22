@@ -15,12 +15,13 @@ defmodule SefazNfe.Endpoints do
           | :nfe_recepcao_evento
           | :nfe_inutilizacao
           | :nfe_distribuicao_dfe
+          | :nfe_consulta_cadastro
 
   @json_path Path.expand("../../priv/endpoints/nfe_4.00.json", __DIR__)
   @external_resource @json_path
   @snapshot JSON.decode!(File.read!(@json_path))
 
-  @services ~w(nfe_autorizacao nfe_ret_autorizacao nfe_consulta_protocolo nfe_status_servico nfe_recepcao_evento nfe_inutilizacao nfe_distribuicao_dfe)a
+  @services ~w(nfe_autorizacao nfe_ret_autorizacao nfe_consulta_protocolo nfe_status_servico nfe_recepcao_evento nfe_inutilizacao nfe_distribuicao_dfe nfe_consulta_cadastro)a
 
   @spec snapshot_date() :: String.t()
   def snapshot_date, do: @snapshot["snapshot_date"]
@@ -71,6 +72,25 @@ defmodule SefazNfe.Endpoints do
 
   def url(_uf, _environment, service) do
     {:error, {:unknown_service, service}}
+  end
+
+  @doc """
+  The SOAP operation `service` is called with on the authorizer serving `uf`,
+  or `nil` for a service whose operation is fixed (see `SefazNfe.SOAP.Envelope`).
+
+  `NFeConsultaCadastro` is the exception: its authorizers disagree on the
+  operation name (`consultaCadastro` on BA, GO, MS, MT and SP;
+  `consultaCadastro4` elsewhere), so the snapshot carries it as data under
+  `"operations"`, keyed by service and then authorizer, with a `"default"`.
+  """
+  @spec operation(String.t() | atom(), service()) :: String.t() | nil
+  def operation(uf, service) when service in @services do
+    authorizer = uf |> normalize_uf() |> authorizer_for(service)
+
+    case @snapshot["operations"][Atom.to_string(service)] do
+      %{"default" => default} = operations -> Map.get(operations, authorizer, default)
+      nil -> nil
+    end
   end
 
   defp authorizer_for(_uf, :nfe_distribuicao_dfe), do: "AN"

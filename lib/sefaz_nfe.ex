@@ -19,6 +19,7 @@ defmodule SefazNfe do
   alias SefazNfe.Signer
   alias SefazNfe.SOAP
   alias SefazNfe.SOAP.Envelope
+  alias SefazNfe.TaxpayerLookup
 
   @justification_min 15
   @tp_amb ~r|<tpAmb>([12])</tpAmb>|
@@ -143,6 +144,61 @@ defmodule SefazNfe do
       DistDFe.parse(body)
     end
   end
+
+  @doc """
+  `NFeConsultaCadastro` (`CadConsultaCadastro4`): the state taxpayer registry.
+
+  `:uf` is the UF whose registry is consulted, and also selects the endpoint.
+  Exactly one filter is required: `:tax_id` (CPF, or CNPJ including the
+  alphanumeric one; shape-checked like everywhere else) or `:ie`, a state
+  registration of 2 to 14 digits (shape only).
+
+  Neither filter, or both, is `{:error, {:invalid_filter, :missing | :ambiguous}}`;
+  a malformed state registration is `{:error, :invalid_ie}`. A UF whose
+  authorizer does not offer the service (AM, and MA through SVAN) is
+  `{:error, {:unknown_endpoint, uf, :nfe_consulta_cadastro}}`.
+
+  `cStat` 111 and 112 carry one or several records, and a rejection such as 259
+  (not registered) is still `{:ok, lookup}` with `taxpayers: []`. See
+  `SefazNfe.TaxpayerLookup`.
+  """
+  @spec consult_taxpayer(map()) :: {:ok, SefazNfe.TaxpayerLookup.t()} | {:error, term()}
+  def consult_taxpayer(opts) when is_map(opts) do
+    with :ok <- require_keys(opts, [:cert, :uf, :environment]),
+         :ok <- validate_environment(opts.environment),
+         {:ok, filter} <- taxpayer_filter(opts),
+         {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_consulta_cadastro),
+         uf = opts.uf |> to_string() |> String.upcase(),
+         message = Envelope.consult_taxpayer(uf, filter),
+         {:ok, envelope} <- Envelope.wrap(:nfe_consulta_cadastro, message),
+         operation = Endpoints.operation(uf, :nfe_consulta_cadastro),
+         {:ok, body} <-
+           call(url, envelope, opts, :nfe_consulta_cadastro, operation: operation) do
+      TaxpayerLookup.parse(body)
+    end
+  end
+
+  defp taxpayer_filter(opts) do
+    case {Map.fetch(opts, :tax_id), Map.fetch(opts, :ie)} do
+      {:error, :error} ->
+        {:error, {:invalid_filter, :missing}}
+
+      {{:ok, _tax_id}, {:ok, _ie}} ->
+        {:error, {:invalid_filter, :ambiguous}}
+
+      {{:ok, tax_id}, :error} ->
+        with :ok <- validate_tax_id(tax_id), do: {:ok, {:tax_id, tax_id}}
+
+      {:error, {:ok, ie}} ->
+        with :ok <- validate_ie(ie), do: {:ok, {:ie, ie}}
+    end
+  end
+
+  defp validate_ie(ie) when is_binary(ie) do
+    if String.match?(ie, ~r/^\d{2,14}$/), do: :ok, else: {:error, :invalid_ie}
+  end
+
+  defp validate_ie(_), do: {:error, :invalid_ie}
 
   @doc """
   `NFeConsultaProtocolo4` by 44-digit access key.
@@ -312,13 +368,20 @@ defmodule SefazNfe do
     })
   end
 
-  defp call(url, envelope, opts, service) do
-    SOAP.isolated_call(url, envelope, opts.cert,
-      uf: to_string(opts.uf),
-      service: service,
-      timeout: Map.get(opts, :timeout, to_timeout(second: 30)),
-      connect_timeout: Map.get(opts, :connect_timeout, to_timeout(second: 10)),
-      tls_options: Map.get(opts, :tls_options, [])
+  # `extra` carries per-call transport options; `operation:` is the one that
+  # makes the SOAP action differ per authorizer (NFeConsultaCadastro only).
+  defp call(url, envelope, opts, service, extra \\ []) do
+    SOAP.isolated_call(
+      url,
+      envelope,
+      opts.cert,
+      [
+        uf: to_string(opts.uf),
+        service: service,
+        timeout: Map.get(opts, :timeout, to_timeout(second: 30)),
+        connect_timeout: Map.get(opts, :connect_timeout, to_timeout(second: 10)),
+        tls_options: Map.get(opts, :tls_options, [])
+      ] ++ extra
     )
   end
 
