@@ -68,6 +68,20 @@ defmodule Mix.Tasks.Sefaz.EndpointsTest do
     assert problem =~ "days old"
   end
 
+  test "an operations override for an unknown authorizer is reported" do
+    broken =
+      put_in(snapshot(), ["operations", "nfe_consulta_cadastro", "NOPE"], "consultaCadastro")
+
+    assert ["operations nfe_consulta_cadastro names unknown authorizer NOPE"] =
+             Endpoints.audit(broken)
+  end
+
+  test "an operations entry with no default is reported" do
+    {_removed, broken} = pop_in(snapshot(), ["operations", "nfe_consulta_cadastro", "default"])
+
+    assert ["operations nfe_consulta_cadastro has no default"] = Endpoints.audit(broken)
+  end
+
   test "a snapshot with no date is a problem, not a pass" do
     {_removed, undated} = pop_in(snapshot(), ["snapshot_date"])
 

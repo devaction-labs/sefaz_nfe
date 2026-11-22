@@ -141,7 +141,7 @@ defmodule SefazNfe.SOAP.HTTPC do
   # mind either way, so it is always sent when the service is known.
   defp content_type(opts) do
     with service when not is_nil(service) <- Keyword.get(opts, :service),
-         {:ok, action} <- Envelope.action(service) do
+         {:ok, action} <- Envelope.action(service, Keyword.get(opts, :operation)) do
       String.to_charlist(~s(application/soap+xml; charset=utf-8; action="#{action}"))
     else
       _unknown -> ~c"application/soap+xml; charset=utf-8"

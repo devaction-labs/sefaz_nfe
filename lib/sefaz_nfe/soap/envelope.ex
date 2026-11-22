@@ -22,7 +22,8 @@ defmodule SefazNfe.SOAP.Envelope do
     nfe_status_servico: "NFeStatusServico4",
     nfe_recepcao_evento: "NFeRecepcaoEvento4",
     nfe_inutilizacao: "NFeInutilizacao4",
-    nfe_distribuicao_dfe: "NFeDistribuicaoDFe"
+    nfe_distribuicao_dfe: "NFeDistribuicaoDFe",
+    nfe_consulta_cadastro: "CadConsultaCadastro4"
   }
 
   # The WSDL operation each service exposes. SOAP 1.2 carries it as the
@@ -36,15 +37,23 @@ defmodule SefazNfe.SOAP.Envelope do
     nfe_status_servico: "nfeStatusServicoNF",
     nfe_recepcao_evento: "nfeRecepcaoEvento",
     nfe_inutilizacao: "nfeInutilizacaoNF",
-    nfe_distribuicao_dfe: "nfeDistDFeInteresse"
+    nfe_distribuicao_dfe: "nfeDistDFeInteresse",
+    nfe_consulta_cadastro: "consultaCadastro4"
   }
 
   @type service :: SefazNfe.Endpoints.service()
 
-  @doc "SOAPAction URI for `service`."
-  @spec action(service()) :: {:ok, String.t()} | {:error, {:unknown_service, term()}}
-  def action(service) do
-    case {@wsdl[service], @operation[service]} do
+  @doc """
+  SOAPAction URI for `service`.
+
+  `operation` overrides the service's default operation name. Only
+  `NFeConsultaCadastro` needs it: its authorizers disagree on the name, so it
+  comes from `SefazNfe.Endpoints.operation/2`. `nil` keeps the default.
+  """
+  @spec action(service(), String.t() | nil) ::
+          {:ok, String.t()} | {:error, {:unknown_service, term()}}
+  def action(service, operation \\ nil) do
+    case {@wsdl[service], operation || @operation[service]} do
       {nil, _operation} -> {:error, {:unknown_service, service}}
       {wsdl, operation} -> {:ok, "#{@wsdl_base}/#{wsdl}/#{operation}"}
     end
@@ -161,6 +170,31 @@ defmodule SefazNfe.SOAP.Envelope do
       strip_declaration(signed_event) <>
       ~s(</envEvento>)
   end
+
+  @doc """
+  `ConsCad` for `NFeConsultaCadastro` (layout 2.00, not 4.00).
+
+  `uf` is the UF whose registry is consulted. `filter` is exactly one of
+  `{:tax_id, id}` (CPF or CNPJ) and `{:ie, ie}`.
+
+  MT quirk (from NFePHP): SEFAZ-MT wants the message wrapped in one more
+  `nfeDadosMsg`, with no namespace of its own, inside the WSDL one. Every other
+  authorizer takes `ConsCad` directly.
+  """
+  @spec consult_taxpayer(String.t(), {:tax_id | :ie, String.t()}) :: binary()
+  def consult_taxpayer("MT" = uf, filter) do
+    "<nfeDadosMsg>" <> cons_cad(uf, filter) <> "</nfeDadosMsg>"
+  end
+
+  def consult_taxpayer(uf, filter), do: cons_cad(uf, filter)
+
+  defp cons_cad(uf, filter) do
+    ~s(<ConsCad xmlns="#{@nfe_ns}" versao="2.00"><infCons><xServ>CONS-CAD</xServ>) <>
+      ~s(<UF>#{uf}</UF>#{cad_filter(filter)}</infCons></ConsCad>)
+  end
+
+  defp cad_filter({:tax_id, id}), do: tax_id_element(id)
+  defp cad_filter({:ie, ie}), do: ~s(<IE>#{ie}</IE>)
 
   @doc "A CPF is 11 digits; anything else is treated as a CNPJ."
   @spec tax_id_element(String.t()) :: binary()

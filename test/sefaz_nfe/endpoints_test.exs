@@ -32,8 +32,8 @@ defmodule SefazNfe.EndpointsTest do
   end
 
   test "unknown service is named as such" do
-    assert {:error, {:unknown_service, :nfe_consulta_cadastro}} =
-             Endpoints.url("SP", :production, :nfe_consulta_cadastro)
+    assert {:error, {:unknown_service, :nfe_nope}} =
+             Endpoints.url("SP", :production, :nfe_nope)
   end
 
   test "SVC contingency authorizers are reachable by name (AD-005)" do

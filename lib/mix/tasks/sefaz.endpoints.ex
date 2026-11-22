@@ -24,7 +24,9 @@ defmodule Mix.Tasks.Sefaz.Endpoints do
   2. Update `priv/endpoints/nfe_4.00.json`: `authorizers` holds one entry per
      authorizer with `homologation` and `production` URLs per service,
      `uf_authorizer` maps each UF to its authorizer, `uf_code` the IBGE code
-     the envelopes carry as `cUF`.
+     the envelopes carry as `cUF`. `operations` holds the SOAP operation per
+     authorizer for `nfe_consulta_cadastro`, the one service whose
+     authorizers disagree on it (`default` plus overrides).
   3. Set `snapshot_date` to the date you read the portal.
   4. Run `mix sefaz.endpoints` and `mix test`.
 
@@ -55,7 +57,7 @@ defmodule Mix.Tasks.Sefaz.Endpoints do
   """
   @spec audit(map(), pos_integer()) :: [String.t()]
   def audit(snapshot, max_age \\ @default_max_age) do
-    age(snapshot, max_age) ++ coverage(snapshot) ++ urls(snapshot)
+    age(snapshot, max_age) ++ coverage(snapshot) ++ urls(snapshot) ++ operations(snapshot)
   end
 
   defp report(snapshot, []) do
@@ -100,6 +102,30 @@ defmodule Mix.Tasks.Sefaz.Endpoints do
   end
 
   defp present?(url), do: is_binary(url) and url != ""
+
+  # `operations` holds the SOAP operation of the services whose authorizers
+  # disagree on it (NFeConsultaCadastro). Each entry needs a "default", and an
+  # override naming an authorizer that is not in the table is a typo that would
+  # silently never apply. Such a service is optional per authorizer (AM and
+  # SVAN do not offer it), so it is not part of coverage/1.
+  defp operations(snapshot) do
+    for {service, entries} <- Map.get(snapshot, "operations", %{}),
+        problem <- operation_problems(snapshot, service, entries),
+        do: problem
+  end
+
+  defp operation_problems(snapshot, service, entries) do
+    default =
+      if present?(entries["default"]), do: [], else: ["operations #{service} has no default"]
+
+    unknown =
+      for {authorizer, _operation} <- entries,
+          authorizer != "default",
+          not is_map_key(snapshot["authorizers"], authorizer),
+          do: "operations #{service} names unknown authorizer #{authorizer}"
+
+    default ++ unknown
+  end
 
   defp urls(snapshot) do
     missing_codes =
