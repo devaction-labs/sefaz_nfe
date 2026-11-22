@@ -19,6 +19,16 @@ Endpoint functions (`Endpoints.url/4`, `contingency_for/2`,
 `contingency_url/4`, `operation/3`) gained a trailing `model` argument that
 defaults to 55, so NF-e callers are unaffected. `%Result{}` is unchanged.
 
+### Security
+
+- Decimal inputs are bounded: a `Decimal` leaf with `abs(exp) > 40`, more than
+  40 coefficient digits, `:inf` or `:NaN` is `{path, :out_of_range}` before any
+  `Decimal` call, and `parse_nfe(decimals: true)` only calls `Decimal.parse/1`
+  on plain `[0-9]+(.[0-9]+)?` text of at most 40 digits per part. The `decimal`
+  requirement is widened to `~> 2.0 or ~> 3.0` so hosts can take the fixes for
+  EEF-CVE-2026-32686 (unbounded exponent) and EEF-CVE-2026-97853 (unbounded
+  `Decimal.round/3` places; the library does not call it).
+
 ### Added
 
 - One package (AD-026, superseding AD-022): CT-e and MDF-e live in

@@ -376,6 +376,39 @@ defmodule SefazNfe.BuilderTest do
       assert v_nf("100.00") == "100.00"
     end
 
+    test "Decimals out of bounds fail fast, without expanding" do
+      path = [:total, :icms_tot, :v_nf]
+
+      # Built as structs: decimal 3.x refuses such exponents in `new/1`, 2.x does not.
+      for bad <- [
+            %Decimal{sign: 1, coef: 1, exp: 1_000_000_000},
+            %Decimal{sign: 1, coef: 1, exp: -1_000_000_000},
+            %Decimal{sign: -1, coef: 1, exp: 999_999},
+            %Decimal{sign: 1, coef: :inf, exp: 0},
+            %Decimal{sign: -1, coef: :inf, exp: 0},
+            %Decimal{sign: 1, coef: :NaN, exp: 0},
+            %Decimal{sign: 1, coef: Integer.pow(10, 40), exp: 0},
+            %Decimal{sign: 1, coef: 1, exp: 41}
+          ] do
+        task = Task.async(fn -> Builder.build_nfe(put_in(simple(), path, bad)) end)
+
+        assert {:ok, {:error, errors}} =
+                 Task.yield(task, 1_000) || Task.shutdown(task, :brutal_kill)
+
+        assert {path, :out_of_range} in errors
+      end
+    end
+
+    test "at the bounds the leaf's own pattern decides, not the guard" do
+      for edge <- [
+            %Decimal{sign: 1, coef: Integer.pow(10, 39), exp: 0},
+            %Decimal{sign: 1, coef: 1, exp: 40}
+          ] do
+        doc = put_in(simple(), [:total, :icms_tot, :v_nf], edge)
+        assert [{[:total, :icms_tot, :v_nf], {:pattern, _}}] = errors!(doc)
+      end
+    end
+
     test "types with a range of places use the least, and keep what the value needs" do
       p = fn value ->
         xml =
