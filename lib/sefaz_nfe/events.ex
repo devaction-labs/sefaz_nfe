@@ -18,6 +18,7 @@ defmodule SefazNfe.Events do
 
   @cancel "110111"
   @correction "110110"
+  @epec "110140"
 
   # Manifestação do destinatário. The description strings are compared verbatim
   # by SEFAZ, so they are data here rather than something a caller passes.
@@ -81,6 +82,37 @@ defmodule SefazNfe.Events do
     event(code, "1.00", detail(type, description, opts), Map.put(opts, :uf_code, 91))
   end
 
+  @doc """
+  Event 110140, the EPEC (Evento Prévio de Emissão em Contingência).
+
+  `opts.epec` is what `SefazNfe.EPEC.extract/1` read from the NF-e: its values
+  are copied, never derived, so the numbers SEFAZ registers are the NF-e's own.
+  Like the manifestation it is processed by the Ambiente Nacional (`cOrgao` 91),
+  and `opts.tax_id` is the emitter, the event's author. The element order of
+  `detEvento` is the XSD's (`e110140NFe_v1.00.xsd`).
+  """
+  @spec epec(map()) :: binary()
+  def epec(opts) do
+    e = opts.epec
+
+    detail =
+      ~s(<descEvento>EPEC</descEvento>) <>
+        ~s(<cOrgaoAutor>#{e.c_uf}</cOrgaoAutor><tpAutor>1</tpAutor>) <>
+        ~s(<verAplic>#{escape(e.ver_aplic)}</verAplic><dhEmi>#{e.dh_emi}</dhEmi>) <>
+        ~s(<tpNF>#{e.tp_nf}</tpNF><IE>#{e.ie}</IE>) <>
+        ~s(<dest><UF>#{e.dest_uf}</UF>#{dest_id(e.dest_id)}#{dest_ie(e.dest_ie)}) <>
+        ~s(<vNF>#{e.v_nf}</vNF><vICMS>#{e.v_icms}</vICMS><vST>#{e.v_st}</vST></dest>)
+
+    event(@epec, "1.00", detail, Map.put(opts, :uf_code, 91))
+  end
+
+  defp dest_id({:cnpj, id}), do: ~s(<CNPJ>#{id}</CNPJ>)
+  defp dest_id({:cpf, id}), do: ~s(<CPF>#{id}</CPF>)
+  defp dest_id({:id_estrangeiro, id}), do: ~s(<idEstrangeiro>#{escape(id)}</idEstrangeiro>)
+
+  defp dest_ie(nil), do: ""
+  defp dest_ie(ie), do: ~s(<IE>#{ie}</IE>)
+
   @doc "The four manifestação types this library builds."
   @spec manifestation_types() :: [atom()]
   def manifestation_types, do: Map.keys(@manifestation)
@@ -121,13 +153,18 @@ defmodule SefazNfe.Events do
     ~s(<evento xmlns="#{@nfe_ns}" versao="1.00">) <>
       ~s(<infEvento Id="#{id}">) <>
       ~s(<cOrgao>#{opts.uf_code}</cOrgao><tpAmb>#{opts.tp_amb}</tpAmb>) <>
-      ~s(<CNPJ>#{opts.tax_id}</CNPJ><chNFe>#{opts.ch_nfe}</chNFe>) <>
+      ~s(#{author(opts.tax_id)}<chNFe>#{opts.ch_nfe}</chNFe>) <>
       ~s(<dhEvento>#{timestamp(opts)}</dhEvento>) <>
       ~s(<tpEvento>#{code}</tpEvento><nSeqEvento>#{sequence}</nSeqEvento>) <>
       ~s(<verEvento>#{version}</verEvento>) <>
       ~s(<detEvento versao="#{version}">#{detail}</detEvento>) <>
       ~s(</infEvento></evento>)
   end
+
+  # The XSD's author is a choice of CNPJ or CPF; a natural-person emitter (a
+  # producer rural, say) has 11 digits.
+  defp author(id) when byte_size(id) == 11, do: "<CPF>#{id}</CPF>"
+  defp author(id), do: "<CNPJ>#{id}</CNPJ>"
 
   # The MOC wants a local time with an explicit offset, never UTC with a Z, and
   # second precision: a microsecond field fails the schema as cStat 225. Both

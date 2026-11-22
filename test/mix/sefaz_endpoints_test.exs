@@ -151,4 +151,36 @@ defmodule Mix.Tasks.Sefaz.EndpointsTest do
       assert [] = Endpoints.audit(nfce())
     end
   end
+
+  describe "uf_contingency" do
+    test "a UF with no entry is reported" do
+      {_removed, broken} = pop_in(snapshot(), ["uf_contingency", "SP"])
+
+      assert ["SP has no uf_contingency entry"] = Endpoints.audit(broken)
+    end
+
+    test "an entry that is not an SVC is reported" do
+      broken = put_in(snapshot(), ["uf_contingency", "SP"], "SP")
+
+      assert [problem] = Endpoints.audit(broken)
+      assert problem =~ "SP uf_contingency"
+      assert problem =~ "not SVCAN or SVCRS"
+    end
+
+    test "an SVC missing a service is reported for each UF it serves" do
+      {_removed, broken} =
+        pop_in(snapshot(), ["authorizers", "SVCRS", "production", "nfe_recepcao_evento"])
+
+      problems = Endpoints.audit(broken)
+      assert length(problems) == 8
+      assert Enum.all?(problems, &(&1 =~ "SVCRS has no production nfe_recepcao_evento"))
+    end
+
+    test "the NFC-e table has none and is not asked for one" do
+      nfce = JSON.decode!(File.read!("priv/endpoints/nfce_4.00.json"))
+
+      refute Map.has_key?(nfce, "uf_contingency")
+      assert [] = Endpoints.audit(nfce)
+    end
+  end
 end

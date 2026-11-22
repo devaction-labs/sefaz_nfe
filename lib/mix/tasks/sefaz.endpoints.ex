@@ -19,6 +19,12 @@ defmodule Mix.Tasks.Sefaz.Endpoints do
   (default 180) or fails a structural check, so CI can fail on a stale table
   rather than a production call discovering it.
 
+  ## Contingency
+
+  `uf_contingency` (model 55 only) maps each UF to the SVC that serves it,
+  `SVCAN` or `SVCRS`. Every UF needs an entry, and the authorizer it names has
+  to exist and carry the six per-UF services.
+
   ## The model 65 table
 
   It has the same shape as the model 55 one, so the webservice URLs follow the
@@ -102,7 +108,8 @@ defmodule Mix.Tasks.Sefaz.Endpoints do
   @spec audit(map(), pos_integer()) :: [String.t()]
   def audit(snapshot, max_age \\ @default_max_age) do
     age(snapshot, max_age) ++
-      coverage(snapshot) ++ urls(snapshot) ++ operations(snapshot) ++ nfce(snapshot)
+      coverage(snapshot) ++
+      urls(snapshot) ++ operations(snapshot) ++ nfce(snapshot) ++ contingency(snapshot)
   end
 
   defp report(file, snapshot, []) do
@@ -171,6 +178,33 @@ defmodule Mix.Tasks.Sefaz.Endpoints do
           do: "operations #{service} names unknown authorizer #{authorizer}"
 
     default ++ unknown
+  end
+
+  # Model 55 only: NFC-e has no SVC. `uf_contingency` says which SVC serves each
+  # UF, so every UF needs an entry, it must be SVCAN or SVCRS, and that
+  # authorizer must carry the six per-UF services in both environments. A UF
+  # with no entry is only found when its authorizer goes down.
+  defp contingency(%{"model" => 65}), do: []
+
+  defp contingency(snapshot) do
+    table = Map.get(snapshot, "uf_contingency", %{})
+
+    for {uf, _authorizer} <- snapshot["uf_authorizer"],
+        problem <- contingency_problems(snapshot, uf, table[uf]),
+        do: problem
+  end
+
+  defp contingency_problems(_snapshot, uf, nil), do: ["#{uf} has no uf_contingency entry"]
+
+  defp contingency_problems(_snapshot, uf, svc) when svc not in ["SVCAN", "SVCRS"],
+    do: ["#{uf} uf_contingency #{inspect(svc)} is not SVCAN or SVCRS"]
+
+  defp contingency_problems(snapshot, uf, svc) do
+    for environment <- @environments,
+        service <- @services,
+        not present?(get_in(snapshot, ["authorizers", svc, environment, service])) do
+      "#{uf} uf_contingency #{svc} has no #{environment} #{service}"
+    end
   end
 
   defp urls(snapshot) do

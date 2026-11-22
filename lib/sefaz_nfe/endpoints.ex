@@ -98,6 +98,55 @@ defmodule SefazNfe.Endpoints do
 
   def url(_uf, _environment, _service, model), do: {:error, {:unsupported_model, model}}
 
+  @svc %{"SVCAN" => :svc_an, "SVCRS" => :svc_rs}
+  @svc_authorizer %{svc_an: "SVCAN", svc_rs: "SVCRS"}
+
+  @doc """
+  The SVC (Sefaz Virtual de Contingência) that serves `uf`, model 55 only.
+
+  Which one is data (`uf_contingency` in the snapshot, from the MOC): SVC-RS
+  serves AM, BA, GO, MA, MS, MT, PE and PR, SVC-AN every other UF. Nothing here
+  decides to use it; contingency is the caller's choice (AD-005).
+  """
+  @spec contingency_for(String.t() | atom()) ::
+          {:ok, :svc_an | :svc_rs} | {:error, {:unknown_uf, String.t()}}
+  def contingency_for(uf) do
+    uf = normalize_uf(uf)
+
+    case @svc[@snapshot["uf_contingency"][uf]] do
+      nil -> {:error, {:unknown_uf, uf}}
+      svc -> {:ok, svc}
+    end
+  end
+
+  @doc """
+  The URL of `service` on the SVC `svc` (`:svc_an` or `:svc_rs`), model 55.
+
+  It does not check that `svc` serves any particular UF; see `contingency_for/1`.
+  """
+  @spec contingency_url(:svc_an | :svc_rs, environment(), service()) ::
+          {:ok, String.t()} | {:error, term()}
+  def contingency_url(svc, environment, service)
+      when is_map_key(@svc_authorizer, svc) and environment in [:homologation, :production] and
+             service in @services do
+    authorizer = Map.fetch!(@svc_authorizer, svc)
+    path = ["authorizers", authorizer, environment_key(environment), Atom.to_string(service)]
+
+    case get_in(@snapshot, path) do
+      url when is_binary(url) and url != "" -> {:ok, url}
+      _ -> {:error, {:unknown_endpoint, authorizer, service}}
+    end
+  end
+
+  def contingency_url(svc, _environment, _service) when not is_map_key(@svc_authorizer, svc),
+    do: {:error, {:invalid_contingency, svc}}
+
+  def contingency_url(_svc, environment, _service)
+      when environment not in [:homologation, :production],
+      do: {:error, {:invalid_environment, environment}}
+
+  def contingency_url(_svc, _environment, service), do: {:error, {:unknown_service, service}}
+
   @doc """
   The QR code base URL of `uf`'s own SEFAZ, for model 65.
 

@@ -15,6 +15,11 @@ defmodule SefazNfe.NFeBuilder do
   `model: 65` builds an NFC-e: `mod` 65, `tpImp` 4, consumer final, in person,
   no `dest` unless `:dest_tax_id` is given, and `pag` without `indPag`. It
   carries no `infNFeSupl` — `SefazNfe.authorize/1` adds it.
+
+  `tp_emis:` (default 1) sets `tpEmis` in `ide` and in the access key. For 4
+  (EPEC), 6 (SVC-AN) and 7 (SVC-RS) the MOC also wants `dhCont` and `xJust`,
+  taken from `dh_cont:` and `x_just:`; pass `x_just: nil` or `dh_cont: nil` to
+  build one without it.
   """
 
   @homologation_name "NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
@@ -67,6 +72,7 @@ defmodule SefazNfe.NFeBuilder do
     tp_amb = Keyword.get(opts, :tp_amb, 2)
     crt = Keyword.get(opts, :crt, 3)
     model = Keyword.get(opts, :model, 55)
+    tp_emis = Keyword.get(opts, :tp_emis, 1)
 
     unless model in [55, 65],
       do: raise(ArgumentError, "model must be 55 or 65, got: #{inspect(model)}")
@@ -88,7 +94,7 @@ defmodule SefazNfe.NFeBuilder do
       |> to_string()
       |> String.pad_leading(8, "0")
 
-    key = access_key(uf_code, emitted_at, tax_id, serie, number, c_nf, model)
+    key = access_key(uf_code, emitted_at, tax_id, serie, number, c_nf, model, tp_emis)
 
     {municipality, city} = Map.fetch!(@capitals, uf)
 
@@ -105,7 +111,9 @@ defmodule SefazNfe.NFeBuilder do
           tp_amb,
           String.last(key),
           municipality,
-          model
+          model,
+          tp_emis,
+          contingency(tp_emis, opts)
         ) <>
         emit(tax_id, ie, uf, municipality, city, crt) <>
         dest(model, tp_amb, uf, municipality, city, dest_tax_id(opts, model)) <>
@@ -158,17 +166,18 @@ defmodule SefazNfe.NFeBuilder do
           pos_integer(),
           pos_integer(),
           String.t(),
-          55 | 65
+          55 | 65,
+          pos_integer()
         ) ::
           String.t()
-  def access_key(uf_code, emitted_at, tax_id, serie, number, c_nf, model \\ 55) do
+  def access_key(uf_code, emitted_at, tax_id, serie, number, c_nf, model \\ 55, tp_emis \\ 1) do
     <<_::binary-size(2), year::binary-size(2), "-", month::binary-size(2), _rest::binary>> =
       emitted_at
 
     body =
       "#{uf_code}#{year}#{month}#{tax_id}#{model}" <>
         String.pad_leading(to_string(serie), 3, "0") <>
-        String.pad_leading(to_string(number), 9, "0") <> "1" <> c_nf
+        String.pad_leading(to_string(number), 9, "0") <> to_string(tp_emis) <> c_nf
 
     body <> check_digit(body)
   end
@@ -191,15 +200,42 @@ defmodule SefazNfe.NFeBuilder do
     end
   end
 
-  defp ide(uf_code, c_nf, serie, number, emitted_at, tp_amb, c_dv, municipality, model) do
+  defp ide(
+         uf_code,
+         c_nf,
+         serie,
+         number,
+         emitted_at,
+         tp_amb,
+         c_dv,
+         municipality,
+         model,
+         tp_emis,
+         cont
+       ) do
     ~s(<ide><cUF>#{uf_code}</cUF><cNF>#{c_nf}</cNF><natOp>VENDA DE MERCADORIA</natOp>) <>
       ~s(<mod>#{model}</mod><serie>#{serie}</serie><nNF>#{number}</nNF>) <>
       ~s(<dhEmi>#{emitted_at}</dhEmi><tpNF>1</tpNF><idDest>1</idDest>) <>
-      ~s(<cMunFG>#{municipality}</cMunFG><tpImp>#{tp_imp(model)}</tpImp><tpEmis>1</tpEmis>) <>
+      ~s(<cMunFG>#{municipality}</cMunFG><tpImp>#{tp_imp(model)}</tpImp><tpEmis>#{tp_emis}</tpEmis>) <>
       ~s(<cDV>#{c_dv}</cDV>) <>
       ~s(<tpAmb>#{tp_amb}</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal>) <>
-      ~s(<indPres>1</indPres><procEmi>0</procEmi><verProc>sefaz_nfe</verProc></ide>)
+      ~s(<indPres>1</indPres><procEmi>0</procEmi><verProc>sefaz_nfe</verProc>) <>
+      cont <> ~s(</ide>)
   end
+
+  # dhCont and xJust close `ide`, after verProc, and only exist for the
+  # contingency emission types the MOC lists (EPEC and the two SVCs).
+  defp contingency(tp_emis, opts) when tp_emis in [4, 6, 7] do
+    dh_cont = Keyword.get(opts, :dh_cont, "2026-09-07T09:30:00-03:00")
+    x_just = Keyword.get(opts, :x_just, "SEFAZ DE ORIGEM INDISPONIVEL")
+
+    optional("dhCont", dh_cont) <> optional("xJust", x_just)
+  end
+
+  defp contingency(_tp_emis, _opts), do: ""
+
+  defp optional(_name, nil), do: ""
+  defp optional(name, value), do: "<#{name}>#{value}</#{name}>"
 
   # DANFE portrait for 55, DANFE NFC-e for 65.
   defp tp_imp(55), do: 1

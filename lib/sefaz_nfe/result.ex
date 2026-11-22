@@ -34,12 +34,23 @@ defmodule SefazNfe.Result do
           ch_nfe: String.t() | nil,
           n_prot: String.t() | nil,
           n_rec: String.t() | nil,
+          dh_reg_evento: String.t() | nil,
           xml: String.t() | nil,
           signed_xml: String.t() | nil
         }
 
   @enforce_keys [:status, :c_stat, :x_motivo]
-  defstruct [:status, :c_stat, :x_motivo, :ch_nfe, :n_prot, :n_rec, :xml, :signed_xml]
+  defstruct [
+    :status,
+    :c_stat,
+    :x_motivo,
+    :ch_nfe,
+    :n_prot,
+    :n_rec,
+    :dh_reg_evento,
+    :xml,
+    :signed_xml
+  ]
 
   @doc """
   Maps a SEFAZ SOAP body to `t:t/0`.
@@ -82,7 +93,8 @@ defmodule SefazNfe.Result do
       x_motivo: XML.text(outcome, "xMotivo") || "",
       ch_nfe: XML.text(outcome, "chNFe"),
       n_prot: XML.text(outcome, "nProt"),
-      n_rec: XML.text(doc, "nRec")
+      n_rec: XML.text(doc, "nRec"),
+      dh_reg_evento: XML.text(outcome, "dhRegEvento")
     }
   end
 
@@ -118,6 +130,9 @@ defmodule SefazNfe.Result do
   defp status(104), do: :batch_processed
   defp status(105), do: :processing
   defp status(150), do: :authorized
+  # 124 is "EPEC autorizado", the NF-e side of the contingency; the event
+  # itself answers 136.
+  defp status(124), do: :authorized
   defp status(135), do: :authorized
   defp status(136), do: :authorized
   defp status(_other), do: :rejected
