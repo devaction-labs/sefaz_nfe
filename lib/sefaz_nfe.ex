@@ -30,6 +30,11 @@ defmodule SefazNfe do
   @doc """
   Sign + `NFeAutorizacao4`. Does not mutate tax nodes once SOAP exists.
 
+  The document is `:xml` (the NF-e, signed or not) or `:nfe`, a map for
+  `SefazNfe.Builder.build_nfe/2` (exactly one of them). A map that does not
+  build is `{:error, {:invalid_nfe, errors}}`, before anything else; the key it
+  generated is in `Id` of `:signed_xml`.
+
   The pipeline is validate, sign, wrap in `enviNFe`, POST, parse.
 
   The lote is synchronous by default: it carries one document, and SEFAZ
@@ -83,7 +88,8 @@ defmodule SefazNfe do
   def authorize(opts) when is_map(opts), do: Telemetry.span(:authorize, opts, &do_authorize/1)
 
   defp do_authorize(opts) do
-    with :ok <- require_keys(opts, [:xml, :cert, :uf, :environment]),
+    with {:ok, opts} <- document_source(opts),
+         :ok <- require_keys(opts, [:xml, :cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
          :ok <- reject_an(opts.uf, :nfe_autorizacao),
          :ok <- environment_matches_xml(opts.environment, opts.xml),
@@ -100,6 +106,20 @@ defmodule SefazNfe do
       {:ok, %{result | signed_xml: signed, xml: Result.proc(signed, body)}}
     end
   end
+
+  # The document is either `:xml` or `:nfe`, the map `SefazNfe.Builder` takes,
+  # which is built here and then follows the XML path. A map that does not build
+  # never reaches the network.
+  defp document_source(%{xml: _, nfe: _}), do: {:error, {:conflicting_keys, [:xml, :nfe]}}
+
+  defp document_source(%{nfe: nfe} = opts) do
+    case SefazNfe.Builder.build_nfe(nfe) do
+      {:ok, %{xml: xml}} -> {:ok, opts |> Map.delete(:nfe) |> Map.put(:xml, xml)}
+      {:error, errors} -> {:error, {:invalid_nfe, errors}}
+    end
+  end
+
+  defp document_source(opts), do: {:ok, opts}
 
   # Model 65 has no SVC and its off-line mode is handled by `SefazNfe.NFCe`, so
   # `tpEmis` only routes a model 55 document.
