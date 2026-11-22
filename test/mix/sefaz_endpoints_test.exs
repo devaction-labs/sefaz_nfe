@@ -183,4 +183,89 @@ defmodule Mix.Tasks.Sefaz.EndpointsTest do
       assert [] = Endpoints.audit(nfce)
     end
   end
+
+  describe "the CT-e table" do
+    defp cte, do: JSON.decode!(File.read!("priv/endpoints/cte_4.00.json"))
+
+    test "the vendored CT-e snapshot is clean" do
+      assert [] = Endpoints.audit(cte())
+    end
+
+    test "a UF pointing at a missing authorizer is reported per service" do
+      broken = put_in(cte(), ["uf_authorizer", "BA"], "NOPE")
+
+      problems = Endpoints.audit(broken)
+
+      # five services in two environments
+      assert length(problems) == 10
+      assert Enum.all?(problems, &String.contains?(&1, "BA (NOPE)"))
+    end
+
+    test "a missing CT-e OS URL is reported" do
+      {_removed, broken} =
+        pop_in(cte(), ["authorizers", "MS", "homologation", "cte_recepcao_os"])
+
+      assert ["MS (MS) has no homologation cte_recepcao_os"] = Endpoints.audit(broken)
+    end
+
+    test "a URL off .gov.br is caught" do
+      path = ["authorizers", "SVRS", "production", "cte_consulta"]
+      broken = put_in(cte(), path, "https://evil.test/x")
+
+      assert [problem] = Endpoints.audit(broken)
+      assert problem =~ "host is not a government address"
+    end
+
+    test "a UF with no contingency entry is reported" do
+      {_removed, broken} = pop_in(cte(), ["uf_contingency", "BA"])
+
+      assert ["BA has no uf_contingency entry"] = Endpoints.audit(broken)
+    end
+
+    test "SVCAN is not a CT-e contingency" do
+      broken = put_in(cte(), ["uf_contingency", "BA"], "SVCAN")
+
+      assert ["BA uf_contingency \"SVCAN\" is not SVCSP or SVCRS"] = Endpoints.audit(broken)
+    end
+
+    test "a contingency authorizer that does not exist is reported" do
+      broken = put_in(cte(), ["contingency_authorizer", "SVCSP"], "NOPE")
+
+      problems = Endpoints.audit(broken)
+
+      assert length(problems) == 10
+      assert Enum.all?(problems, &String.contains?(&1, "SVCSP contingency_authorizer NOPE"))
+    end
+
+    test "the IBGE code is not demanded of the CT-e table" do
+      refute Enum.any?(Endpoints.audit(cte()), &String.contains?(&1, "uf_code"))
+    end
+  end
+
+  describe "the MDF-e table" do
+    defp mdfe, do: JSON.decode!(File.read!("priv/endpoints/mdfe_3.00.json"))
+
+    test "the vendored MDF-e snapshot is clean" do
+      assert [] = Endpoints.audit(mdfe())
+    end
+
+    test "a missing service URL is reported" do
+      {_removed, broken} =
+        pop_in(mdfe(), ["authorizers", "SVRS", "production", "mdfe_consulta_nao_enc"])
+
+      # every UF points at SVRS
+      problems = Endpoints.audit(broken)
+      assert length(problems) == 27
+
+      assert Enum.all?(
+               problems,
+               &String.contains?(&1, "(SVRS) has no production mdfe_consulta_nao_enc")
+             )
+    end
+
+    test "every UF is covered, so a UF with no authorizer entry cannot go unnoticed" do
+      assert map_size(mdfe()["uf_authorizer"]) == 27
+      assert mdfe()["uf_authorizer"] |> Map.values() |> Enum.uniq() == ["SVRS"]
+    end
+  end
 end

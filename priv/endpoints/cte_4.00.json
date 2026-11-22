@@ -1,0 +1,202 @@
+{
+  "source": "Official CT-e portal https://www.cte.fazenda.gov.br/portal/webServices.aspx (production) and https://hom.cte.fazenda.gov.br/portal/webServices.aspx (homologation), fetched 2026-11-22; cross-checked against nfephp-org/sped-cte storage/wscte_4.00_mod57.xml and wscte_4.00_mod67.xml. Models 57 and 67 share the authorizers: model 57 sends through cte_recepcao_sinc, model 67 through cte_recepcao_os. uf_contingency: SVCSP (SVC-SP) serves the UFs authorized by SVRS, MG, PR and RS; SVCRS (SVC-RS) those authorized by SVSP, MT, MS and SP. contingency_authorizer names the table each SVC is served from (SVC-SP on the SVSP endpoints, SVC-RS on the SVRS ones). CTeRecepcaoSimpV4 and CTeRecepcaoGTVeV4 are not carried.",
+  "snapshot_date": "2026-11-22",
+  "layout": "4.00",
+  "family": "cte",
+  "models": [
+    57,
+    67
+  ],
+  "uf_authorizer": {
+    "AC": "SVRS",
+    "AL": "SVRS",
+    "AM": "SVRS",
+    "AP": "SVSP",
+    "BA": "SVRS",
+    "CE": "SVRS",
+    "DF": "SVRS",
+    "ES": "SVRS",
+    "GO": "SVRS",
+    "MA": "SVRS",
+    "MG": "MG",
+    "MS": "MS",
+    "MT": "MT",
+    "PA": "SVRS",
+    "PB": "SVRS",
+    "PE": "SVSP",
+    "PI": "SVRS",
+    "PR": "PR",
+    "RJ": "SVRS",
+    "RN": "SVRS",
+    "RO": "SVRS",
+    "RR": "SVSP",
+    "RS": "RS",
+    "SC": "SVRS",
+    "SE": "SVRS",
+    "SP": "SP",
+    "TO": "SVRS"
+  },
+  "uf_contingency": {
+    "AC": "SVCSP",
+    "AL": "SVCSP",
+    "AM": "SVCSP",
+    "AP": "SVCRS",
+    "BA": "SVCSP",
+    "CE": "SVCSP",
+    "DF": "SVCSP",
+    "ES": "SVCSP",
+    "GO": "SVCSP",
+    "MA": "SVCSP",
+    "MG": "SVCSP",
+    "MS": "SVCRS",
+    "MT": "SVCRS",
+    "PA": "SVCSP",
+    "PB": "SVCSP",
+    "PE": "SVCRS",
+    "PI": "SVCSP",
+    "PR": "SVCSP",
+    "RJ": "SVCSP",
+    "RN": "SVCSP",
+    "RO": "SVCSP",
+    "RR": "SVCRS",
+    "RS": "SVCSP",
+    "SC": "SVCSP",
+    "SE": "SVCSP",
+    "SP": "SVCRS",
+    "TO": "SVCSP"
+  },
+  "contingency_authorizer": {
+    "SVCSP": "SVSP",
+    "SVCRS": "SVRS"
+  },
+  "authorizers": {
+    "MG": {
+      "homologation": {
+        "cte_recepcao_sinc": "https://hcte.fazenda.mg.gov.br/cte/services/CTeRecepcaoSincV4",
+        "cte_recepcao_os": "https://hcte.fazenda.mg.gov.br/cte/services/CTeRecepcaoOSV4",
+        "cte_consulta": "https://hcte.fazenda.mg.gov.br/cte/services/CTeConsultaV4",
+        "cte_status_servico": "https://hcte.fazenda.mg.gov.br/cte/services/CTeStatusServicoV4",
+        "cte_recepcao_evento": "https://hcte.fazenda.mg.gov.br/cte/services/CTeRecepcaoEventoV4"
+      },
+      "production": {
+        "cte_recepcao_sinc": "https://cte.fazenda.mg.gov.br/cte/services/CTeRecepcaoSincV4",
+        "cte_recepcao_os": "https://cte.fazenda.mg.gov.br/cte/services/CTeRecepcaoOSV4",
+        "cte_consulta": "https://cte.fazenda.mg.gov.br/cte/services/CTeConsultaV4",
+        "cte_status_servico": "https://cte.fazenda.mg.gov.br/cte/services/CTeStatusServicoV4",
+        "cte_recepcao_evento": "https://cte.fazenda.mg.gov.br/cte/services/CTeRecepcaoEventoV4"
+      }
+    },
+    "MS": {
+      "homologation": {
+        "cte_recepcao_sinc": "https://homologacao.cte.ms.gov.br/ws/CTeRecepcaoSincV4",
+        "cte_recepcao_os": "https://homologacao.cte.ms.gov.br/ws/CTeRecepcaoOSV4",
+        "cte_consulta": "https://homologacao.cte.ms.gov.br/ws/CTeConsultaV4",
+        "cte_status_servico": "https://homologacao.cte.ms.gov.br/ws/CTeStatusServicoV4",
+        "cte_recepcao_evento": "https://homologacao.cte.ms.gov.br/ws/CTeRecepcaoEventoV4"
+      },
+      "production": {
+        "cte_recepcao_sinc": "https://producao.cte.ms.gov.br/ws/CTeRecepcaoSincV4",
+        "cte_recepcao_os": "https://producao.cte.ms.gov.br/ws/CTeRecepcaoOSV4",
+        "cte_consulta": "https://producao.cte.ms.gov.br/ws/CTeConsultaV4",
+        "cte_status_servico": "https://producao.cte.ms.gov.br/ws/CTeStatusServicoV4",
+        "cte_recepcao_evento": "https://producao.cte.ms.gov.br/ws/CTeRecepcaoEventoV4"
+      }
+    },
+    "MT": {
+      "homologation": {
+        "cte_recepcao_sinc": "https://homologacao.sefaz.mt.gov.br/ctews2/services/CTeRecepcaoSincV4",
+        "cte_recepcao_os": "https://homologacao.sefaz.mt.gov.br/ctews/services/CTeRecepcaoOSV4",
+        "cte_consulta": "https://homologacao.sefaz.mt.gov.br/ctews2/services/CTeConsultaV4",
+        "cte_status_servico": "https://homologacao.sefaz.mt.gov.br/ctews2/services/CTeStatusServicoV4",
+        "cte_recepcao_evento": "https://homologacao.sefaz.mt.gov.br/ctews2/services/CTeRecepcaoEventoV4"
+      },
+      "production": {
+        "cte_recepcao_sinc": "https://cte.sefaz.mt.gov.br/ctews2/services/CTeRecepcaoSincV4",
+        "cte_recepcao_os": "https://cte.sefaz.mt.gov.br/ctews/services/CTeRecepcaoOSV4",
+        "cte_consulta": "https://cte.sefaz.mt.gov.br/ctews2/services/CTeConsultaV4",
+        "cte_status_servico": "https://cte.sefaz.mt.gov.br/ctews2/services/CTeStatusServicoV4",
+        "cte_recepcao_evento": "https://cte.sefaz.mt.gov.br/ctews2/services/CTeRecepcaoEventoV4"
+      }
+    },
+    "PR": {
+      "homologation": {
+        "cte_recepcao_sinc": "https://homologacao.cte.fazenda.pr.gov.br/cte4/CTeRecepcaoSincV4",
+        "cte_recepcao_os": "https://homologacao.cte.fazenda.pr.gov.br/cte4/CTeRecepcaoOSV4",
+        "cte_consulta": "https://homologacao.cte.fazenda.pr.gov.br/cte4/CTeConsultaV4",
+        "cte_status_servico": "https://homologacao.cte.fazenda.pr.gov.br/cte4/CTeStatusServicoV4",
+        "cte_recepcao_evento": "https://homologacao.cte.fazenda.pr.gov.br/cte4/CTeRecepcaoEventoV4"
+      },
+      "production": {
+        "cte_recepcao_sinc": "https://cte.fazenda.pr.gov.br/cte4/CTeRecepcaoSincV4",
+        "cte_recepcao_os": "https://cte.fazenda.pr.gov.br/cte4/CTeRecepcaoOSV4",
+        "cte_consulta": "https://cte.fazenda.pr.gov.br/cte4/CTeConsultaV4",
+        "cte_status_servico": "https://cte.fazenda.pr.gov.br/cte4/CTeStatusServicoV4",
+        "cte_recepcao_evento": "https://cte.fazenda.pr.gov.br/cte4/CTeRecepcaoEventoV4"
+      }
+    },
+    "RS": {
+      "homologation": {
+        "cte_recepcao_sinc": "https://cte-homologacao.svrs.rs.gov.br/ws/CTeRecepcaoSincV4/CTeRecepcaoSincV4.asmx",
+        "cte_recepcao_os": "https://cte-homologacao.svrs.rs.gov.br/ws/CTeRecepcaoOSV4/CTeRecepcaoOSV4.asmx",
+        "cte_consulta": "https://cte-homologacao.svrs.rs.gov.br/ws/CTeConsultaV4/CTeConsultaV4.asmx",
+        "cte_status_servico": "https://cte-homologacao.svrs.rs.gov.br/ws/CTeStatusServicoV4/CTeStatusServicoV4.asmx",
+        "cte_recepcao_evento": "https://cte-homologacao.svrs.rs.gov.br/ws/CTeRecepcaoEventoV4/CTeRecepcaoEventoV4.asmx"
+      },
+      "production": {
+        "cte_recepcao_sinc": "https://cte.svrs.rs.gov.br/ws/CTeRecepcaoSincV4/CTeRecepcaoSincV4.asmx",
+        "cte_recepcao_os": "https://cte.svrs.rs.gov.br/ws/CTeRecepcaoOSV4/CTeRecepcaoOSV4.asmx",
+        "cte_consulta": "https://cte.svrs.rs.gov.br/ws/CTeConsultaV4/CTeConsultaV4.asmx",
+        "cte_status_servico": "https://cte.svrs.rs.gov.br/ws/CTeStatusServicoV4/CTeStatusServicoV4.asmx",
+        "cte_recepcao_evento": "https://cte.svrs.rs.gov.br/ws/CTeRecepcaoEventoV4/CTeRecepcaoEventoV4.asmx"
+      }
+    },
+    "SP": {
+      "homologation": {
+        "cte_recepcao_sinc": "https://homologacao.nfe.fazenda.sp.gov.br/CTeWS/WS/CTeRecepcaoSincV4.asmx",
+        "cte_recepcao_os": "https://homologacao.nfe.fazenda.sp.gov.br/CTeWS/WS/CTeRecepcaoOSV4.asmx",
+        "cte_consulta": "https://homologacao.nfe.fazenda.sp.gov.br/CTeWS/WS/CTeConsultaV4.asmx",
+        "cte_status_servico": "https://homologacao.nfe.fazenda.sp.gov.br/CTeWS/WS/CTeStatusServicoV4.asmx",
+        "cte_recepcao_evento": "https://homologacao.nfe.fazenda.sp.gov.br/CTeWS/WS/CTeRecepcaoEventoV4.asmx"
+      },
+      "production": {
+        "cte_recepcao_sinc": "https://nfe.fazenda.sp.gov.br/CTeWS/WS/CTeRecepcaoSincV4.asmx",
+        "cte_recepcao_os": "https://nfe.fazenda.sp.gov.br/CTeWS/WS/CTeRecepcaoOSV4.asmx",
+        "cte_consulta": "https://nfe.fazenda.sp.gov.br/CTeWS/WS/CTeConsultaV4.asmx",
+        "cte_status_servico": "https://nfe.fazenda.sp.gov.br/CTeWS/WS/CTeStatusServicoV4.asmx",
+        "cte_recepcao_evento": "https://nfe.fazenda.sp.gov.br/CTeWS/WS/CTeRecepcaoEventoV4.asmx"
+      }
+    },
+    "SVRS": {
+      "homologation": {
+        "cte_recepcao_sinc": "https://cte-homologacao.svrs.rs.gov.br/ws/CTeRecepcaoSincV4/CTeRecepcaoSincV4.asmx",
+        "cte_recepcao_os": "https://cte-homologacao.svrs.rs.gov.br/ws/CTeRecepcaoOSV4/CTeRecepcaoOSV4.asmx",
+        "cte_consulta": "https://cte-homologacao.svrs.rs.gov.br/ws/CTeConsultaV4/CTeConsultaV4.asmx",
+        "cte_status_servico": "https://cte-homologacao.svrs.rs.gov.br/ws/CTeStatusServicoV4/CTeStatusServicoV4.asmx",
+        "cte_recepcao_evento": "https://cte-homologacao.svrs.rs.gov.br/ws/CTeRecepcaoEventoV4/CTeRecepcaoEventoV4.asmx"
+      },
+      "production": {
+        "cte_recepcao_sinc": "https://cte.svrs.rs.gov.br/ws/CTeRecepcaoSincV4/CTeRecepcaoSincV4.asmx",
+        "cte_recepcao_os": "https://cte.svrs.rs.gov.br/ws/CTeRecepcaoOSV4/CTeRecepcaoOSV4.asmx",
+        "cte_consulta": "https://cte.svrs.rs.gov.br/ws/CTeConsultaV4/CTeConsultaV4.asmx",
+        "cte_status_servico": "https://cte.svrs.rs.gov.br/ws/CTeStatusServicoV4/CTeStatusServicoV4.asmx",
+        "cte_recepcao_evento": "https://cte.svrs.rs.gov.br/ws/CTeRecepcaoEventoV4/CTeRecepcaoEventoV4.asmx"
+      }
+    },
+    "SVSP": {
+      "homologation": {
+        "cte_recepcao_sinc": "https://homologacao.nfe.fazenda.sp.gov.br/CTeWS/WS/CTeRecepcaoSincV4.asmx",
+        "cte_recepcao_os": "https://homologacao.nfe.fazenda.sp.gov.br/CTeWS/WS/CTeRecepcaoOSV4.asmx",
+        "cte_consulta": "https://homologacao.nfe.fazenda.sp.gov.br/CTeWS/WS/CTeConsultaV4.asmx",
+        "cte_status_servico": "https://homologacao.nfe.fazenda.sp.gov.br/CTeWS/WS/CTeStatusServicoV4.asmx",
+        "cte_recepcao_evento": "https://homologacao.nfe.fazenda.sp.gov.br/CTeWS/WS/CTeRecepcaoEventoV4.asmx"
+      },
+      "production": {
+        "cte_recepcao_sinc": "https://nfe.fazenda.sp.gov.br/CTeWS/WS/CTeRecepcaoSincV4.asmx",
+        "cte_recepcao_os": "https://nfe.fazenda.sp.gov.br/CTeWS/WS/CTeRecepcaoOSV4.asmx",
+        "cte_consulta": "https://nfe.fazenda.sp.gov.br/CTeWS/WS/CTeConsultaV4.asmx",
+        "cte_status_servico": "https://nfe.fazenda.sp.gov.br/CTeWS/WS/CTeStatusServicoV4.asmx",
+        "cte_recepcao_evento": "https://nfe.fazenda.sp.gov.br/CTeWS/WS/CTeRecepcaoEventoV4.asmx"
+      }
+    }
+  }
+}

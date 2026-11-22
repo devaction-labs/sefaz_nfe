@@ -6,6 +6,10 @@ defmodule SefazNfe.SOAP.Envelope do
   service's own WSDL namespace — that is what routes the call on the `.asmx`
   endpoint, so it is per service rather than global.
 
+  CT-e and MDF-e use the same SOAP 1.2 shape with their own namespaces
+  (`.../cte/wsdl/<service>`, `.../mdfe/wsdl/<service>`) and their own body
+  element, `cteDadosMsg` and `mdfeDadosMsg`.
+
   The message itself is passed through untouched. For `SefazNfe.authorize/1`
   that matters: the ERP owns the XML and a signed document must reach SEFAZ byte
   for byte, or the signature breaks (SEFAZ-04).
@@ -13,7 +17,11 @@ defmodule SefazNfe.SOAP.Envelope do
 
   @envelope_ns "http://www.w3.org/2003/05/soap-envelope"
   @nfe_ns "http://www.portalfiscal.inf.br/nfe"
+  @cte_ns "http://www.portalfiscal.inf.br/cte"
+  @mdfe_ns "http://www.portalfiscal.inf.br/mdfe"
   @wsdl_base "http://www.portalfiscal.inf.br/nfe/wsdl"
+  @cte_wsdl_base "http://www.portalfiscal.inf.br/cte/wsdl"
+  @mdfe_wsdl_base "http://www.portalfiscal.inf.br/mdfe/wsdl"
 
   @wsdl %{
     nfe_autorizacao: "NFeAutorizacao4",
@@ -23,7 +31,17 @@ defmodule SefazNfe.SOAP.Envelope do
     nfe_recepcao_evento: "NFeRecepcaoEvento4",
     nfe_inutilizacao: "NFeInutilizacao4",
     nfe_distribuicao_dfe: "NFeDistribuicaoDFe",
-    nfe_consulta_cadastro: "CadConsultaCadastro4"
+    nfe_consulta_cadastro: "CadConsultaCadastro4",
+    cte_recepcao_sinc: "CTeRecepcaoSincV4",
+    cte_recepcao_os: "CTeRecepcaoOSV4",
+    cte_consulta: "CTeConsultaV4",
+    cte_status_servico: "CTeStatusServicoV4",
+    cte_recepcao_evento: "CTeRecepcaoEventoV4",
+    mdfe_recepcao_sinc: "MDFeRecepcaoSinc",
+    mdfe_consulta: "MDFeConsulta",
+    mdfe_status_servico: "MDFeStatusServico",
+    mdfe_recepcao_evento: "MDFeRecepcaoEvento",
+    mdfe_consulta_nao_enc: "MDFeConsNaoEnc"
   }
 
   # The WSDL operation each service exposes. SOAP 1.2 carries it as the
@@ -38,7 +56,51 @@ defmodule SefazNfe.SOAP.Envelope do
     nfe_recepcao_evento: "nfeRecepcaoEvento",
     nfe_inutilizacao: "nfeInutilizacaoNF",
     nfe_distribuicao_dfe: "nfeDistDFeInteresse",
-    nfe_consulta_cadastro: "consultaCadastro4"
+    nfe_consulta_cadastro: "consultaCadastro4",
+    cte_recepcao_sinc: "cteRecepcao",
+    cte_recepcao_os: "cteRecepcaoOS",
+    cte_consulta: "cteConsultaCT",
+    cte_status_servico: "cteStatusServicoCT",
+    cte_recepcao_evento: "cteRecepcaoEvento",
+    mdfe_recepcao_sinc: "mdfeRecepcao",
+    mdfe_consulta: "mdfeConsultaMDF",
+    mdfe_status_servico: "mdfeStatusServicoMDF",
+    mdfe_recepcao_evento: "mdfeRecepcaoEvento",
+    mdfe_consulta_nao_enc: "mdfeConsNaoEnc"
+  }
+
+  # The document family of a service decides the WSDL namespace root and the
+  # body element. The operations were read from the NFePHP sped-cte and
+  # sped-mdfe `Tools` (method and operation attributes of the webservice
+  # tables), identical on every authorizer, so there is no `operations`
+  # override in the CT-e and MDF-e snapshots.
+  #
+  # Quirks for the send requests (not implemented here, see C4/C5):
+  #
+  #   * CT-e `cte_recepcao_sinc` and `cte_recepcao_os` carry in `cteDadosMsg`
+  #     the signed CT-e itself, with no `enviCTe` wrapper and no XML
+  #     declaration, gzip-compressed and Base64 encoded (NFePHP
+  #     `base64_encode(gzencode($xml, 9))`). Consult, status and event messages
+  #     go as plain XML.
+  #   * MDF-e `mdfe_recepcao_sinc` does the same in `mdfeDadosMsg`: the signed
+  #     MDF-e alone, gzip and Base64 (NFePHP builds an `enviMDFe` only to
+  #     validate it, then sends `base64(gzencode(<MDFe>))`). Events, consult and
+  #     status go as plain XML.
+  #   * NFePHP also builds a `cteCabecMsg` SOAP header (`cUF`, `versaoDados`)
+  #     for CT-e; its own `Header` class calls it obsolete from layout 4.00, and
+  #     this module sends none. Confirm live in C4 before relying on that.
+  #   * CT-e `consStatServCTe` carries `cUF`; MDF-e `consStatServMDFe` does not.
+  @family %{
+    cte_recepcao_sinc: :cte,
+    cte_recepcao_os: :cte,
+    cte_consulta: :cte,
+    cte_status_servico: :cte,
+    cte_recepcao_evento: :cte,
+    mdfe_recepcao_sinc: :mdfe,
+    mdfe_consulta: :mdfe,
+    mdfe_status_servico: :mdfe,
+    mdfe_recepcao_evento: :mdfe,
+    mdfe_consulta_nao_enc: :mdfe
   }
 
   @type service :: SefazNfe.Endpoints.service()
@@ -55,7 +117,15 @@ defmodule SefazNfe.SOAP.Envelope do
   def action(service, operation \\ nil) do
     case {@wsdl[service], operation || @operation[service]} do
       {nil, _operation} -> {:error, {:unknown_service, service}}
-      {wsdl, operation} -> {:ok, "#{@wsdl_base}/#{wsdl}/#{operation}"}
+      {wsdl, operation} -> {:ok, "#{wsdl_base(service)}/#{wsdl}/#{operation}"}
+    end
+  end
+
+  defp wsdl_base(service) do
+    case @family[service] do
+      :cte -> @cte_wsdl_base
+      :mdfe -> @mdfe_wsdl_base
+      nil -> @wsdl_base
     end
   end
 
@@ -83,8 +153,15 @@ defmodule SefazNfe.SOAP.Envelope do
     )
   end
 
-  defp envelope(_service, wsdl, message) do
-    body(~s(<nfeDadosMsg xmlns="#{@wsdl_base}/#{wsdl}">), message, ~s(</nfeDadosMsg>))
+  defp envelope(service, wsdl, message) do
+    {element, base} =
+      case @family[service] do
+        :cte -> {"cteDadosMsg", @cte_wsdl_base}
+        :mdfe -> {"mdfeDadosMsg", @mdfe_wsdl_base}
+        nil -> {"nfeDadosMsg", @wsdl_base}
+      end
+
+    body(~s(<#{element} xmlns="#{base}/#{wsdl}">), message, ~s(</#{element}>))
   end
 
   defp body(open, message, close) do
@@ -108,6 +185,31 @@ defmodule SefazNfe.SOAP.Envelope do
     ~s(<consStatServ xmlns="#{@nfe_ns}" versao="4.00">) <>
       ~s(<tpAmb>#{tp_amb}</tpAmb><cUF>#{uf_code}</cUF><xServ>STATUS</xServ>) <>
       ~s(</consStatServ>)
+  end
+
+  @doc """
+  `consStatServCTe` for `CTeStatusServicoV4`, layout 4.00.
+
+  Same fields as the NF-e one (`tpAmb`, `cUF`, `xServ` fixed at `STATUS`) in the
+  CT-e namespace.
+  """
+  @spec status_service_cte(pos_integer(), 1 | 2) :: binary()
+  def status_service_cte(uf_code, tp_amb) do
+    ~s(<consStatServCTe xmlns="#{@cte_ns}" versao="4.00">) <>
+      ~s(<tpAmb>#{tp_amb}</tpAmb><cUF>#{uf_code}</cUF><xServ>STATUS</xServ>) <>
+      ~s(</consStatServCTe>)
+  end
+
+  @doc """
+  `consStatServMDFe` for `MDFeStatusServico`, layout 3.00.
+
+  Unlike NF-e and CT-e it has no `cUF`: SVRS answers for every UF.
+  """
+  @spec status_service_mdfe(1 | 2) :: binary()
+  def status_service_mdfe(tp_amb) do
+    ~s(<consStatServMDFe xmlns="#{@mdfe_ns}" versao="3.00">) <>
+      ~s(<tpAmb>#{tp_amb}</tpAmb><xServ>STATUS</xServ>) <>
+      ~s(</consStatServMDFe>)
   end
 
   @doc "`consSitNFe` for `NFeConsultaProtocolo4`."

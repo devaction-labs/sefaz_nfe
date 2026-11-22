@@ -2,8 +2,9 @@ defmodule Mix.Tasks.Sefaz.Endpoints do
   @shortdoc "Audits the SEFAZ endpoint snapshot and prints the refresh procedure"
 
   @moduledoc """
-  Audits `priv/endpoints/nfe_4.00.json` (model 55) and
-  `priv/endpoints/nfce_4.00.json` (model 65).
+  Audits `priv/endpoints/nfe_4.00.json` (model 55),
+  `priv/endpoints/nfce_4.00.json` (model 65), `priv/endpoints/cte_4.00.json`
+  (models 57 and 67) and `priv/endpoints/mdfe_3.00.json` (model 58).
 
       mix sefaz.endpoints
       mix sefaz.endpoints --max-age 90
@@ -24,6 +25,17 @@ defmodule Mix.Tasks.Sefaz.Endpoints do
   `uf_contingency` (model 55 only) maps each UF to the SVC that serves it,
   `SVCAN` or `SVCRS`. Every UF needs an entry, and the authorizer it names has
   to exist and carry the six per-UF services.
+
+  ## The CT-e and MDF-e tables
+
+  Same shape and same URL rule (https, `.gov.br`), told apart by `"family"`
+  (`"cte"` or `"mdfe"`). Every UF needs an authorizer carrying the family's
+  services in both environments. The IBGE codes live in the model 55 table only.
+
+  `cte_4.00.json` carries `uf_contingency` as `SVCSP` or `SVCRS` for every UF
+  (SVC-SP and SVC-RS; CT-e has no SVC-AN), and `contingency_authorizer`, which
+  names the authorizer whose endpoints serve each SVC. Both have to point at
+  authorizers that exist and carry the five CT-e services. MDF-e has no SVC.
 
   ## The model 65 table
 
@@ -63,6 +75,14 @@ defmodule Mix.Tasks.Sefaz.Endpoints do
   `url_chave` (the consulta-por-chave address per UF), both keyed by
   environment and then UF.
 
+  For CT-e read https://www.cte.fazenda.gov.br/portal/webServices.aspx
+  (production) and https://hom.cte.fazenda.gov.br/portal/webServices.aspx
+  (homologation), which answer automated requests, and update
+  `priv/endpoints/cte_4.00.json`; for MDF-e read
+  https://dfe-portal.svrs.rs.gov.br/Mdfe/Servicos and update
+  `priv/endpoints/mdfe_3.00.json`. The portals list `?wsdl` on some addresses;
+  the snapshot holds the bare service URL.
+
   The nfephp `wsnfe_4.00_mod55.xml`, `wsnfe_4.00_mod65.xml` and
   `uri_consulta_nfce.json` mirrors are a useful cross-check, never the source
   of truth.
@@ -73,7 +93,16 @@ defmodule Mix.Tasks.Sefaz.Endpoints do
   @services ~w(nfe_autorizacao nfe_ret_autorizacao nfe_consulta_protocolo
                nfe_status_servico nfe_recepcao_evento nfe_inutilizacao)
   @default_max_age 180
-  @default_files ["priv/endpoints/nfe_4.00.json", "priv/endpoints/nfce_4.00.json"]
+  @cte_services ~w(cte_recepcao_sinc cte_recepcao_os cte_consulta cte_status_servico
+                   cte_recepcao_evento)
+  @mdfe_services ~w(mdfe_recepcao_sinc mdfe_consulta mdfe_status_servico mdfe_recepcao_evento
+                    mdfe_consulta_nao_enc)
+  @default_files [
+    "priv/endpoints/nfe_4.00.json",
+    "priv/endpoints/nfce_4.00.json",
+    "priv/endpoints/cte_4.00.json",
+    "priv/endpoints/mdfe_3.00.json"
+  ]
   @environments ["homologation", "production"]
 
   @impl Mix.Task
@@ -148,13 +177,18 @@ defmodule Mix.Tasks.Sefaz.Endpoints do
   defp coverage(snapshot) do
     for {uf, authorizer} <- snapshot["uf_authorizer"],
         environment <- ["homologation", "production"],
-        service <- @services,
+        service <- services(snapshot),
         not present?(get_in(snapshot, ["authorizers", authorizer, environment, service])) do
       "#{uf} (#{authorizer}) has no #{environment} #{service}"
     end
   end
 
   defp present?(url), do: is_binary(url) and url != ""
+
+  # The services every authorizer of the table has to carry.
+  defp services(%{"family" => "cte"}), do: @cte_services
+  defp services(%{"family" => "mdfe"}), do: @mdfe_services
+  defp services(_snapshot), do: @services
 
   # `operations` holds the SOAP operation of the services whose authorizers
   # disagree on it (NFeConsultaCadastro). Each entry needs a "default", and an
@@ -185,6 +219,8 @@ defmodule Mix.Tasks.Sefaz.Endpoints do
   # authorizer must carry the six per-UF services in both environments. A UF
   # with no entry is only found when its authorizer goes down.
   defp contingency(%{"model" => 65}), do: []
+  defp contingency(%{"family" => "mdfe"}), do: []
+  defp contingency(%{"family" => "cte"} = snapshot), do: cte_contingency(snapshot)
 
   defp contingency(snapshot) do
     table = Map.get(snapshot, "uf_contingency", %{})
@@ -207,10 +243,45 @@ defmodule Mix.Tasks.Sefaz.Endpoints do
     end
   end
 
+  # CT-e: every UF names SVCSP or SVCRS, and `contingency_authorizer` says which
+  # table serves each SVC; that authorizer must exist and carry the CT-e
+  # services, or the UF only finds out when its authorizer goes down.
+  defp cte_contingency(snapshot) do
+    table = Map.get(snapshot, "uf_contingency", %{})
+    served_by = Map.get(snapshot, "contingency_authorizer", %{})
+
+    per_uf =
+      for {uf, _authorizer} <- snapshot["uf_authorizer"],
+          problem <- cte_contingency_problems(uf, table[uf], served_by),
+          do: problem
+
+    per_svc =
+      for {svc, authorizer} <- served_by,
+          environment <- @environments,
+          service <- @cte_services,
+          not present?(get_in(snapshot, ["authorizers", authorizer, environment, service])),
+          do: "#{svc} contingency_authorizer #{authorizer} has no #{environment} #{service}"
+
+    per_uf ++ per_svc
+  end
+
+  defp cte_contingency_problems(uf, nil, _served_by), do: ["#{uf} has no uf_contingency entry"]
+
+  defp cte_contingency_problems(uf, svc, _served_by) when svc not in ["SVCSP", "SVCRS"],
+    do: ["#{uf} uf_contingency #{inspect(svc)} is not SVCSP or SVCRS"]
+
+  defp cte_contingency_problems(uf, svc, served_by) do
+    if is_map_key(served_by, svc) do
+      []
+    else
+      ["#{uf} uf_contingency #{svc} has no contingency_authorizer"]
+    end
+  end
+
   defp urls(snapshot) do
     missing_codes =
       for {uf, _authorizer} <- snapshot["uf_authorizer"],
-          snapshot["model"] != 65,
+          snapshot["model"] != 65 and not is_map_key(snapshot, "family"),
           not is_integer(snapshot["uf_code"][uf]),
           do: "#{uf} has no IBGE uf_code"
 
