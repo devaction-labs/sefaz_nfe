@@ -61,7 +61,9 @@ defmodule SefazNfe.Layout.Generator do
        the run, its last capital belongs to the next word (`ICMSUFDest` is
        `ICMSUF` + `Dest`) unless the whole run is itself made of acronyms
        (`ISSQNtot` is `ISSQN` + `tot`).
-    4. Words are lowercased and joined with `_`.
+    4. `@token_overrides` (whole tokens a dictionary split gets wrong, such as
+       `ISUF`, the Inscricao SUFRAMA) are applied before everything else.
+    5. Words are lowercased and joined with `_`.
 
   | XSD name        | key               |
   |-----------------|-------------------|
@@ -80,6 +82,8 @@ defmodule SefazNfe.Layout.Generator do
   | `vBCSTDest`     | `v_bc_st_dest`    |
   | `ISSQNtot`      | `issqn_tot`       |
   | `CNPJBasePSP`   | `cnpj_base_psp`   |
+  | `ISUF`          | `isuf`            |
+  | `ISUFEmit`      | `isuf_emit`       |
 
   Two sibling elements/attributes of the same element (looking through
   `sequence` and `choice`) whose *different* XSD names map to one key abort
@@ -139,6 +143,12 @@ defmodule SefazNfe.Layout.Generator do
 
   @acronyms ~w(ISSQN COFINS NFE ICMS CNPJ CFOP CEST CSLL CIDE IRRF FCP IBS CBS IPI PIS CST CPF EAN NCM CRT MVA IOF ANP GLP BC ST UF IS SN NF IE NT PAA FG ZFM ALC DFE CTE)
             |> Enum.sort_by(&{-String.length(&1), &1})
+
+  # ISUF is the Inscricao SUFRAMA (`dest/ISUF`, `ISUFEmit`), not IS + UF.
+  # Checked against PL_010: CSOSN, IEST (IE + ST, "IE do substituto
+  # tributario"), UFST (UF + ST) and every other tag starting with IS, IE or
+  # UF split correctly and need no override.
+  @token_overrides %{"ISUF" => "Isuf"}
 
   @facet_ints %{
     "length" => :length,
@@ -638,6 +648,7 @@ defmodule SefazNfe.Layout.Generator do
     ~r/[A-Z]+[0-9]*|[a-z]+[0-9]*|[0-9]+/
     |> Regex.scan(
       name
+      |> apply_overrides()
       |> String.replace("NFe", "NFE")
       |> String.replace("DFe", "DFE")
       |> String.replace("CTe", "CTE")
@@ -645,6 +656,14 @@ defmodule SefazNfe.Layout.Generator do
     |> List.flatten()
     |> words()
     |> Enum.map_join("_", &String.downcase/1)
+  end
+
+  # Whole tokens whose meaning a dictionary split gets wrong. Each is rewritten
+  # to a capitalised word (`Isuf`), which the tokenizer then keeps as one word.
+  defp apply_overrides(name) do
+    Enum.reduce(@token_overrides, name, fn {token, word}, acc ->
+      Regex.replace(~r/(?<![A-Z])#{token}(?![a-z])/, acc, word)
+    end)
   end
 
   defp words([]), do: []

@@ -170,6 +170,10 @@ defmodule SefazNfe.LayoutTest do
     assert %{key: :is_tot} = find!([:inf_nfe, :total, :is_tot])
   end
 
+  test "ISUF is the SUFRAMA registration, one token" do
+    assert %{tag: "ISUF", key: :isuf} = find!([:inf_nfe, :dest, :isuf])
+  end
+
   test "find/2 accepts tags as well as keys and returns nil for a missing path" do
     assert Layout.find(Layout.nfe(), ["infNFe", "det", "prod"]) ==
              Layout.find(Layout.nfe(), [:inf_nfe, :det, :prod])
