@@ -1,7 +1,7 @@
 # CT-e (modelo 57) — research
 
-Gathered 2026-09-07. Not started: postponed until the `ssl` limitation
-(erlang/otp#11595) is fixed, because most states cannot be reached until then.
+Gathered 2026-09-07. Not started. The `ssl` limitation (erlang/otp#11595) that
+blocked it is resolved as of OTP 29.1 (2026-11-22).
 
 ## Authorizers, from the official portal
 

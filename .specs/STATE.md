@@ -70,6 +70,7 @@
 - **Decision**: The library ships **no** TLS trust anchors. Hosts supply ICP-Brasil roots through `config :sefaz_nfe, :cacerts` (a PEM path or DER list), which is added to the system bundle rather than replacing it. `verify_peer` is never relaxed.
 - **Reason**: Measured against production: SP and MT serve certificates chained to *Autoridade Certificadora Raiz Brasileira v10*, which is in no OS bundle and is **not** the v5 root embedded in a typical A1 chain. MG and the Ambiente Nacional chain to ordinary commercial roots (Sectigo, GlobalSign) and work out of the box. Without the root, SP fails the handshake.
 - **Trade-off**: SP and MT need one configuration line. The alternative — vendoring a CA bundle from a download whose own host cannot be verified (`acraiz.icpbrasil.gov.br` is itself served under ICP-Brasil) — would ship an unaudited trust anchor, which is a man-in-the-middle vector. Operators fetch the roots and check fingerprints themselves. `{:tls, :unknown_ca}` is surfaced by name so the cause is obvious.
+- **Note (2026-11-22)**: measured on OTP 29.1.2, 24 of 27 UFs (all but GO, MG and the 403'd MA) need the v10 root, not only SP and MT.
 - **Scope**: `SefazNfe.Certificate.ssl_options/1`, `SefazNfe.SOAP.HTTPC`
 - **Date**: 2026-09-07
 - **Status**: active
@@ -128,6 +129,7 @@
 - **Reason**: Root-caused by proxying the handshake and reading OTP's own log. These servers request a client certificate and advertise their acceptable CAs; some of those distinguished names encode `emailAddress` as `PrintableString` rather than `IA5String` — invalid, since `PrintableString` does not admit `@`. `ssl_handshake:decode_cert_auths/2` calls `public_key:pkix_normalize_name/1` on every entry and lets the ASN.1 error (`Type not compatible with table constraint`) abort the handshake. Re-encoding the same DN as `IA5String` decodes cleanly, which confirms the tag is the cause. OpenSSL is lenient and connects.
 - **Follow-up (2026-09-08)**: the ssl maintainer confirmed OTP 29.1 is the next patch of the 29 line, so a `maint-29` backport was redundant and that PR was closed — "earlier releases" in her reply meant 28 and 27, which is what the wording already said. The backports that stand are erlang/otp#11604 (`maint-28`) and #11605 (`maint-27`).
 - **Trade-off**: OTP had already fixed this on `maint` as OTP-20327, with the same `try/catch` and a test whose fixture is an ICP-Brasil DN; it ships in OTP 29.1. Checking `maint` before opening erlang/otp#11595 would have found it — `SSL_VSN` is 11.7.5 on both `maint` and `maint-29`, so the version string gave no signal, but reading the branch would have. No released OTP carries the fix, so the issue was reframed as a backport request. Upgrading is the answer; `patches/` carries the same change for the interval. No workaround exists inside the library: the handshake transcript is hashed, so a transport shim cannot correct the bytes without breaking `Finished`. `verify_peer` is never relaxed.
+- **Resolved (2026-11-22)**: on OTP 29.1.2 the abort is gone and 26 of 27 UFs answer `cStat` 107 with the v10 root (MA fails with a server-side 403 via SVAN). `patches/` was removed. The minimum runtime is OTP 29.1 (AD-020). erlang/otp#11595 is closed and the `maint-28` backport #11604 merged; #11605 (`maint-27`) closed unmerged.
 - **Scope**: `SefazNfe.SOAP.HTTPC`
 - **Date**: 2026-09-07
 - **Status**: active
@@ -144,6 +146,7 @@
 - **Decision**: CT-e (57), MDF-e (58) and the insucesso de entrega event wait for erlang/otp#11595. Manifestação do destinatário was implemented now because it does not depend on it.
 - **Reason**: CT-e routes 18 of 27 states through SVRS, which OTP cannot reach — Bahia among them, which is where this is headed. Building it first would deliver something its first user cannot run. Manifestação is processed by the Ambiente Nacional, which works on a stock runtime, and it is the missing half of the DistDFe flow the host app already uses. Insucesso is blocked on reading NT 2021.002 for `hashTentativaEntrega`, and the NF-e portal refuses automated fetch.
 - **Trade-off**: The migration from the Focus-based host app stays partial. Research is recorded in `.specs/features/cte/research.md` so the work starts from measurements rather than from a re-run of the same investigation — including that the CT-e portal, unlike the NF-e one, answers automated requests, so its snapshot can come from the official source (AD-004).
+- **Note (2026-11-22)**: the blocker, erlang/otp#11595, is resolved (OTP 29.1), so CT-e and MDF-e are unblocked.
 - **Scope**: roadmap
 - **Date**: 2026-09-07
 - **Status**: active
@@ -156,13 +159,19 @@
 - **Date**: 2026-09-07
 - **Status**: active
 
+### AD-020
+- **Decision**: Require OTP 29.1 or later for the UF services and drop `patches/`.
+- **Reason**: The library already targets OTP 29 (AGENTS.md, CI), 29.1 carries OTP-20327, and a patch to OTP source is not something a Hex library should ask hosts to apply.
+- **Trade-off**: Hosts on OTP 29.0.x reach only 7 UFs until they upgrade.
+- **Scope**: `SefazNfe.SOAP.HTTPC`, docs
+- **Date**: 2026-11-22
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: transport-mvp (`.specs/features/transport-mvp/`)
-- **Phase / Task**: **`cStat` 100.** A homologação NF-e was authorized against SEFAZ BA (protocol 129262000191061), and the whole lifecycle followed: CCe and cancellation both `cStat` 135 against that document, inutilização `cStat` 102, DistDFe and manifestação on the Ambiente Nacional. The spec's success criterion, and its gate for a Hex release, is met.
-- **Completed**: spec, design, public API in English (AD-008), endpoints snapshot + IBGE cUF, DistDFe poller (AD-006), PKCS#12 reader verified against a real A1 (AD-007), `:httpc` mTLS client and `:xmerl` parser (AD-010), SOAP 1.2 envelopes, `Result.parse/1`, SEFAZ-05 and SEFAZ-14 done, 67 offline tests
-- **In-progress**: none
-- **Next step**: Publish to Hex (needs the maintainer's 2FA), then CT-e once erlang/otp#11595 lands.
-- **Known gaps**: `authorization_result/1` is still unexercised against a real receipt, because a single-document lote is synchronous and never produces one (AD-019); `consult_protocol/1` builds and parses correctly but SEFAZ BA's homologação base does not retain authorized documents, answering `cStat` 217; `SefazNfe.Certificate.PKCS12` is hand-written and wants a security review.
+- **Phase / Task**: Done and re-verified 2026-11-22 on OTP 29.1.2 / Elixir 1.20.5 with a real A1. `service_status/1` answers `cStat` 107 on 26 of 27 UFs. SEFAZ BA homologação, série 3: authorize 100, CCe 135, cancel 135, `consult_protocol/1` 100 (can answer 217/494 for a few seconds after authorization), inutilização 102.
+- **Known gaps**: `authorization_result/1` still unexercised against a real receipt (AD-019); AN homologação and SVAN homologação refuse with HTTP 403 (server-side, under investigation); PKCS12 security review pending; Hex 0.1.1 unpublished (issue #13).
+- **Next step**: Publish 0.1.1, then the roadmap in `.specs/ROADMAP.md`.
 - **Blockers**: none
-- **Branch**: main
+- **Branch**: chore/otp-29-1-live-check

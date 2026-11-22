@@ -4,44 +4,50 @@ Elixir library for **SEFAZ NF-e communication** (modelo 55): sign, authorize, co
 
 It does **not** calculate taxes. The ERP (or Nexus Pro) builds the XML; this library talks to SEFAZ.
 
-> Status: transport live, emission not yet. `service_status/1` is verified end to end
-> against SEFAZ **SP, MT and MG** (`cStat` 107) over real mTLS with an ICP-Brasil A1.
-> **An NF-e was authorized**: `cStat` 100 against SEFAZ BA homologação, with the
-> `nfeProc` assembled. CCe and cancellation registered against it (`cStat` 135),
-> inutilização homologada (102), DistDFe and manifestação answering on the
-> Ambiente Nacional.
+> Status: transport live and the whole NF-e lifecycle verified in homologação
+> with a real ICP-Brasil A1: authorization (`cStat` 100, `nfeProc` assembled),
+> CCe and cancellation (135), protocol consultation (100), and inutilização (102),
+> all against SEFAZ BA.
 >
-> On a stock OTP the per-UF services reach **BA, GO, MA, MG, MS, MT and SP**;
-> the other twenty states abort on malformed CA names in their
-> `CertificateRequest`. **OTP 29.1 fixes it** (OTP-20327) and is not out yet;
-> on OTP 28 and 27 the fix is proposed as a backport. `patches/` covers the
-> interval. **DistDFe on the Ambiente Nacional is unaffected** and works
-> everywhere.
+> **Requires OTP 29.1 or later.** Earlier OTP 29 aborts the TLS handshake on
+> 20 UFs (malformed CA names in `CertificateRequest`, fixed by OTP-20327). On
+> OTP 29.1+ with the ICP-Brasil v10 root configured, `service_status/1` answers
+> `cStat` 107 on 26 of 27 UFs. The exception is MA, which routes to SVAN and
+> gets HTTP 403 from the server. The Ambiente Nacional and SVAN homologação
+> endpoints also answer 403 ("You do not have permission to view this directory
+> or page"), identically with curl/OpenSSL and the same certificate, so that is
+> server-side. Ambiente Nacional production DistDFe answers normally.
 
 ## Package shell
 
 Public API is in `SefazNfe` (`authorize/1`, `authorization_result/1`, `service_status/1`,
-`dist_dfe/1`, `consult_protocol/1`, `cancel/1`, `cce/1`, `void_numbers/1`).
+`dist_dfe/1`, `consult_protocol/1`, `cancel/1`, `cce/1`, `manifest/2`,
+`void_numbers/1`, `start_dist_dfe_poller/1`).
 
 Input is validated and the UF URL is resolved from `priv/endpoints/nfe_4.00.json`.
-`service_status/1` is live over mTLS; the services that need a signed document
-stop at `Signer.sign_nfe/2` until XMLDSig lands. `mix test` never opens a socket —
+All services run live over mTLS, with documents signed by XMLDSig. `mix test` never opens a socket —
 `config/test.exs` swaps the transport for a stub.
 
 ### TLS trust anchors
 
-SP and MT serve certificates chained to *Autoridade Certificadora Raiz
-Brasileira v10*, which no OS bundle carries (MG and the Ambiente Nacional use
-commercial roots and work as-is). Supply the roots rather than weakening
-verification:
+Nearly every UF serves certificates chained to *Autoridade Certificadora Raiz
+Brasileira v10*, which no OS bundle carries (measured: 24 of 27 UFs fail with
+`{:tls, :unknown_ca}` without it; only GO and MG use commercial roots, as does
+the Ambiente Nacional). Supply the roots rather than weakening verification:
 
 ```elixir
 config :sefaz_nfe, :cacerts, "/etc/ssl/icp-brasil.pem"
 ```
 
 Fetch them from the ITI repository and check the fingerprints before installing;
-this library deliberately ships no trust anchors of its own (AD-009). Without
-them the call fails as `{:error, {:tls, :unknown_ca}}`, named so the cause is
+this library deliberately ships no trust anchors of its own (AD-009). The v10
+root's SHA-256 fingerprint is:
+
+```text
+6E:0B:FF:06:9A:26:99:4C:15:DE:2C:48:88:CC:54:AF:84:88:2E:54:95:B7:FB:F6:6B:E9:CC:FF:EC:74:89:F6
+```
+
+Without them the call fails as `{:error, {:tls, :unknown_ca}}`, named so the cause is
 obvious.
 
 **A1 (PKCS#12) is real.** OTP 29 ships no PKCS#12 support and Hex has no package
