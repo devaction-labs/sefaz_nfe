@@ -99,6 +99,7 @@
 - **Trade-off**: State transitions are not linearised, so two concurrent callers can both open a breaker or both take the trial call after a cooldown. Harmless here — the worst case is one extra request — and cheaper than a bottleneck.
 - **Scope**: `SefazNfe.CircuitBreaker`, `SefazNfe.SOAP.isolated_call/4`
 - **Date**: 2026-09-07
+- **Revised (2026-11-22)**: keyed by the authorizer host instead of the UF, since one UF reaches several servers by model and many UFs share one (SVRS).
 - **Status**: active
 
 ### AD-013
