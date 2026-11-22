@@ -54,6 +54,9 @@ if ($names === []) {
 foreach ($names as $name) {
     $payload = json_decode(file_get_contents("$golden/payloads/$name.json"), true, flags: JSON_THROW_ON_ERROR);
     $ctx = json_decode(file_get_contents("$golden/contexts/$name.json"), true, flags: JSON_THROW_ON_ERROR);
+    if (! in_array($ctx['model'], [55, 65], true)) {
+        continue; // CT-e / CT-e OS / MDF-e: render_cte_mdfe.php
+    }
 
     $company = (new Company)->forceFill($ctx['company']);
     $company->tax_regime = TaxRegime::from($ctx['company']['tax_regime']);

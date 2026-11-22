@@ -1,0 +1,81 @@
+{
+    "ref": "cte-sn-multi-nfe",
+    "identification": {
+        "cfop": "6353",
+        "operation_nature": "Prestacao de servico de transporte interestadual",
+        "service_type": 0,
+        "start_city_ibge_code": "1302603",
+        "start_city_name": "Manaus",
+        "start_state": "AM",
+        "end_city_ibge_code": "3550308",
+        "end_city_name": "Sao Paulo",
+        "end_state": "SP",
+        "receiver_picks_up": 1,
+        "taker_state_registration_indicator": 1
+    },
+    "taker": {
+        "role": 3
+    },
+    "sender": {
+        "cpf": "11144477735",
+        "name": "Joao Produtor Rural",
+        "phone": "92988880000",
+        "address": {
+            "street": "Estrada do Ramal",
+            "number": "S/N",
+            "district": "Zona Rural",
+            "city_ibge_code": "1302603",
+            "city_name": "Manaus",
+            "state": "AM",
+            "zip_code": "69000000"
+        }
+    },
+    "recipient": {
+        "cnpj": "11666999000129",
+        "state_registration": "110042490423",
+        "name": "Destinataria Comercio Ltda",
+        "suframa_registration": "210123456",
+        "address": {
+            "street": "Avenida Central",
+            "number": "900",
+            "district": "Centro",
+            "city_ibge_code": "3550308",
+            "city_name": "Sao Paulo",
+            "state": "SP",
+            "zip_code": "01001000"
+        }
+    },
+    "service_amount": {
+        "total": "2750.5",
+        "receivable": "2750.5",
+        "components": [
+            {"name": "FRETE VALOR", "amount": "2000"},
+            {"name": "PEDAGIO", "amount": "500.5"},
+            {"name": "SEGURO", "amount": "250"}
+        ]
+    },
+    "taxes": {
+        "icms": {
+            "simples_nacional": true
+        }
+    },
+    "cargo": {
+        "value": "80000",
+        "predominant_product": "Eletronicos",
+        "quantities": [
+            {"unit": "01", "measure": "PESO BRUTO", "quantity": "3500"},
+            {"unit": "03", "measure": "VOLUMES", "quantity": "120"},
+            {"unit": "00", "measure": "CUBAGEM", "quantity": "18.5"}
+        ]
+    },
+    "documents": {
+        "nfe": [
+            {"access_key": "35260911222333000181550010000020011111111120", "expected_delivery_date": "2026-10-20"},
+            {"access_key": "35260911222333000181550010000020021222222237"},
+            {"access_key": "35260911444777000161550020000030011333333340", "expected_delivery_date": "2026-10-22"}
+        ]
+    },
+    "road": {
+        "rntrc": "00123456"
+    }
+}

@@ -1,0 +1,140 @@
+{
+    "ref": "cte-toma4-ibs-cbs",
+    "identification": {
+        "cfop": "6353",
+        "operation_nature": "Prestacao de servico de transporte com tomador outro",
+        "service_type": 0,
+        "start_city_ibge_code": "3550308",
+        "start_city_name": "Sao Paulo",
+        "start_state": "SP",
+        "end_city_ibge_code": "4106902",
+        "end_city_name": "Curitiba",
+        "end_state": "PR",
+        "receiver_picks_up": 0,
+        "pickup_details": "Coleta no portao 3 apos as 14h",
+        "taker_state_registration_indicator": 1
+    },
+    "taker": {
+        "role": 4,
+        "cnpj": "11555888000145",
+        "state_registration": "110042490317",
+        "name": "Tomador Logistica Ltda",
+        "trade_name": "Tomador Log",
+        "phone": "1140004000",
+        "email": "tomador@example.com",
+        "address": {
+            "street": "Rua do Tomador",
+            "number": "77",
+            "complement": "Bloco B",
+            "district": "Itaim",
+            "city_ibge_code": "3550308",
+            "city_name": "Sao Paulo",
+            "state": "SP",
+            "zip_code": "04534000",
+            "country_code": "1058",
+            "country_name": "Brasil"
+        }
+    },
+    "sender": {
+        "cnpj": "11222333000181",
+        "state_registration": "110042490114",
+        "name": "Industria Remetente Ltda",
+        "address": {
+            "street": "Rua das Industrias",
+            "number": "500",
+            "district": "Distrito Industrial",
+            "city_ibge_code": "3550308",
+            "city_name": "Sao Paulo",
+            "state": "SP",
+            "zip_code": "04569011"
+        }
+    },
+    "dispatcher": {
+        "cnpj": "11444777000161",
+        "name": "Expedidor Log Ltda",
+        "address": {
+            "street": "Avenida do Porto",
+            "number": "120",
+            "district": "Zona Leste",
+            "city_ibge_code": "3550308",
+            "city_name": "Sao Paulo",
+            "state": "SP",
+            "zip_code": "03910000"
+        }
+    },
+    "recipient": {
+        "cnpj": "11666999000129",
+        "state_registration": "9041234567",
+        "name": "Destinataria Comercio Ltda",
+        "email": "destinataria@example.com",
+        "address": {
+            "street": "Avenida Paulista Sul",
+            "number": "10",
+            "district": "Centro",
+            "city_ibge_code": "4106902",
+            "city_name": "Curitiba",
+            "state": "PR",
+            "zip_code": "80010000"
+        }
+    },
+    "service_amount": {
+        "total": "1800.00",
+        "receivable": "1800.00",
+        "components": [
+            {"name": "FRETE VALOR", "amount": "1800.00"}
+        ]
+    },
+    "taxes": {
+        "icms": {
+            "cst": "20",
+            "base_reduction": "20.00",
+            "base": "1440.00",
+            "rate": "12.00",
+            "amount": "172.80",
+            "total_tax_estimate": "300.00",
+            "tax_authority_info": "Reducao de base conforme RICMS"
+        },
+        "reform": {
+            "cst": "000",
+            "classification": "000001",
+            "donation": "1",
+            "ibs_cbs": {
+                "base": "1800.00",
+                "state_rate": "0.10",
+                "state_amount": "1.80",
+                "municipal_rate": "0.00",
+                "municipal_amount": "0.00",
+                "ibs_amount": "1.80",
+                "cbs_rate": "0.90",
+                "cbs_amount": "16.20"
+            },
+            "regular": {
+                "cst": "000",
+                "classification": "000001",
+                "state_rate": "0.10",
+                "state_amount": "1.80",
+                "municipal_rate": "0.00",
+                "municipal_amount": "0.00",
+                "cbs_rate": "0.90",
+                "cbs_amount": "16.20"
+            },
+            "total_document_amount": "1800.00"
+        }
+    },
+    "cargo": {
+        "value": "120000.00",
+        "predominant_product": "Maquinas e pecas",
+        "quantities": [
+            {"unit": "01", "measure": "PESO BRUTO", "quantity": "9800.0000"},
+            {"unit": "02", "measure": "PESO LIQUIDO", "quantity": "9500.0000"}
+        ]
+    },
+    "documents": {
+        "nfe": [
+            {"access_key": "35260911222333000181550010000020011111111120"}
+        ]
+    },
+    "road": {
+        "rntrc": "12345678"
+    }
+}

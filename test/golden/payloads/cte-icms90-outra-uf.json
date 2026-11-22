@@ -1,0 +1,115 @@
+{
+    "ref": "cte-icms90-outra-uf",
+    "identification": {
+        "cfop": "6932",
+        "operation_nature": "Prestacao de servico de transporte iniciada em outra UF",
+        "service_type": 0,
+        "start_city_ibge_code": "3106200",
+        "start_city_name": "Belo Horizonte",
+        "start_state": "MG",
+        "end_city_ibge_code": "3550308",
+        "end_city_name": "Sao Paulo",
+        "end_state": "SP",
+        "receiver_picks_up": 1,
+        "taker_state_registration_indicator": 1
+    },
+    "taker": {
+        "role": 1
+    },
+    "sender": {
+        "cnpj": "11222333000181",
+        "state_registration": "110042490114",
+        "name": "Industria Remetente Ltda",
+        "address": {
+            "street": "Rua das Industrias",
+            "number": "500",
+            "district": "Distrito Industrial",
+            "city_ibge_code": "3106200",
+            "city_name": "Belo Horizonte",
+            "state": "MG",
+            "zip_code": "30000000"
+        }
+    },
+    "dispatcher": {
+        "cnpj": "11444777000161",
+        "state_registration": "110042490211",
+        "name": "Expedidor Log Ltda",
+        "phone": "3133334444",
+        "address": {
+            "street": "Avenida do Porto",
+            "number": "120",
+            "district": "Zona Leste",
+            "city_ibge_code": "3106200",
+            "city_name": "Belo Horizonte",
+            "state": "MG",
+            "zip_code": "30100000"
+        }
+    },
+    "receiver": {
+        "cnpj": "11555888000145",
+        "name": "Recebedor Armazem Ltda",
+        "address": {
+            "street": "Rua do Armazem",
+            "number": "77",
+            "district": "Mooca",
+            "city_ibge_code": "3550308",
+            "city_name": "Sao Paulo",
+            "state": "SP",
+            "zip_code": "03100000"
+        }
+    },
+    "recipient": {
+        "cnpj": "11666999000129",
+        "state_registration": "110042490423",
+        "name": "Destinataria Comercio Ltda",
+        "address": {
+            "street": "Avenida Central",
+            "number": "900",
+            "district": "Centro",
+            "city_ibge_code": "3550308",
+            "city_name": "Sao Paulo",
+            "state": "SP",
+            "zip_code": "01001000"
+        }
+    },
+    "service_amount": {
+        "total": "950.00",
+        "receivable": "950.00"
+    },
+    "taxes": {
+        "icms": {
+            "cst": "90",
+            "other_state": {
+                "base_reduction": "10.00",
+                "base": "855.00",
+                "rate": "18.00",
+                "amount": "153.90"
+            }
+        }
+    },
+    "cargo": {
+        "value": "30000.00",
+        "predominant_product": "Alimentos",
+        "other_characteristics": "Refrigerada",
+        "insured_value": "30000.00",
+        "quantities": [
+            {"unit": "01", "measure": "PESO BRUTO", "quantity": "4000.0000"}
+        ]
+    },
+    "documents": {
+        "nfe": [
+            {"access_key": "29260911555888000145550010000040011444444452", "expected_delivery_date": "2026-09-25"},
+            {"access_key": "35260911666999000129550010000060011888888890"}
+        ]
+    },
+    "road": {
+        "rntrc": "87654321"
+    },
+    "additional_info": {
+        "observations": "Carga refrigerada",
+        "contributor_fields": [
+            {"field": "Pedido", "text": "4500012345"},
+            {"field": "Viagem", "text": "VG-0099"}
+        ]
+    }
+}

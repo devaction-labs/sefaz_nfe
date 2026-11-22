@@ -1,0 +1,25 @@
+{
+  "environment": 1,
+  "model": 57,
+  "series": 2,
+  "number": 98765,
+  "numeric_code": "31415926",
+  "emission_type": 1,
+  "issued_at": "2026-10-02 14:00:00+00:00",
+  "company": {
+    "name": "Amazonas Transportes Eireli",
+    "trade_name": "Amazonas Transportes",
+    "cnpj": "11222333000181",
+    "state_registration": "041234567",
+    "tax_regime": 1,
+    "street": "Avenida das Torres",
+    "number": "1500",
+    "district": "Flores",
+    "city_name": "Manaus",
+    "city_ibge_code": "1302603",
+    "state": "AM",
+    "zip_code": "69058000",
+    "phone": "9232221111",
+    "email": "contato@example.com"
+  }
+}

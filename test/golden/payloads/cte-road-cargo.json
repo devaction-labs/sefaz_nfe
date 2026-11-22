@@ -1,0 +1,135 @@
+{
+    "ref": "carga-1001",
+    "identification": {
+        "cfop": "5353",
+        "operation_nature": "Prestacao de servico de transporte rodoviario",
+        "service_type": 0,
+        "start_city_ibge_code": "3550308",
+        "start_city_name": "Sao Paulo",
+        "start_state": "SP",
+        "end_city_ibge_code": "3304557",
+        "end_city_name": "Rio de Janeiro",
+        "end_state": "RJ",
+        "receiver_picks_up": 1,
+        "pickup_details": null,
+        "taker_state_registration_indicator": 1
+    },
+    "taker": {
+        "role": 0
+    },
+    "sender": {
+        "cnpj": "11222333000181",
+        "state_registration": "110042490114",
+        "name": "Industria Remetente Ltda",
+        "trade_name": "Remetente",
+        "phone": "11988887777",
+        "email": "remetente@example.com",
+        "address": {
+            "street": "Rua das Industrias",
+            "number": "500",
+            "complement": "Galpao 2",
+            "district": "Distrito Industrial",
+            "city_ibge_code": "3550308",
+            "city_name": "Sao Paulo",
+            "state": "SP",
+            "zip_code": "04569011",
+            "country_code": "1058",
+            "country_name": "Brasil"
+        }
+    },
+    "dispatcher": {
+        "cnpj": "11444777000161",
+        "state_registration": "110042490211",
+        "name": "Expedidor Log Ltda",
+        "phone": "11977776666",
+        "email": "expedidor@example.com",
+        "address": {
+            "street": "Avenida do Porto",
+            "number": "120",
+            "district": "Zona Leste",
+            "city_ibge_code": "3550308",
+            "city_name": "Sao Paulo",
+            "state": "SP",
+            "zip_code": "03910000",
+            "country_code": "1058",
+            "country_name": "Brasil"
+        }
+    },
+    "receiver": {
+        "cnpj": "11555888000145",
+        "state_registration": "110042490317",
+        "name": "Recebedor Armazem Ltda",
+        "phone": "21966665555",
+        "email": "recebedor@example.com",
+        "address": {
+            "street": "Rua do Armazem",
+            "number": "77",
+            "district": "Porto",
+            "city_ibge_code": "3304557",
+            "city_name": "Rio de Janeiro",
+            "state": "RJ",
+            "zip_code": "20081000",
+            "country_code": "1058",
+            "country_name": "Brasil"
+        }
+    },
+    "recipient": {
+        "cnpj": "11666999000129",
+        "state_registration": "110042490423",
+        "name": "Destinataria Comercio Ltda",
+        "suframa_registration": null,
+        "phone": "21955554444",
+        "email": "destinataria@example.com",
+        "address": {
+            "street": "Avenida Central",
+            "number": "900",
+            "complement": "Sala 12",
+            "district": "Centro",
+            "city_ibge_code": "3304557",
+            "city_name": "Rio de Janeiro",
+            "state": "RJ",
+            "zip_code": "20040020",
+            "country_code": "1058",
+            "country_name": "Brasil"
+        }
+    },
+    "service_amount": {
+        "total": "1500.00",
+        "receivable": "1500.00",
+        "components": [
+            {"name": "FRETE PESO", "amount": "1350.00"},
+            {"name": "PEDAGIO", "amount": "150.00"}
+        ]
+    },
+    "taxes": {
+        "icms": {
+            "cst": "00",
+            "base": "1500.00",
+            "rate": "12.00",
+            "amount": "180.00"
+        }
+    },
+    "cargo": {
+        "value": "45000.00",
+        "predominant_product": "Autopecas",
+        "other_characteristics": "Carga seca paletizada",
+        "insured_value": "45000.00",
+        "quantities": [
+            {"unit": "01", "measure": "PESO BRUTO", "quantity": "1200.0000"}
+        ]
+    },
+    "documents": {
+        "nfe": [
+            {"access_key": "35260911222333000181550010000001231123456783", "expected_delivery_date": "2026-09-16"}
+        ]
+    },
+    "road": {
+        "rntrc": "12345678"
+    },
+    "additional_info": {
+        "observations": "Entregar em horario comercial",
+        "contributor_fields": [
+            {"field": "Motorista", "text": "Joao da Silva"}
+        ]
+    }
+}

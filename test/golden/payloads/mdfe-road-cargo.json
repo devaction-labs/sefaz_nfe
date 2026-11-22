@@ -1,0 +1,43 @@
+{
+    "ref": "carga-1001",
+    "identification": {
+        "emitter_type": 1,
+        "start_state": "SP",
+        "end_state": "RJ",
+        "planned_trip_start_at": "2026-09-13T11:00:00-03:00",
+        "loading_municipalities": [
+            {"city_ibge_code": "3550308", "city_name": "Sao Paulo"}
+        ]
+    },
+    "vehicle": {
+        "plate": "ABC1D23",
+        "renavam": "12345678901",
+        "tare_weight": "8000",
+        "capacity_kg": "30000",
+        "capacity_m3": "80",
+        "axle_type": "01",
+        "body_type": "05",
+        "state": "SP"
+    },
+    "drivers": [
+        {"name": "Joao da Silva", "cpf": "11144477735"}
+    ],
+    "documents": [
+        {
+            "city_ibge_code": "3304557",
+            "city_name": "Rio de Janeiro",
+            "nfe_keys": ["35260911222333000181550010000001231123456783"],
+            "cte_keys": ["35260911222333000181570010000001231123456780"]
+        }
+    ],
+    "cargo": {
+        "type": "05",
+        "predominant_product": "Autopecas",
+        "total_value": "15000.00",
+        "unit": "01",
+        "quantity": "8000.0000"
+    },
+    "road": {
+        "rntrc": "12345678"
+    }
+}
