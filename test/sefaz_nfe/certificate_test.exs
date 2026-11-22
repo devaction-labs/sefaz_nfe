@@ -300,6 +300,18 @@ defmodule SefazNfe.CertificateTest do
                within(fn -> PKCS12.decode_safe(safe, @password) end)
     end
 
+    test "the iterations of all blobs together are bounded" do
+      # Each blob is far under the per-call limit; 32 of them cost 2.24M.
+      infos = for _ <- 1..32, do: pbes2_info(pad(seq([])), iterations: 70_000)
+
+      assert {:error, {:limit_exceeded, :iterations}} =
+               within(fn -> PKCS12.decode_safe(seq(infos), @password) end)
+
+      # ... and a handful of the same blobs is within budget.
+      assert {:ok, []} =
+               within(fn -> PKCS12.decode_safe(seq(Enum.take(infos, 8)), @password) end)
+    end
+
     test "PBKDF2 iteration counts are bounded" do
       safe = pbes2_safe(pad(seq([])), iterations: 4_000_000_000)
 
@@ -501,9 +513,11 @@ defmodule SefazNfe.CertificateTest do
     plain <> :binary.copy(<<pad>>, pad)
   end
 
-  # An EncryptedData SafeContents under PBES2/AES-256, encrypted for real so the
+  defp pbes2_safe(plain, opts \\ []), do: seq([pbes2_info(plain, opts)])
+
+  # An EncryptedData ContentInfo under PBES2/AES-256, encrypted for real so the
   # padding check sees what a MAC-verified file would hand it.
-  defp pbes2_safe(plain, opts \\ []) do
+  defp pbes2_info(plain, opts) do
     salt = "0123456789abcdef"
     iv = Keyword.get(opts, :iv, :binary.copy(<<7>>, 16))
     prf_oid = Keyword.get(opts, :prf, @hmac_sha256)
@@ -527,7 +541,7 @@ defmodule SefazNfe.CertificateTest do
       ])
 
     alg = seq([oid(@pbes2), seq([kdf, seq([oid(@aes256), der(4, iv)])])])
-    seq([encrypted_info(alg, ciphertext)])
+    encrypted_info(alg, ciphertext)
   end
 
   # A stuck KDF would otherwise hang the suite instead of failing it.

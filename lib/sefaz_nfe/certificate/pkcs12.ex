@@ -37,7 +37,7 @@ defmodule SefazNfe.Certificate.PKCS12 do
     * the file is at most 65536 bytes (64 KiB) (a real A1 is about 7 KB) and holds
       at most 32 SafeBags and 32 ContentInfos;
     * every iteration count (MAC, PBES1, PBKDF2) is in `1..1_000_000` (real A1s
-      use about 2000);
+      use about 2000), and the sum over the whole file (MAC, PBES1 x3 passes, PBKDF2 x blocks) is at most 2_000_000;
     * a PBKDF2 `keyLength`, when present, equals the cipher's key size;
     * the cipher IV and ciphertext have the sizes the cipher requires.
 
@@ -94,6 +94,8 @@ defmodule SefazNfe.Certificate.PKCS12 do
 
   @max_size 64 * 1024
   @max_iterations 1_000_000
+  # Per parse, over every KDF, PBKDF2 and MAC. A real A1 spends 10-20k.
+  @max_total_iterations 2_000_000
   @max_bags 32
 
   @type parsed :: %{der: binary(), key: binary(), chain: [binary()]}
@@ -115,11 +117,11 @@ defmodule SefazNfe.Certificate.PKCS12 do
   @spec parse(binary(), String.t()) :: {:ok, parsed()} | {:error, term()}
   def parse(pfx, password) when is_binary(pfx) and is_binary(password) do
     guarded(fn ->
-      with {:ok, pw} <- credentials(password),
+      with {:ok, st} <- credentials(password),
            :ok <- check_size(pfx),
            {:ok, safe_der, mac} <- unwrap(pfx),
-           :ok <- verify_mac(mac, safe_der, pw),
-           {:ok, bags} <- safes(safe_der, pw) do
+           {:ok, st} <- verify_mac(mac, safe_der, st),
+           {:ok, bags, _st} <- safes(safe_der, st) do
         collect(bags)
       end
     end)
@@ -131,7 +133,9 @@ defmodule SefazNfe.Certificate.PKCS12 do
   @spec decode_safe(binary(), String.t()) :: {:ok, [term()]} | {:error, term()}
   def decode_safe(safe_der, password) when is_binary(safe_der) and is_binary(password) do
     guarded(fn ->
-      with {:ok, pw} <- credentials(password), do: safes(safe_der, pw)
+      with {:ok, st} <- credentials(password),
+           {:ok, bags, _st} <- safes(safe_der, st),
+           do: {:ok, bags}
     end)
   end
 
@@ -150,7 +154,7 @@ defmodule SefazNfe.Certificate.PKCS12 do
     if String.valid?(password) do
       # BMPString: UTF-16BE, surrogate pairs outside the BMP, two byte terminator.
       bmp = :unicode.characters_to_binary(password, :utf8, {:utf16, :big}) <> <<0, 0>>
-      {:ok, %{utf8: password, bmp: bmp}}
+      {:ok, %{utf8: password, bmp: bmp, budget: @max_total_iterations}}
     else
       {:error, :invalid_password}
     end
@@ -169,18 +173,32 @@ defmodule SefazNfe.Certificate.PKCS12 do
 
   defp verify_mac([], _safe_der, _pw), do: {:error, :invalid_certificate}
 
-  defp verify_mac([{0x30, mac_data}], safe_der, pw) do
+  defp verify_mac([{0x30, mac_data}], safe_der, st) do
     [{0x30, digest_info}, {4, salt} | rest] = sequence(mac_data)
     [{0x30, alg}, {4, expected}] = sequence(digest_info)
 
-    with {:ok, iterations} <- mac_iterations(rest) do
-      case sequence(alg) do
-        [{6, @sha1} | _params] -> mac(:sha, 20, pw, salt, iterations, safe_der, expected)
-        [{6, @sha256} | _params] -> mac(:sha256, 32, pw, salt, iterations, safe_der, expected)
-        [{6, oid} | _params] -> {:error, {:unsupported_mac, oid}}
-      end
+    with {:ok, iterations} <- mac_iterations(rest),
+         {:ok, st} <- charge(st, iterations),
+         :ok <- mac_for(sequence(alg), st, salt, iterations, safe_der, expected) do
+      {:ok, st}
     end
   end
+
+  defp mac_for([{6, @sha1} | _params], st, salt, iterations, safe_der, expected),
+    do: mac(:sha, 20, st, salt, iterations, safe_der, expected)
+
+  defp mac_for([{6, @sha256} | _params], st, salt, iterations, safe_der, expected),
+    do: mac(:sha256, 32, st, salt, iterations, safe_der, expected)
+
+  defp mac_for([{6, oid} | _params], _st, _salt, _iterations, _safe_der, _expected),
+    do: {:error, {:unsupported_mac, oid}}
+
+  # The cost of a KDF is accounted before it runs, so a file cannot spend the
+  # budget by asking for it.
+  defp charge(%{budget: budget} = st, cost) when cost <= budget,
+    do: {:ok, %{st | budget: budget - cost}}
+
+  defp charge(_st, _cost), do: {:error, {:limit_exceeded, :iterations}}
 
   defp mac_iterations([]), do: {:ok, 1}
   defp mac_iterations([{2, value}]), do: iterations(value)
@@ -192,9 +210,9 @@ defmodule SefazNfe.Certificate.PKCS12 do
     end
   end
 
-  defp mac(digest, size, pw, salt, iterations, safe_der, expected)
+  defp mac(digest, size, st, salt, iterations, safe_der, expected)
        when byte_size(expected) == size do
-    key = kdf(pw.bmp, salt, @id_mac, iterations, size, digest)
+    key = kdf(st.bmp, salt, @id_mac, iterations, size, digest)
 
     if :crypto.hash_equals(:crypto.mac(:hmac, digest, key, safe_der), expected) do
       :ok
@@ -207,18 +225,18 @@ defmodule SefazNfe.Certificate.PKCS12 do
   defp mac(_digest, _size, _pw, _salt, _iterations, _safe_der, _expected),
     do: {:error, :invalid_certificate}
 
-  defp safes(safe_der, pw) do
+  defp safes(safe_der, st) do
     {0x30, list, _} = der(safe_der)
 
     with {:ok, infos} <- bounded(sequence(list)) do
-      reduce_ok(infos, &add_content_info(&1, &2, pw))
+      reduce_ok(infos, st, &add_content_info/3)
     end
   end
 
-  defp add_content_info({0x30, content_info}, acc, pw) do
-    with {:ok, bags} <- content_info(content_info, pw),
+  defp add_content_info({0x30, content_info}, acc, st) do
+    with {:ok, bags, st} <- content_info(content_info, st),
          :ok <- check_bag_count(length(acc) + length(bags)) do
-      {:ok, Enum.reverse(bags, acc)}
+      {:ok, Enum.reverse(bags, acc), st}
     end
   end
 
@@ -228,63 +246,63 @@ defmodule SefazNfe.Certificate.PKCS12 do
   defp check_bag_count(count) when count > @max_bags, do: {:error, {:limit_exceeded, :bags}}
   defp check_bag_count(_count), do: :ok
 
-  defp content_info(content_info, pw) do
+  defp content_info(content_info, st) do
     case sequence(content_info) do
       [{6, @data}, {0xA0, content}] ->
         {4, safe_contents, _} = der(content)
-        bags(safe_contents, pw)
+        bags(safe_contents, st)
 
       [{6, @encrypted_data}, {0xA0, content}] ->
         {0x30, encrypted, _} = der(content)
         [{2, _version}, {0x30, enc_content_info}] = sequence(encrypted)
         [{6, @data}, {0x30, alg}, {0x80, ciphertext}] = sequence(enc_content_info)
 
-        with {:ok, plain} <- decrypt(alg, ciphertext, pw), do: bags(plain, pw)
+        with {:ok, plain, st} <- decrypt(alg, ciphertext, st), do: bags(plain, st)
 
       _unknown ->
         {:error, :invalid_certificate}
     end
   end
 
-  defp bags(safe_contents, pw) do
+  defp bags(safe_contents, st) do
     {0x30, list, _} = der(safe_contents)
 
     with {:ok, items} <- bounded(sequence(list)) do
-      reduce_ok(items, &add_bag(&1, &2, pw))
+      reduce_ok(items, st, &add_bag/3)
     end
   end
 
-  defp add_bag({0x30, bag}, acc, pw) do
-    with {:ok, found} <- bag(bag, pw), do: {:ok, Enum.reverse(found, acc)}
+  defp add_bag({0x30, bag}, acc, st) do
+    with {:ok, found, st} <- bag(bag, st), do: {:ok, Enum.reverse(found, acc), st}
   end
 
-  defp bag(bag, pw) do
+  defp bag(bag, st) do
     case sequence(bag) do
       [{6, @cert_bag}, {0xA0, value} | _attrs] ->
         {0x30, cert_bag, _} = der(value)
         [{6, _x509}, {0xA0, wrapped}] = sequence(cert_bag)
         {4, cert, _} = der(wrapped)
-        {:ok, [{:cert, cert}]}
+        {:ok, [{:cert, cert}], st}
 
       [{6, @shrouded_key_bag}, {0xA0, value} | _attrs] ->
         {0x30, epki, _} = der(value)
         [{0x30, alg}, {4, ciphertext}] = sequence(epki)
 
-        with {:ok, key} <- decrypt(alg, ciphertext, pw), do: {:ok, [{:key, key}]}
+        with {:ok, key, st} <- decrypt(alg, ciphertext, st), do: {:ok, [{:key, key}], st}
 
       [{6, @key_bag}, {0xA0, value} | _attrs] ->
         {0x30, key, _} = der(value)
-        {:ok, [{:key, key}]}
+        {:ok, [{:key, key}], st}
 
       _other ->
-        {:ok, []}
+        {:ok, [], st}
     end
   end
 
-  defp decrypt(alg, ciphertext, pw) do
+  defp decrypt(alg, ciphertext, st) do
     case sequence(alg) do
-      [{6, @pbe_sha1_3des}, {0x30, params}] -> pbes1(params, ciphertext, pw)
-      [{6, @pbes2}, {0x30, params}] -> pbes2(params, ciphertext, pw)
+      [{6, @pbe_sha1_3des}, {0x30, params}] -> pbes1(params, ciphertext, st)
+      [{6, @pbes2}, {0x30, params}] -> pbes2(params, ciphertext, st)
       # A known algorithm with the wrong parameters is a broken file, not an
       # algorithm we have not met.
       [{6, oid} | _params] when oid in [@pbe_sha1_3des, @pbes2] -> {:error, :invalid_certificate}
@@ -292,27 +310,30 @@ defmodule SefazNfe.Certificate.PKCS12 do
     end
   end
 
-  defp pbes1(params, ciphertext, pw) do
+  defp pbes1(params, ciphertext, st) do
     [{4, salt}, {2, count}] = sequence(params)
 
     with {:ok, iterations} <- iterations(count),
-         :ok <- check_cbc(ciphertext, 8) do
-      key = kdf(pw.bmp, salt, @id_key, iterations, 24, :sha)
-      iv = kdf(pw.bmp, salt, @id_iv, iterations, 8, :sha)
+         :ok <- check_cbc(ciphertext, 8),
+         # 24 key bytes take two SHA-1 blocks, the 8 byte IV one more.
+         {:ok, st} <- charge(st, 3 * iterations) do
+      key = kdf(st.bmp, salt, @id_key, iterations, 24, :sha)
+      iv = kdf(st.bmp, salt, @id_iv, iterations, 8, :sha)
 
-      cbc(:des_ede3_cbc, key, iv, ciphertext, 8)
+      with {:ok, plain} <- cbc(:des_ede3_cbc, key, iv, ciphertext, 8), do: {:ok, plain, st}
     end
   end
 
   # PBES2 keys the cipher from PKCS#5 PBKDF2 over the UTF-8 password, not from
   # the PKCS#12 KDF over a BMPString. Different derivation, same file format.
-  defp pbes2(params, ciphertext, pw) do
+  defp pbes2(params, ciphertext, st) do
     [{0x30, kdf_alg}, {0x30, cipher_alg}] = sequence(params)
 
     with {:ok, cipher, key_size, iv} <- pbes2_cipher(cipher_alg),
          :ok <- check_cbc(ciphertext, 16),
-         {:ok, key} <- pbkdf2(kdf_alg, pw.utf8, key_size) do
-      cbc(cipher, key, iv, ciphertext, 16)
+         {:ok, key, st} <- pbkdf2(kdf_alg, st, key_size),
+         {:ok, plain} <- cbc(cipher, key, iv, ciphertext, 16) do
+      {:ok, plain, st}
     end
   end
 
@@ -335,7 +356,7 @@ defmodule SefazNfe.Certificate.PKCS12 do
     end
   end
 
-  defp pbkdf2(alg, password, key_size) do
+  defp pbkdf2(alg, st, key_size) do
     case sequence(alg) do
       [{6, @pbkdf2}, {0x30, params}] ->
         [{4, salt}, {2, count} | rest] = sequence(params)
@@ -343,8 +364,9 @@ defmodule SefazNfe.Certificate.PKCS12 do
 
         with {:ok, iterations} <- iterations(count),
              :ok <- check_key_length(key_length, key_size),
-             {:ok, prf} <- prf(prf_alg) do
-          {:ok, :crypto.pbkdf2_hmac(prf, password, salt, iterations, key_size)}
+             {:ok, prf} <- prf(prf_alg),
+             {:ok, st} <- charge(st, iterations * ceil(key_size / hash_size(prf))) do
+          {:ok, :crypto.pbkdf2_hmac(prf, st.utf8, salt, iterations, key_size), st}
         end
 
       [{6, oid} | _params] ->
@@ -363,6 +385,10 @@ defmodule SefazNfe.Certificate.PKCS12 do
   defp check_key_length(length, key_size) do
     if unsigned(length) == key_size, do: :ok, else: {:error, {:limit_exceeded, :key_length}}
   end
+
+  defp hash_size(:sha), do: 20
+  defp hash_size(:sha256), do: 32
+  defp hash_size(:sha512), do: 64
 
   defp prf(nil), do: {:ok, :sha}
 
@@ -527,15 +553,16 @@ defmodule SefazNfe.Certificate.PKCS12 do
   defp unsigned(bin), do: :binary.decode_unsigned(bin)
 
   # Accumulates newest-first; the callbacks prepend, and this puts the order back.
-  defp reduce_ok(list, fun) do
+  # The state (with the iteration budget) is threaded through every step.
+  defp reduce_ok(list, st, fun) do
     result =
-      Enum.reduce_while(list, {:ok, []}, fn item, {:ok, acc} ->
-        case fun.(item, acc) do
-          {:ok, next} -> {:cont, {:ok, next}}
+      Enum.reduce_while(list, {:ok, [], st}, fn item, {:ok, acc, st} ->
+        case fun.(item, acc, st) do
+          {:ok, next, st} -> {:cont, {:ok, next, st}}
           {:error, _reason} = error -> {:halt, error}
         end
       end)
 
-    with {:ok, acc} <- result, do: {:ok, Enum.reverse(acc)}
+    with {:ok, acc, st} <- result, do: {:ok, Enum.reverse(acc), st}
   end
 end
