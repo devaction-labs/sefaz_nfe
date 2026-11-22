@@ -22,14 +22,21 @@ defmodule SefazNfe.Certificate do
 
   `load/3` returns:
 
-    * `{:error, :invalid_password}` — the password is empty or the PKCS#12 MAC
-      does not verify. A MAC mismatch is cryptographically indistinguishable
+    * `{:error, :invalid_password}` — the password is empty, is not valid UTF-8
+      or the PKCS#12 MAC does not verify. A MAC mismatch is cryptographically indistinguishable
       from a tampered file, but a wrong password is by far the common cause.
     * `{:error, :invalid_certificate}` — the input is empty or not a binary, or
       the file is structurally broken, has no MAC, no private key or no
       certificate.
     * `{:error, {:unsupported_pbe, oid}}` / `{:error, {:unsupported_mac, oid}}` —
       an algorithm this reader has not been verified against.
+    * `{:error, {:limit_exceeded, :size | :bags | :iterations | :key_length}}` —
+      the file asks for more work or space than a real A1 ever does (see
+      `SefazNfe.Certificate.PKCS12`).
+    * `{:error, :key_cert_mismatch}` — no certificate in the file carries the
+      public key of the private key; `{:error, :multiple_keys}` — the file holds
+      more than one private key; `{:error, {:unsupported_key, :ec | :other}}` —
+      the key is not RSA.
     * `{:error, {:expired, not_after}}` / `{:error, {:not_yet_valid,
       not_before}}` — the validity window does not contain the current time,
       unless `allow_expired: true`.
@@ -51,6 +58,10 @@ defmodule SefazNfe.Certificate do
           | :invalid_certificate
           | {:unsupported_pbe, binary()}
           | {:unsupported_mac, binary()}
+          | {:limit_exceeded, :size | :bags | :iterations | :key_length}
+          | :key_cert_mismatch
+          | :multiple_keys
+          | {:unsupported_key, :ec | :other}
           | {:expired, DateTime.t()}
           | {:not_yet_valid, DateTime.t()}
 
@@ -87,8 +98,7 @@ defmodule SefazNfe.Certificate do
 
       true ->
         with {:ok, parts} <- PKCS12.parse(pfx, password),
-             {:ok, details} <- details(parts.der),
-             cert = struct!(__MODULE__, Map.merge(parts, details)),
+             {:ok, cert} <- build(parts),
              :ok <- check_validity(cert, opts) do
           {:ok, cert}
         end
@@ -120,7 +130,14 @@ defmodule SefazNfe.Certificate do
     end
   end
 
-  # A leaf OTP cannot decode is bad input, the same as a broken PKCS#12.
+  defp build(parts) do
+    with {:ok, details} <- details(parts.der) do
+      {:ok, struct!(__MODULE__, Map.merge(parts, details))}
+    end
+  end
+
+  # A leaf OTP cannot decode is bad input, the same as a broken PKCS#12. The
+  # exception is dropped, never re-raised, so no stacktrace carries the DER.
   defp details(der) do
     {:OTPCertificate, tbs, _alg, _signature} = :public_key.pkix_decode_cert(der, :otp)
     {:OTPTBSCertificate, _v, _sn, _sig, _issuer, validity, subject, _spki, _i, _s, exts} = tbs
@@ -133,8 +150,9 @@ defmodule SefazNfe.Certificate do
        tax_id: tax_id(exts, subject)
      }}
   rescue
-    _ in [MatchError, ArgumentError, FunctionClauseError, CaseClauseError, ErlangError] ->
-      {:error, :invalid_certificate}
+    _ -> {:error, :invalid_certificate}
+  catch
+    _kind, _reason -> {:error, :invalid_certificate}
   end
 
   # RFC 5280: utcTime has a two digit year, 50..99 meaning 19xx and 00..49 20xx.
@@ -218,9 +236,11 @@ defmodule SefazNfe.Certificate do
   Client options for an mTLS connection to SEFAZ.
 
   The private key is handed to `:ssl` as a `PrivateKeyInfo` DER, which is what
-  the PKCS#12 shrouded key bag already contains. The A1's own chain goes into
-  `:cacerts` because that is where `:ssl` looks when it builds the client chain
-  to present.
+  the PKCS#12 shrouded key bag already contains. The leaf and the A1's own
+  chain go into `:cert` as the client chain to present. They are deliberately
+  **not** in `:cacerts`: there `:ssl` keeps the trust store that verifies the
+  *server*, and the PFX is usually an upload, so every certificate inside it
+  would otherwise become a trusted root.
 
   ## Trust anchors
 
@@ -243,9 +263,9 @@ defmodule SefazNfe.Certificate do
   @spec ssl_options(t()) :: keyword()
   def ssl_options(%__MODULE__{} = cert) do
     [
-      cert: cert.der,
+      cert: [cert.der | cert.chain],
       key: {:PrivateKeyInfo, cert.key},
-      cacerts: cert.chain ++ extra_cacerts() ++ :public_key.cacerts_get()
+      cacerts: extra_cacerts() ++ :public_key.cacerts_get()
     ]
   end
 
@@ -263,21 +283,28 @@ defmodule SefazNfe.Certificate do
     key = {__MODULE__, :cacerts, path}
 
     case :persistent_term.get(key, nil) do
-      nil ->
-        ders = for {:Certificate, der, :not_encrypted} <- decode_pem(path), do: der
-        :persistent_term.put(key, ders)
-        ders
-
-      ders ->
-        ders
+      nil -> read_pem(path, key)
+      ders -> ders
     end
   end
 
-  defp decode_pem(path) do
-    case File.read(path) do
-      {:ok, pem} -> :public_key.pem_decode(pem)
-      {:error, _reason} -> []
+  # Only a successful, non-empty read is cached: a file that was missing or
+  # unreadable a moment ago must be tried again, not pinned as "no anchors".
+  defp read_pem(path, key) do
+    with {:ok, pem} <- File.read(path),
+         [_first | _rest] = ders <-
+           for({:Certificate, der, :not_encrypted} <- pem_decode(pem), do: der) do
+      :persistent_term.put(key, ders)
+      ders
+    else
+      _unreadable_or_empty -> []
     end
+  end
+
+  defp pem_decode(pem) do
+    :public_key.pem_decode(pem)
+  rescue
+    _ -> []
   end
 
   defimpl Inspect do

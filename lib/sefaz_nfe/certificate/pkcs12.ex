@@ -9,24 +9,60 @@ defmodule SefazNfe.Certificate.PKCS12 do
 
   ## Scope
 
-  Only algorithms verified byte-for-byte against a real A1 file are accepted:
-  `pbeWithSHAAnd3-KeyTripleDES-CBC`, which is what ICP-Brasil issues today.
+  Supported, each verified byte-for-byte against `openssl` output (and, for the
+  first, a real A1 file):
+
+    * bag encryption `pbeWithSHAAnd3-KeyTripleDES-CBC` (PKCS#12 KDF, SHA-1) —
+      what ICP-Brasil issues today;
+    * bag encryption PBES2 (PKCS#5 v2.1) with PBKDF2 and AES-128/192/256-CBC —
+      the OpenSSL 3 export default. PBKDF2 PRFs: `hmacWithSHA1`,
+      `hmacWithSHA256` and `hmacWithSHA512`;
+    * the PKCS#12 MAC with SHA-1 or SHA-256.
+
   Anything else returns `{:error, {:unsupported_pbe, oid}}`, or
-  `{:error, {:unsupported_mac, oid}}` for a digest other than SHA-1, rather than
-  an empty result that would read as a certificate with no key. Naming the
-  algorithm matters: reporting a modern PFX as an invalid password would send
-  the caller hunting for the wrong bug.
+  `{:error, {:unsupported_mac, oid}}` for another digest, rather than an empty
+  result that would read as a certificate with no key. Naming the algorithm
+  matters: reporting a modern PFX as an invalid password would send the caller
+  hunting for the wrong bug.
 
   The PKCS#12 MAC is required, not optional. Without it a wrong password is
   indistinguishable from a corrupt file, and both must fail before any SOAP
-  call.
+  call. It is compared in constant time.
+
+  ## Hostile input
+
+  The PFX and the password usually come from a user upload, so nothing in the
+  file is trusted to size the work. Before any KDF or `:crypto` call:
+
+    * the file is at most 65536 bytes (64 KiB) (a real A1 is about 7 KB) and holds
+      at most 32 SafeBags and 32 ContentInfos;
+    * every iteration count (MAC, PBES1, PBKDF2) is in `1..1_000_000` (real A1s
+      use about 2000);
+    * a PBKDF2 `keyLength`, when present, equals the cipher's key size;
+    * the cipher IV and ciphertext have the sizes the cipher requires.
+
+  Violations return `{:error, {:limit_exceeded, :size | :bags | :iterations |
+  :key_length}}`. Padding is checked strictly (PKCS#7, all pad bytes equal), and
+  BER indefinite lengths are refused. Any other failure while walking the file
+  collapses into `{:error, :invalid_certificate}`: `parse/2` rescues everything
+  and never re-raises or keeps the stacktrace, because a `:crypto` error carries
+  the derived key or the password in its arguments.
+
+  ## Key and certificate pairing
+
+  A PFX may carry several certificates in any order. The leaf is the one whose
+  RSA public key equals the one derived from the private key, so a CA listed
+  first is never mistaken for it. No match is `{:error, :key_cert_mismatch}`,
+  more than one private key is `{:error, :multiple_keys}` and a non-RSA key is
+  `{:error, {:unsupported_key, :ec | :other}}`. The chain holds the remaining
+  certificates, issuer after subject where the names link up.
 
   ## Key derivation
 
   `kdf/5` is RFC 7292 appendix B.2 with SHA-1: a 20 byte digest over 64 byte
   blocks, diversified by 1 for the key, 2 for the IV and 3 for the MAC
-  (appendix B.3). The password is a BMPString — UTF-16BE with a two byte null
-  terminator. Each block round is `I_j = (I_j + B + 1) mod 2^512`, where the
+  (appendix B.3). The password is a BMPString — UTF-16BE, surrogate pairs outside the
+  BMP as OpenSSL does, with a two byte null terminator. Each block round is `I_j = (I_j + B + 1) mod 2^512`, where the
   modulo falls out of bitstring construction truncating to the declared size.
   """
 
@@ -56,103 +92,173 @@ defmodule SefazNfe.Certificate.PKCS12 do
   @id_iv 2
   @id_mac 3
 
+  @max_size 64 * 1024
+  @max_iterations 1_000_000
+  @max_bags 32
+
   @type parsed :: %{der: binary(), key: binary(), chain: [binary()]}
 
   @doc """
   Decodes `pfx` into the leaf certificate, the PKCS#8 private key and the chain.
 
-  A structurally broken PFX fails pattern matching deep in the DER walk; that is
-  bad input rather than a caller bug, so it is rescued into
-  `{:error, :invalid_certificate}`. A MAC that does not verify is
-  `{:error, :invalid_password}`: indistinguishable from a tampered file, but a
-  wrong password is by far the common cause.
+  Errors:
+
+    * `{:error, :invalid_password}` — the MAC does not verify, or `password` is
+      not valid UTF-8. A MAC mismatch is indistinguishable from a tampered file,
+      but a wrong password is by far the common cause.
+    * `{:error, :invalid_certificate}` — anything structurally wrong, however it
+      surfaces: it is bad input, never a crash.
+    * `{:error, {:limit_exceeded, limit}}` — see the module documentation.
+    * `{:error, {:unsupported_pbe, oid}}` / `{:error, {:unsupported_mac, oid}}`.
+    * `{:error, :key_cert_mismatch | :multiple_keys | {:unsupported_key, kind}}`.
   """
   @spec parse(binary(), String.t()) :: {:ok, parsed()} | {:error, term()}
   def parse(pfx, password) when is_binary(pfx) and is_binary(password) do
-    bmp = bmp_string(password)
-
-    with {:ok, safe_der, mac} <- unwrap(pfx),
-         :ok <- verify_mac(mac, safe_der, bmp),
-         {:ok, bags} <- safes(safe_der, bmp) do
-      collect(bags)
-    end
-  rescue
-    _ in [MatchError, ArgumentError, FunctionClauseError] ->
-      {:error, :invalid_certificate}
+    guarded(fn ->
+      with {:ok, pw} <- credentials(password),
+           :ok <- check_size(pfx),
+           {:ok, safe_der, mac} <- unwrap(pfx),
+           :ok <- verify_mac(mac, safe_der, pw),
+           {:ok, bags} <- safes(safe_der, pw) do
+        collect(bags)
+      end
+    end)
   end
+
+  @doc false
+  # The stage after the MAC: a SafeContents sequence of ContentInfos. Exposed so
+  # tests can feed hand-built DER without having to forge a valid MAC.
+  @spec decode_safe(binary(), String.t()) :: {:ok, [term()]} | {:error, term()}
+  def decode_safe(safe_der, password) when is_binary(safe_der) and is_binary(password) do
+    guarded(fn ->
+      with {:ok, pw} <- credentials(password), do: safes(safe_der, pw)
+    end)
+  end
+
+  # Whatever goes wrong while walking an attacker's file is bad input. The
+  # exception is dropped, not wrapped: a :crypto error carries the derived key or
+  # the password in its arguments, and neither may reach a log.
+  defp guarded(fun) do
+    fun.()
+  rescue
+    _ -> {:error, :invalid_certificate}
+  catch
+    _kind, _reason -> {:error, :invalid_certificate}
+  end
+
+  defp credentials(password) do
+    if String.valid?(password) do
+      # BMPString: UTF-16BE, surrogate pairs outside the BMP, two byte terminator.
+      bmp = :unicode.characters_to_binary(password, :utf8, {:utf16, :big}) <> <<0, 0>>
+      {:ok, %{utf8: password, bmp: bmp}}
+    else
+      {:error, :invalid_password}
+    end
+  end
+
+  defp check_size(pfx) when byte_size(pfx) > @max_size, do: {:error, {:limit_exceeded, :size}}
+  defp check_size(_pfx), do: :ok
 
   defp unwrap(pfx) do
     {0x30, body, _} = der(pfx)
-    [{2, _version}, {0x30, auth_safe} | mac] = sequence(body)
+    [{2, <<3>>}, {0x30, auth_safe} | mac] = sequence(body)
     [{6, @data}, {0xA0, content}] = sequence(auth_safe)
     {4, safe_der, _} = der(content)
     {:ok, safe_der, mac}
   end
 
-  defp verify_mac([], _safe_der, _bmp), do: {:error, :invalid_certificate}
+  defp verify_mac([], _safe_der, _pw), do: {:error, :invalid_certificate}
 
-  defp verify_mac([{0x30, mac_data}], safe_der, bmp) do
+  defp verify_mac([{0x30, mac_data}], safe_der, pw) do
     [{0x30, digest_info}, {4, salt} | rest] = sequence(mac_data)
     [{0x30, alg}, {4, expected}] = sequence(digest_info)
 
-    iterations =
-      case rest do
-        [{2, value}] -> unsigned(value)
-        [] -> 1
+    with {:ok, iterations} <- mac_iterations(rest) do
+      case sequence(alg) do
+        [{6, @sha1} | _params] -> mac(:sha, 20, pw, salt, iterations, safe_der, expected)
+        [{6, @sha256} | _params] -> mac(:sha256, 32, pw, salt, iterations, safe_der, expected)
+        [{6, oid} | _params] -> {:error, {:unsupported_mac, oid}}
       end
-
-    case sequence(alg) do
-      [{6, @sha1} | _params] -> mac(:sha, 20, bmp, salt, iterations, safe_der, expected)
-      [{6, @sha256} | _params] -> mac(:sha256, 32, bmp, salt, iterations, safe_der, expected)
-      [{6, oid} | _params] -> {:error, {:unsupported_mac, oid}}
     end
   end
 
-  defp mac(digest, size, bmp, salt, iterations, safe_der, expected) do
-    key = kdf(bmp, salt, @id_mac, iterations, size, digest)
+  defp mac_iterations([]), do: {:ok, 1}
+  defp mac_iterations([{2, value}]), do: iterations(value)
 
-    case :crypto.mac(:hmac, digest, key, safe_der) do
-      ^expected -> :ok
-      _mismatch -> {:error, :invalid_password}
+  defp iterations(value) do
+    case unsigned(value) do
+      count when count in 1..@max_iterations//1 -> {:ok, count}
+      _out_of_range -> {:error, {:limit_exceeded, :iterations}}
     end
   end
 
-  defp safes(safe_der, bmp) do
+  defp mac(digest, size, pw, salt, iterations, safe_der, expected)
+       when byte_size(expected) == size do
+    key = kdf(pw.bmp, salt, @id_mac, iterations, size, digest)
+
+    if :crypto.hash_equals(:crypto.mac(:hmac, digest, key, safe_der), expected) do
+      :ok
+    else
+      {:error, :invalid_password}
+    end
+  end
+
+  # A digest of the wrong length cannot be a MAC under that algorithm.
+  defp mac(_digest, _size, _pw, _salt, _iterations, _safe_der, _expected),
+    do: {:error, :invalid_certificate}
+
+  defp safes(safe_der, pw) do
     {0x30, list, _} = der(safe_der)
 
-    list
-    |> sequence()
-    |> reduce_ok(fn {0x30, content_info}, acc ->
-      with {:ok, bags} <- content_info(content_info, bmp), do: {:ok, acc ++ bags}
-    end)
+    with {:ok, infos} <- bounded(sequence(list)) do
+      reduce_ok(infos, &add_content_info(&1, &2, pw))
+    end
   end
 
-  defp content_info(content_info, bmp) do
+  defp add_content_info({0x30, content_info}, acc, pw) do
+    with {:ok, bags} <- content_info(content_info, pw),
+         :ok <- check_bag_count(length(acc) + length(bags)) do
+      {:ok, Enum.reverse(bags, acc)}
+    end
+  end
+
+  defp bounded(items) when length(items) > @max_bags, do: {:error, {:limit_exceeded, :bags}}
+  defp bounded(items), do: {:ok, items}
+
+  defp check_bag_count(count) when count > @max_bags, do: {:error, {:limit_exceeded, :bags}}
+  defp check_bag_count(_count), do: :ok
+
+  defp content_info(content_info, pw) do
     case sequence(content_info) do
       [{6, @data}, {0xA0, content}] ->
         {4, safe_contents, _} = der(content)
-        bags(safe_contents, bmp)
+        bags(safe_contents, pw)
 
       [{6, @encrypted_data}, {0xA0, content}] ->
         {0x30, encrypted, _} = der(content)
         [{2, _version}, {0x30, enc_content_info}] = sequence(encrypted)
         [{6, @data}, {0x30, alg}, {0x80, ciphertext}] = sequence(enc_content_info)
 
-        with {:ok, plain} <- decrypt(alg, ciphertext, bmp), do: bags(plain, bmp)
+        with {:ok, plain} <- decrypt(alg, ciphertext, pw), do: bags(plain, pw)
+
+      _unknown ->
+        {:error, :invalid_certificate}
     end
   end
 
-  defp bags(safe_contents, bmp) do
+  defp bags(safe_contents, pw) do
     {0x30, list, _} = der(safe_contents)
 
-    list
-    |> sequence()
-    |> reduce_ok(fn {0x30, bag}, acc ->
-      with {:ok, found} <- bag(bag, bmp), do: {:ok, acc ++ found}
-    end)
+    with {:ok, items} <- bounded(sequence(list)) do
+      reduce_ok(items, &add_bag(&1, &2, pw))
+    end
   end
 
-  defp bag(bag, bmp) do
+  defp add_bag({0x30, bag}, acc, pw) do
+    with {:ok, found} <- bag(bag, pw), do: {:ok, Enum.reverse(found, acc)}
+  end
+
+  defp bag(bag, pw) do
     case sequence(bag) do
       [{6, @cert_bag}, {0xA0, value} | _attrs] ->
         {0x30, cert_bag, _} = der(value)
@@ -164,7 +270,7 @@ defmodule SefazNfe.Certificate.PKCS12 do
         {0x30, epki, _} = der(value)
         [{0x30, alg}, {4, ciphertext}] = sequence(epki)
 
-        with {:ok, key} <- decrypt(alg, ciphertext, bmp), do: {:ok, [{:key, key}]}
+        with {:ok, key} <- decrypt(alg, ciphertext, pw), do: {:ok, [{:key, key}]}
 
       [{6, @key_bag}, {0xA0, value} | _attrs] ->
         {0x30, key, _} = der(value)
@@ -175,77 +281,125 @@ defmodule SefazNfe.Certificate.PKCS12 do
     end
   end
 
-  defp decrypt(alg, ciphertext, bmp) do
+  defp decrypt(alg, ciphertext, pw) do
     case sequence(alg) do
-      [{6, @pbe_sha1_3des}, {0x30, params}] -> pbes1(params, ciphertext, bmp)
-      [{6, @pbes2}, {0x30, params}] -> pbes2(params, ciphertext, bmp)
+      [{6, @pbe_sha1_3des}, {0x30, params}] -> pbes1(params, ciphertext, pw)
+      [{6, @pbes2}, {0x30, params}] -> pbes2(params, ciphertext, pw)
+      # A known algorithm with the wrong parameters is a broken file, not an
+      # algorithm we have not met.
+      [{6, oid} | _params] when oid in [@pbe_sha1_3des, @pbes2] -> {:error, :invalid_certificate}
       [{6, oid} | _params] -> {:error, {:unsupported_pbe, oid}}
     end
   end
 
-  defp pbes1(params, ciphertext, bmp) do
-    [{4, salt}, {2, iterations}] = sequence(params)
-    iterations = unsigned(iterations)
-    key = kdf(bmp, salt, @id_key, iterations, 24, :sha)
-    iv = kdf(bmp, salt, @id_iv, iterations, 8, :sha)
+  defp pbes1(params, ciphertext, pw) do
+    [{4, salt}, {2, count}] = sequence(params)
 
-    {:ok, unpad(:crypto.crypto_one_time(:des_ede3_cbc, key, iv, ciphertext, false))}
+    with {:ok, iterations} <- iterations(count),
+         :ok <- check_cbc(ciphertext, 8) do
+      key = kdf(pw.bmp, salt, @id_key, iterations, 24, :sha)
+      iv = kdf(pw.bmp, salt, @id_iv, iterations, 8, :sha)
+
+      cbc(:des_ede3_cbc, key, iv, ciphertext, 8)
+    end
   end
 
   # PBES2 keys the cipher from PKCS#5 PBKDF2 over the UTF-8 password, not from
   # the PKCS#12 KDF over a BMPString. Different derivation, same file format.
-  defp pbes2(params, ciphertext, bmp) do
+  defp pbes2(params, ciphertext, pw) do
     [{0x30, kdf_alg}, {0x30, cipher_alg}] = sequence(params)
 
     with {:ok, cipher, key_size, iv} <- pbes2_cipher(cipher_alg),
-         {:ok, key} <- pbkdf2(kdf_alg, utf8_password(bmp), key_size) do
-      {:ok, unpad(:crypto.crypto_one_time(cipher, key, iv, ciphertext, false))}
+         :ok <- check_cbc(ciphertext, 16),
+         {:ok, key} <- pbkdf2(kdf_alg, pw.utf8, key_size) do
+      cbc(cipher, key, iv, ciphertext, 16)
     end
   end
 
   defp pbes2_cipher(alg) do
     case sequence(alg) do
-      [{6, @aes128_cbc}, {4, iv}] -> {:ok, :aes_128_cbc, 16, iv}
-      [{6, @aes192_cbc}, {4, iv}] -> {:ok, :aes_192_cbc, 24, iv}
-      [{6, @aes256_cbc}, {4, iv}] -> {:ok, :aes_256_cbc, 32, iv}
-      [{6, oid} | _params] -> {:error, {:unsupported_pbe, oid}}
-    end
-  end
+      [{6, @aes128_cbc}, {4, <<_::binary-16>> = iv}] ->
+        {:ok, :aes_128_cbc, 16, iv}
 
-  defp pbkdf2(alg, password, default_size) do
-    case sequence(alg) do
-      [{6, @pbkdf2}, {0x30, params}] ->
-        [{4, salt}, {2, iterations} | rest] = sequence(params)
-        {size, prf} = pbkdf2_options(rest, default_size)
+      [{6, @aes192_cbc}, {4, <<_::binary-16>> = iv}] ->
+        {:ok, :aes_192_cbc, 24, iv}
 
-        {:ok, :crypto.pbkdf2_hmac(prf, password, salt, unsigned(iterations), size)}
+      [{6, @aes256_cbc}, {4, <<_::binary-16>> = iv}] ->
+        {:ok, :aes_256_cbc, 32, iv}
+
+      [{6, oid} | _params] when oid in [@aes128_cbc, @aes192_cbc, @aes256_cbc] ->
+        {:error, :invalid_certificate}
 
       [{6, oid} | _params] ->
         {:error, {:unsupported_pbe, oid}}
     end
   end
 
-  defp pbkdf2_options(rest, default_size) do
-    size = Enum.find_value(rest, default_size, fn {tag, v} -> if tag == 2, do: unsigned(v) end)
-    prf = Enum.find_value(rest, :sha, fn {tag, v} -> if tag == 0x30, do: prf(v) end)
-    {size, prf}
-  end
-
-  defp prf(alg) do
+  defp pbkdf2(alg, password, key_size) do
     case sequence(alg) do
-      [{6, @hmac_sha256} | _params] -> :sha256
-      [{6, @hmac_sha512} | _params] -> :sha512
-      [{6, @hmac_sha1} | _params] -> :sha
-      _unknown -> :sha
+      [{6, @pbkdf2}, {0x30, params}] ->
+        [{4, salt}, {2, count} | rest] = sequence(params)
+        {key_length, prf_alg} = pbkdf2_options(rest)
+
+        with {:ok, iterations} <- iterations(count),
+             :ok <- check_key_length(key_length, key_size),
+             {:ok, prf} <- prf(prf_alg) do
+          {:ok, :crypto.pbkdf2_hmac(prf, password, salt, iterations, key_size)}
+        end
+
+      [{6, oid} | _params] ->
+        {:error, {:unsupported_pbe, oid}}
     end
   end
 
-  # The BMPString drops back to plain UTF-8 for PKCS#5: strip the UTF-16BE
-  # encoding and the two byte terminator the PKCS#12 KDF needs.
-  defp utf8_password(bmp) do
-    bmp
-    |> binary_part(0, max(byte_size(bmp) - 2, 0))
-    |> then(&for <<codepoint::big-16 <- &1>>, into: "", do: <<codepoint::utf8>>)
+  # PBKDF2-params: salt, iterationCount, keyLength OPTIONAL, prf DEFAULT sha1.
+  defp pbkdf2_options([{2, length}, {0x30, prf}]), do: {length, prf}
+  defp pbkdf2_options([{2, length}]), do: {length, nil}
+  defp pbkdf2_options([{0x30, prf}]), do: {nil, prf}
+  defp pbkdf2_options([]), do: {nil, nil}
+
+  defp check_key_length(nil, _key_size), do: :ok
+
+  defp check_key_length(length, key_size) do
+    if unsigned(length) == key_size, do: :ok, else: {:error, {:limit_exceeded, :key_length}}
+  end
+
+  defp prf(nil), do: {:ok, :sha}
+
+  defp prf(alg) do
+    case sequence(alg) do
+      [{6, @hmac_sha1} | _params] -> {:ok, :sha}
+      [{6, @hmac_sha256} | _params] -> {:ok, :sha256}
+      [{6, @hmac_sha512} | _params] -> {:ok, :sha512}
+      [{6, oid} | _params] -> {:error, {:unsupported_pbe, oid}}
+    end
+  end
+
+  defp check_cbc(ciphertext, block)
+       when ciphertext != "" and rem(byte_size(ciphertext), block) == 0,
+       do: :ok
+
+  defp check_cbc(_ciphertext, _block), do: {:error, :invalid_certificate}
+
+  defp cbc(cipher, key, iv, ciphertext, block) do
+    cipher
+    |> :crypto.crypto_one_time(key, iv, ciphertext, false)
+    |> unpad(block)
+  end
+
+  # PKCS#7: 1..block pad bytes, each holding the pad length. The MAC already
+  # passed, so a bad pad means a wrong privacy password or corrupt data.
+  defp unpad(plain, block) do
+    pad = :binary.last(plain)
+    body_size = byte_size(plain) - pad
+
+    with true <- pad in 1..block//1,
+         <<body::binary-size(^body_size), tail::binary>> <- plain,
+         true <- tail == :binary.copy(<<pad>>, pad) do
+      {:ok, body}
+    else
+      _bad_padding -> {:error, :invalid_certificate}
+    end
   end
 
   defp kdf(bmp, salt, id, iterations, needed, digest) do
@@ -258,7 +412,7 @@ defmodule SefazNfe.Certificate.PKCS12 do
     do: binary_part(acc, 0, needed)
 
   defp derive(d, i, iterations, needed, acc, digest) do
-    a = Enum.reduce(1..iterations, d <> i, fn _round, x -> :crypto.hash(digest, x) end)
+    a = Enum.reduce(1..iterations//1, d <> i, fn _round, x -> :crypto.hash(digest, x) end)
     b = repeat_to(a, @v)
     i = for <<block::binary-size(@v) <- i>>, into: <<>>, do: add_mod(block, b)
     derive(d, i, iterations, needed, acc <> a, digest)
@@ -278,26 +432,81 @@ defmodule SefazNfe.Certificate.PKCS12 do
     |> binary_part(0, size)
   end
 
-  defp bmp_string(password) do
-    encoded = for <<codepoint::utf8 <- password>>, into: <<>>, do: <<codepoint::big-16>>
-    encoded <> <<0, 0>>
+  @doc false
+  # Picks the leaf by key, not by position: the certificate whose RSA public key
+  # is the one the private key derives. Exposed so tests can reorder bags.
+  @spec collect([{:cert | :key, binary()}]) :: {:ok, parsed()} | {:error, term()}
+  def collect(bags) do
+    case {for({:key, key} <- bags, do: key), for({:cert, der} <- bags, do: der)} do
+      {[_first, _second | _more], _certs} -> {:error, :multiple_keys}
+      {[], _certs} -> {:error, :invalid_certificate}
+      {_keys, []} -> {:error, :invalid_certificate}
+      {[key], certs} -> pair(key, certs)
+    end
   end
 
-  defp collect(bags) do
-    certs = for {:cert, der} <- bags, do: der
-
-    case {Enum.find(bags, &match?({:key, _}, &1)), certs} do
-      {{:key, key}, [leaf | chain]} -> {:ok, %{der: leaf, key: key, chain: chain}}
-      {nil, _certs} -> {:error, :invalid_certificate}
-      {_key, []} -> {:error, :invalid_certificate}
+  defp pair(key, certs) do
+    with {:ok, public} <- public_numbers(key),
+         {:ok, leaf} <- find_leaf(certs, public) do
+      {:ok, %{der: leaf, key: key, chain: order_chain(leaf, List.delete(certs, leaf))}}
     end
+  end
+
+  defp public_numbers(key) do
+    case :public_key.der_decode(:PrivateKeyInfo, key) do
+      {:RSAPrivateKey, _version, modulus, exponent, _d, _p, _q, _dp, _dq, _qi, _others} ->
+        {:ok, {modulus, exponent}}
+
+      record when is_tuple(record) and elem(record, 0) == :ECPrivateKey ->
+        {:error, {:unsupported_key, :ec}}
+
+      _other ->
+        {:error, {:unsupported_key, :other}}
+    end
+  rescue
+    _ -> {:error, :invalid_certificate}
+  end
+
+  defp find_leaf(certs, public) do
+    case Enum.find(certs, &(rsa_public(&1) == public)) do
+      nil -> {:error, :key_cert_mismatch}
+      leaf -> {:ok, leaf}
+    end
+  end
+
+  # A certificate OTP cannot read, or that holds another key type, simply is not
+  # the leaf; it must not sink a PFX whose real leaf is fine.
+  defp rsa_public(der) do
+    {:OTPCertificate, tbs, _alg, _signature} = :public_key.pkix_decode_cert(der, :otp)
+    {:OTPTBSCertificate, _v, _sn, _sig, _issuer, _validity, _subject, spki, _i, _s, _e} = tbs
+    {:OTPSubjectPublicKeyInfo, _alg, {:RSAPublicKey, modulus, exponent}} = spki
+    {modulus, exponent}
+  rescue
+    _ -> nil
+  end
+
+  # Leaf, then its issuer, then that one's issuer. Anything that does not link
+  # up keeps its original order at the end.
+  defp order_chain(subject, pool) do
+    case Enum.find(pool, &issuer?(subject, &1)) do
+      nil -> pool
+      issuer -> [issuer | order_chain(issuer, List.delete(pool, issuer))]
+    end
+  end
+
+  defp issuer?(subject, candidate) do
+    :public_key.pkix_is_issuer(subject, candidate)
+  rescue
+    _ -> false
   end
 
   defp der(<<tag, rest::binary>>), do: length_of(tag, rest)
 
   defp length_of(tag, <<0::1, size::7, rest::binary>>), do: take(tag, size, rest)
 
-  defp length_of(tag, <<1::1, bytes::7, rest::binary>>) do
+  # 0x80 is BER indefinite length, which DER forbids; it has no clause on purpose
+  # (a FunctionClauseError, rescued as an invalid file) rather than reading as 0.
+  defp length_of(tag, <<1::1, bytes::7, rest::binary>>) when bytes in 1..4//1 do
     <<size::big-size(^bytes)-unit(8), rest::binary>> = rest
     take(tag, size, rest)
   end
@@ -317,17 +526,16 @@ defmodule SefazNfe.Certificate.PKCS12 do
 
   defp unsigned(bin), do: :binary.decode_unsigned(bin)
 
-  defp unpad(bin) do
-    padding = :binary.last(bin)
-    binary_part(bin, 0, byte_size(bin) - padding)
-  end
-
+  # Accumulates newest-first; the callbacks prepend, and this puts the order back.
   defp reduce_ok(list, fun) do
-    Enum.reduce_while(list, {:ok, []}, fn item, {:ok, acc} ->
-      case fun.(item, acc) do
-        {:ok, next} -> {:cont, {:ok, next}}
-        {:error, _reason} = error -> {:halt, error}
-      end
-    end)
+    result =
+      Enum.reduce_while(list, {:ok, []}, fn item, {:ok, acc} ->
+        case fun.(item, acc) do
+          {:ok, next} -> {:cont, {:ok, next}}
+          {:error, _reason} = error -> {:halt, error}
+        end
+      end)
+
+    with {:ok, acc} <- result, do: {:ok, Enum.reverse(acc)}
   end
 end
