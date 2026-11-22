@@ -1,9 +1,12 @@
 defmodule SefazNfe.Layout do
   @moduledoc """
-  The NF-e 4.00 layout as data (AD-024): an ordered tree of elements,
+  The NF-e 4.00 layout as data (AD-024), and with it the CT-e, CT-e OS and
+  MDF-e ones (AD-026): an ordered tree of elements,
   sequences, choices, attributes and leaf types, generated from the official
   XSD package by `mix sefaz.gen_layout` and committed as
-  `priv/layouts/nfe_4.00.etf`. The builder and its parser walk this tree; it is
+  `priv/layouts/nfe_4.00.etf` (`cte_4.00`, `cte_os_4.00`, `mdfe_3.00` and the
+  road modals `cte_modal_rodoviario_4.00`, `cte_os_modal_rodoviario_4.00`,
+  `mdfe_modal_rodoviario_3.00` likewise). The builder and its parser walk this tree; it is
   never edited by hand. The refresh procedure is documented in
   `Mix.Tasks.Sefaz.GenLayout`, how each XSD idiom is compiled and how keys are
   derived in `SefazNfe.Layout.Generator`.
@@ -24,6 +27,11 @@ defmodule SefazNfe.Layout do
         sources: [%{file: "leiauteNFe_v4.00.xsd", sha256: "..."}, ...],
         root: element                       # the `NFe` element
       }
+
+  A modal layout (`modal/1`) is generated from one global element whose type
+  is anonymous, so it has `root_type: nil` and `root_element: "rodo"`. CT-e and
+  CT-e OS share the namespace `http://www.portalfiscal.inf.br/cte`, MDF-e has
+  `http://www.portalfiscal.inf.br/mdfe`.
 
   ## Nodes
 
@@ -52,6 +60,11 @@ defmodule SefazNfe.Layout do
   another namespace, opaque. The builder never emits it (signing is
   `SefazNfe.Signer`).
 
+  **any** - `%{kind: :any, namespace: "##any", process_contents: :skip,
+  min: n, max: n}`: the `xs:any` of `infModal`, where the host places the
+  modal XML (itself described by `modal/1`). It has no key and is skipped by
+  `elements/1`.
+
   **attribute** - `%{name: "Id", key: :id, use: :required | :optional,
   type: leaf_type, fixed: binary | nil}`.
 
@@ -69,6 +82,9 @@ defmodule SefazNfe.Layout do
         white_space: :preserve | :replace | :collapse | nil,
         min_inclusive: binary | nil, max_inclusive: binary | nil,
         min_exclusive: binary | nil, max_exclusive: binary | nil}
+
+  A leaf of `base: :any_type` is an element declared without any type
+  (`xs:anyType`): free text, no facets.
 
   A leaf is told from a node by having `:base` and no `:kind`.
 
@@ -89,17 +105,53 @@ defmodule SefazNfe.Layout do
   the `ICMS` element whatever the nesting of choices between them.
   """
 
-  @path Path.expand("../../priv/layouts/nfe_4.00.etf", __DIR__)
-  @external_resource @path
-  @layout @path |> File.read!() |> :erlang.binary_to_term()
+  @files %{
+    nfe: "nfe_4.00.etf",
+    cte: "cte_4.00.etf",
+    cte_os: "cte_os_4.00.etf",
+    mdfe: "mdfe_3.00.etf",
+    cte_rodo: "cte_modal_rodoviario_4.00.etf",
+    cte_os_rodo: "cte_os_modal_rodoviario_4.00.etf",
+    mdfe_rodo: "mdfe_modal_rodoviario_3.00.etf"
+  }
+
+  @layouts Map.new(@files, fn {name, file} ->
+             path = Path.expand("../../priv/layouts/" <> file, __DIR__)
+             Module.put_attribute(__MODULE__, :external_resource, path)
+             {name, path |> File.read!() |> :erlang.binary_to_term()}
+           end)
 
   @type leaf_type :: map()
   @type node_map :: map()
   @type layout :: %{required(:root) => node_map(), optional(atom()) => term()}
+  @type modal :: :cte_rodo | :cte_os_rodo | :mdfe_rodo
 
   @doc "The committed NF-e 4.00 layout."
   @spec nfe() :: layout()
-  def nfe, do: @layout
+  def nfe, do: @layouts.nfe
+
+  @doc "The committed CT-e 4.00 layout (`TCTe`, model 57), from `PL_CTe_400_RTC`."
+  @spec cte() :: layout()
+  def cte, do: @layouts.cte
+
+  @doc "The committed CT-e OS 4.00 layout (`TCTeOS`, model 67), from `PL_CTe_400_RTC`."
+  @spec cte_os() :: layout()
+  def cte_os, do: @layouts.cte_os
+
+  @doc "The committed MDF-e 3.00 layout (`TMDFe`, model 58), from `PL_MDFe_300b`."
+  @spec mdfe() :: layout()
+  def mdfe, do: @layouts.mdfe
+
+  @doc """
+  The layout of a modal, the content of the `infModal` `xs:any` of its
+  document: `:cte_rodo` (`rodo` of `cteModalRodoviario`), `:cte_os_rodo`
+  (`rodoOS` of `cteModalRodoviarioOS`) and `:mdfe_rodo` (`rodo` of
+  `mdfeModalRodoviario`). Only the road modals are generated.
+  """
+  @spec modal(modal()) :: layout()
+  def modal(:cte_rodo), do: @layouts.cte_rodo
+  def modal(:cte_os_rodo), do: @layouts.cte_os_rodo
+  def modal(:mdfe_rodo), do: @layouts.mdfe_rodo
 
   @doc """
   The element at `path` below `source` (a layout or a node), or `nil`.
@@ -132,4 +184,5 @@ defmodule SefazNfe.Layout do
     do: Enum.flat_map(children, &flatten/1)
 
   defp flatten(%{kind: kind} = node) when kind in [:element, :foreign], do: [node]
+  defp flatten(%{kind: :any}), do: []
 end

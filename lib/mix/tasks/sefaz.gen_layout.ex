@@ -14,6 +14,19 @@ defmodule Mix.Tasks.Sefaz.GenLayout do
   `nfe_v4.00.xsd`), compiles the complex type `--root` (default `TNFe`) and
   writes `--out` (default `priv/layouts/nfe_4.00.etf`).
 
+  `--element NAME` compiles a global element instead of a type (a modal such
+  as `rodo`, whose type is anonymous). The CT-e, CT-e OS and MDF-e layouts:
+
+      mix sefaz.gen_layout CTE_PL --entry cte_v4.00.xsd --root TCTe --out priv/layouts/cte_4.00.etf
+      mix sefaz.gen_layout CTE_PL --entry cteOS_v4.00.xsd --root TCTeOS --out priv/layouts/cte_os_4.00.etf
+      mix sefaz.gen_layout CTE_PL --entry cteModalRodoviario_v4.00.xsd --element rodo --out priv/layouts/cte_modal_rodoviario_4.00.etf
+      mix sefaz.gen_layout CTE_PL --entry cteModalRodoviarioOS_v4.00.xsd --element rodoOS --out priv/layouts/cte_os_modal_rodoviario_4.00.etf
+      mix sefaz.gen_layout MDFE_PL --entry mdfe_v3.00.xsd --root TMDFe --out priv/layouts/mdfe_3.00.etf
+      mix sefaz.gen_layout MDFE_PL --entry mdfeModalRodoviario_v3.00.xsd --element rodo --out priv/layouts/mdfe_modal_rodoviario_3.00.etf
+
+  Their regeneration tests are skipped unless `SEFAZ_NFE_CTE_PL_PATH` /
+  `SEFAZ_NFE_MDFE_PL_PATH` point at the unpacked PL.
+
   The output is `:erlang.term_to_binary/2` with `:deterministic`, so running it
   twice on the same package yields the same bytes. It records the PL name, the
   SHA-256 of every XSD it read and the generator version, so a layout can be
@@ -50,11 +63,18 @@ defmodule Mix.Tasks.Sefaz.GenLayout do
   @impl Mix.Task
   def run(argv) do
     {opts, args} =
-      OptionParser.parse!(argv, strict: [root: :string, out: :string, entry: :string])
+      OptionParser.parse!(argv,
+        strict: [root: :string, out: :string, entry: :string, element: :string]
+      )
 
     case args do
-      [path] -> generate(path, opts)
-      _ -> Mix.raise("usage: mix sefaz.gen_layout PATH [--root TNFe] [--entry FILE] [--out FILE]")
+      [path] ->
+        generate(path, opts)
+
+      _ ->
+        Mix.raise(
+          "usage: mix sefaz.gen_layout PATH [--root TNFe] [--element NAME] [--entry FILE] [--out FILE]"
+        )
     end
   end
 
@@ -62,7 +82,7 @@ defmodule Mix.Tasks.Sefaz.GenLayout do
     unless File.dir?(path), do: Mix.raise("#{path} is not a directory")
 
     out = Keyword.get(opts, :out, @default_out)
-    layout = Generator.generate(path, Keyword.take(opts, [:root, :entry]))
+    layout = Generator.generate(path, Keyword.take(opts, [:root, :entry, :element]))
     binary = Generator.encode(layout)
 
     out |> Path.dirname() |> File.mkdir_p!()
