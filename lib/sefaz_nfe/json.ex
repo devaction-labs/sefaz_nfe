@@ -7,7 +7,8 @@ defimpl JSON.Encoder, for: SefazNfe.Result do
         "x_motivo" => result.x_motivo,
         "ch_nfe" => result.ch_nfe,
         "n_prot" => result.n_prot,
-        "n_rec" => result.n_rec
+        "n_rec" => result.n_rec,
+        "dh_recbto" => result.dh_recbto
       },
       encoder
     )

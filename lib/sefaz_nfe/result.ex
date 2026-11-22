@@ -1,4 +1,5 @@
 defmodule SefazNfe.Result do
+  alias SefazNfe.CStat
   alias SefazNfe.SOAP.Fault
   alias SefazNfe.XML
 
@@ -18,14 +19,25 @@ defmodule SefazNfe.Result do
 
   A batch answer wraps the real outcome one level down — `protNFe/infProt` for a
   document, `retEvento/infEvento` for an event — so `parse/1` reads the nested
-  `cStat` when there is one and the envelope's otherwise. `150` is `100` with
-  the authorization recorded outside the deadline, `135` and `136` are the
-  event equivalents, and `102` is the one for a voided number range, so all
-  five are `:authorized`.
+  `cStat` when there is one and the envelope's otherwise.
+
+  ## Status
+
+  `:status` comes from `SefazNfe.CStat.classify/1`, which holds the table of
+  codes per class. The ones a host must not confuse: `:authorized`, `:denied`
+  (uso denegado, the number is consumed and the document must be stored),
+  `:cancelled`, `:retryable` (try again later, never a fix to the document) and
+  `:rejected` (definitive).
+
+  ## `:dh_recbto`
+
+  SEFAZ's own `dhRecbto` text, untouched (ISO 8601 with offset, lossless), read
+  from the same element as the `cStat` and from the envelope when that has none.
+  An event answer carries `dhRegEvento` instead, which is used when `dhRecbto`
+  is absent. `nil` when the answer has neither.
   """
 
-  @type status ::
-          :authorized | :batch_received | :batch_processed | :processing | :rejected
+  @type status :: CStat.status()
 
   @type t :: %__MODULE__{
           status: status(),
@@ -34,7 +46,7 @@ defmodule SefazNfe.Result do
           ch_nfe: String.t() | nil,
           n_prot: String.t() | nil,
           n_rec: String.t() | nil,
-          dh_reg_evento: String.t() | nil,
+          dh_recbto: String.t() | nil,
           xml: String.t() | nil,
           signed_xml: String.t() | nil
         }
@@ -47,7 +59,7 @@ defmodule SefazNfe.Result do
     :ch_nfe,
     :n_prot,
     :n_rec,
-    :dh_reg_evento,
+    :dh_recbto,
     :xml,
     :signed_xml
   ]
@@ -59,9 +71,7 @@ defmodule SefazNfe.Result do
   (duplicate) is a business outcome, not a transport failure (SEFAZ-03). Only an
   unreadable body or a SOAP fault is `{:error, _}`.
 
-  The `cStat` values mapped to a status are the ones the MOC defines for these
-  flows — 100 authorized, 103 lote received, 104 lote processed, 105 in
-  processing. Everything else is `:rejected` with the raw code preserved; this
+  The raw `cStat` is always preserved and classified by `SefazNfe.CStat`; this
   library does not ship a `cStat` dictionary it would have to chase.
   """
   @spec parse(String.t()) :: {:ok, t()} | {:error, term()}
@@ -94,8 +104,13 @@ defmodule SefazNfe.Result do
       ch_nfe: XML.text(outcome, "chNFe"),
       n_prot: XML.text(outcome, "nProt"),
       n_rec: XML.text(doc, "nRec"),
-      dh_reg_evento: XML.text(outcome, "dhRegEvento")
+      dh_recbto: dh_recbto(doc, outcome)
     }
+  end
+
+  defp dh_recbto(doc, outcome) do
+    XML.text(outcome, "dhRecbto") || XML.text(outcome, "dhRegEvento") ||
+      XML.text(doc, "dhRecbto")
   end
 
   @nfe_ns "http://www.portalfiscal.inf.br/nfe"
@@ -124,16 +139,5 @@ defmodule SefazNfe.Result do
     end
   end
 
-  defp status(100), do: :authorized
-  defp status(102), do: :authorized
-  defp status(103), do: :batch_received
-  defp status(104), do: :batch_processed
-  defp status(105), do: :processing
-  defp status(150), do: :authorized
-  # 124 is "EPEC autorizado", the NF-e side of the contingency; the event
-  # itself answers 136.
-  defp status(124), do: :authorized
-  defp status(135), do: :authorized
-  defp status(136), do: :authorized
-  defp status(_other), do: :rejected
+  defp status(c_stat), do: CStat.classify(c_stat)
 end

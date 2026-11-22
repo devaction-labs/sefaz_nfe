@@ -9,6 +9,8 @@ defmodule SefazNfe.WiringTest do
 
   use ExUnit.Case, async: false
 
+  alias SefazNfe.SOAP.Envelope
+
   defmodule StatusStub do
     @moduledoc false
     @behaviour SefazNfe.SOAP
@@ -96,7 +98,7 @@ defmodule SefazNfe.WiringTest do
     assert opts[:operation] == "consultaCadastro"
 
     assert {:ok, "http://www.portalfiscal.inf.br/nfe/wsdl/CadConsultaCadastro4/consultaCadastro"} =
-             SefazNfe.SOAP.Envelope.action(opts[:service], opts[:operation])
+             Envelope.action(opts[:service], opts[:operation])
   end
 
   test "consult_taxpayer on an authorizer without the service never reaches the transport" do
