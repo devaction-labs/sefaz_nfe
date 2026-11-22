@@ -54,6 +54,9 @@ defmodule SefazNfe do
   model 65 document `infNFeSupl` (with the on-line QR code 3.00) is added after
   signing unless the XML already has one; see `SefazNfe.NFCe`. `:uf` is the
   emitting UF, which selects the QR code address even where SVRS authorizes.
+  `:qr_code_version` (`3`, the default, or `2`), `:csc` and `:csc_id` select the
+  CSC based QR code 2.00, on-line or off-line; the CSC is a secret and is never
+  logged nor returned in an error.
 
   ## Contingency (model 55)
 
@@ -180,7 +183,11 @@ defmodule SefazNfe do
   defp model_from_mod("65"), do: {:ok, 65}
   defp model_from_mod(mod), do: {:error, {:unsupported_model, mod}}
 
-  defp put_supl(signed, 65, opts), do: NFCe.put_supl(signed, opts.uf, opts.environment)
+  defp put_supl(signed, 65, opts) do
+    qr_opts = opts |> Map.take([:qr_code_version, :csc, :csc_id]) |> Map.to_list()
+    NFCe.put_supl(signed, opts.uf, opts.environment, qr_opts)
+  end
+
   defp put_supl(signed, 55, _opts), do: {:ok, signed}
 
   # The model an access key carries: positions 21 and 22 (0-based 20).

@@ -146,6 +146,173 @@ defmodule SefazNfe.NFCeTest do
     end
   end
 
+  # A fake CSC, obviously not a real one. The literals below were derived by
+  # hand with NFePHP's `QRCode::get200` rules: seq = fields joined by "|", hash
+  # = upper-case hex SHA-1 of seq <> CSC, text = url <> "?p=" <> seq <> "|" <> hash,
+  # using
+  #
+  #     printf '%s' "$SEQ$CSC" | sha1sum | tr a-f A-F
+  #     printf '%s' "$DIGEST_VALUE" | od -An -tx1 | tr -d ' \n'
+  #
+  # for the hash and for the hex of the DigestValue text.
+  @csc "0123456789ABCDEF0123456789ABCDEF0123"
+  @fixed_key "43261112345678000195650010000000011123456780"
+  @fixed_digest "Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MD0="
+  @fixed_digest_hex "5a6d3976596d4679596d4636635856344d54497a4e4455324e7a67354d44303d"
+  @ba_qr "http://hnfe.sefaz.ba.gov.br/servicos/nfce/qrcode.aspx?p="
+
+  defp fixed_doc(tp_emis \\ "1") do
+    ~s(<NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe Id="NFe#{@fixed_key}" versao="4.00">) <>
+      ~s(<ide><tpAmb>2</tpAmb><tpEmis>#{tp_emis}</tpEmis><dhEmi>2026-11-05T23:59:00-03:00</dhEmi></ide>) <>
+      ~s(<total><ICMSTot><vNF>123.4</vNF></ICMSTot></total></infNFe>) <>
+      ~s(<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><Reference URI="#NFe#{@fixed_key}">) <>
+      ~s(<DigestValue>#{@fixed_digest}</DigestValue></Reference></SignedInfo></Signature></NFe>)
+  end
+
+  defp qr_code_of(xml) do
+    {:ok, doc} = XML.parse(xml)
+    XML.text(doc, "qrCode")
+  end
+
+  describe "put_supl/4 with QR code 2.00" do
+    test "on-line, against a literal derived by hand" do
+      assert {:ok, result} =
+               NFCe.put_supl(fixed_doc(), "BA", :homologation,
+                 qr_code_version: 2,
+                 csc: @csc,
+                 csc_id: 1
+               )
+
+      assert qr_code_of(result) ==
+               @ba_qr <> @fixed_key <> "|2|2|1|BCF6A25FC2BAD96250D1E958A4D46A35556DC375"
+    end
+
+    test "on-line, cross-checked with :crypto and with the idCSC zeros stripped" do
+      seq = "#{@fixed_key}|2|2|7"
+      hash = :sha |> :crypto.hash(seq <> @csc) |> Base.encode16(case: :upper)
+
+      for id <- ["000007", "7", 7] do
+        {:ok, result} =
+          NFCe.put_supl(fixed_doc(), "BA", :homologation,
+            qr_code_version: 2,
+            csc: @csc,
+            csc_id: id
+          )
+
+        assert qr_code_of(result) == @ba_qr <> seq <> "|" <> hash
+      end
+    end
+
+    test "off-line, against a literal derived by hand: day, vNF and hex of the digest" do
+      assert {:ok, result} =
+               NFCe.put_supl(fixed_doc("9"), "BA", :homologation,
+                 qr_code_version: 2,
+                 csc: @csc,
+                 csc_id: 1
+               )
+
+      assert qr_code_of(result) ==
+               @ba_qr <>
+                 "#{@fixed_key}|2|2|05|123.40|#{@fixed_digest_hex}|1|" <>
+                 "786E89A7D0971660D2905BF21451EDB0C3E243EB"
+    end
+
+    test "off-line, cross-checked with :crypto" do
+      seq = "#{@fixed_key}|2|2|05|123.40|#{Base.encode16(@fixed_digest, case: :lower)}|1"
+      hash = :sha |> :crypto.hash(seq <> @csc) |> Base.encode16(case: :upper)
+
+      {:ok, result} =
+        NFCe.put_supl(fixed_doc("9"), "BA", :homologation,
+          qr_code_version: 2,
+          csc: @csc,
+          csc_id: 1
+        )
+
+      assert qr_code_of(result) == @ba_qr <> seq <> "|" <> hash
+    end
+
+    test "off-line takes the digest from a really signed document" do
+      %{xml: xml} = built()
+      offline = String.replace(xml, "<tpEmis>1</tpEmis>", "<tpEmis>9</tpEmis>")
+      signed = signed(offline)
+      [_all, digest] = Regex.run(~r{<DigestValue>([^<]+)</DigestValue>}, signed)
+
+      assert {:ok, result} =
+               NFCe.put_supl(signed, "BA", :homologation,
+                 qr_code_version: 2,
+                 csc: @csc,
+                 csc_id: 1
+               )
+
+      assert qr_code_of(result) =~ "|#{Base.encode16(digest, case: :lower)}|1|"
+      assert result =~ "</infNFe><infNFeSupl><qrCode>"
+      assert result =~ "</infNFeSupl><Signature"
+    end
+
+    test "off-line on a document with no signature is refused by name" do
+      %{xml: xml} = built()
+      offline = String.replace(xml, "<tpEmis>1</tpEmis>", "<tpEmis>9</tpEmis>")
+
+      assert {:error, {:nfce, :missing_digest_value}} =
+               NFCe.put_supl(offline, "BA", :homologation,
+                 qr_code_version: 2,
+                 csc: @csc,
+                 csc_id: 1
+               )
+    end
+
+    test "a missing CSC or id is named, and no value is in the error" do
+      doc = fixed_doc()
+
+      assert {:error, {:missing_csc, [:csc, :csc_id]}} =
+               NFCe.put_supl(doc, "BA", :homologation, qr_code_version: 2)
+
+      assert {:error, {:missing_csc, [:csc_id]}} =
+               NFCe.put_supl(doc, "BA", :homologation, qr_code_version: 2, csc: @csc)
+
+      assert {:error, {:missing_csc, [:csc]}} =
+               NFCe.put_supl(doc, "BA", :homologation, qr_code_version: 2, csc_id: 1)
+
+      for bad <- ["abc", "0", 0, nil, ""] do
+        assert {:error, {:missing_csc, [:csc_id]} = error} =
+                 NFCe.put_supl(doc, "BA", :homologation,
+                   qr_code_version: 2,
+                   csc: @csc,
+                   csc_id: bad
+                 )
+
+        refute inspect(error) =~ @csc
+      end
+    end
+
+    test "an unknown version is refused" do
+      assert {:error, {:unsupported, {:qr_code_version, 4}}} =
+               NFCe.put_supl(fixed_doc(), "BA", :homologation, qr_code_version: 4)
+    end
+
+    test "version 3 is the default, ignores the CSC and still refuses off-line" do
+      {:ok, default} = NFCe.put_supl(fixed_doc(), "BA", :homologation)
+      {:ok, with_csc} = NFCe.put_supl(fixed_doc(), "BA", :homologation, csc: @csc, csc_id: 1)
+
+      assert qr_code_of(default) == @ba_qr <> @fixed_key <> "|3|2"
+      assert with_csc == default
+
+      assert {:error, {:unsupported, :offline_qr_code}} =
+               NFCe.put_supl(fixed_doc("9"), "BA", :homologation,
+                 qr_code_version: 3,
+                 csc: @csc,
+                 csc_id: 1
+               )
+    end
+
+    test "a host infNFeSupl is still left alone" do
+      supl = "<infNFeSupl><qrCode>q</qrCode><urlChave>u</urlChave></infNFeSupl>"
+      host = String.replace(fixed_doc(), "<Signature", supl <> "<Signature")
+
+      assert {:ok, ^host} = NFCe.put_supl(host, "BA", :homologation, qr_code_version: 2)
+    end
+  end
+
   describe "qr_code/3" do
     test "appends ?p= once" do
       key = String.duplicate("1", 44)
@@ -171,6 +338,16 @@ defmodule SefazNfe.NFCeTest do
         {:ok, xml} = built(opts).xml |> signed() |> NFCe.put_supl("BA", :homologation)
         assert xmllint(xml) == :ok, inspect(opts)
       end
+    end
+
+    # The PL_010 qrCode pattern only has the off-line shape of version 3.00, so
+    # an off-line 2.00 text is rejected by this schema; the on-line one passes.
+    @tag skip: @skip
+    test "QR code 2.00 on-line validates" do
+      opts = [qr_code_version: 2, csc: "0123456789ABCDEF0123456789ABCDEF0123", csc_id: 1]
+      {:ok, result} = built().xml |> signed() |> NFCe.put_supl("BA", :homologation, opts)
+
+      assert :ok == xmllint(result)
     end
 
     @tag skip: @skip

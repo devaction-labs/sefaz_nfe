@@ -85,6 +85,33 @@ defmodule SefazNfe.NFCeWiringTest do
       assert result.signed_xml =~ supl
     end
 
+    test "forwards the QR code 2.00 options, CSC included, and sends it" do
+      %{xml: xml, access_key: key} = nfce()
+      csc = "0123456789ABCDEF0123456789ABCDEF0123"
+
+      opts =
+        Map.merge(base("BA"), %{xml: xml, qr_code_version: 2, csc: csc, csc_id: "000001"})
+
+      assert {:ok, result} = SefazNfe.authorize(opts)
+
+      seq = "#{key}|2|2|1"
+      hash = :sha |> :crypto.hash(seq <> csc) |> Base.encode16(case: :upper)
+
+      assert_receive {:posted, _url, body, _opts}
+      assert body =~ "?p=#{seq}|#{hash}</qrCode>"
+      assert result.signed_xml =~ "?p=#{seq}|#{hash}</qrCode>"
+      refute body =~ csc
+    end
+
+    test "QR code 2.00 without a CSC never reaches the transport" do
+      %{xml: xml} = nfce()
+
+      assert {:error, {:missing_csc, [:csc, :csc_id]}} =
+               SefazNfe.authorize(Map.merge(base("BA"), %{xml: xml, qr_code_version: 2}))
+
+      refute_receive {:posted, _url, _body, _opts}
+    end
+
     test "SP model 65 hits its own NFC-e authorizer" do
       %{xml: xml} = nfce(uf: "SP", uf_code: 35)
 
