@@ -126,12 +126,12 @@ defmodule SefazNfe.TelemetryTest do
     end
 
     test "a SEFAZ rejection is an :ok outcome with a rejected status", %{cert: cert} do
-      Application.put_env(:sefaz_nfe, :telemetry_test_reply, {:status, 999})
+      Application.put_env(:sefaz_nfe, :telemetry_test_reply, {:status, 539})
 
       assert {:ok, _} = SefazNfe.service_status(status_opts(cert))
 
       assert_receive {:telemetry, [:sefaz_nfe, :operation, :stop], _,
-                      %{operation: :service_status, outcome: :ok, status: :rejected, c_stat: 999}}
+                      %{operation: :service_status, outcome: :ok, status: :rejected, c_stat: 539}}
     end
 
     test "a refusal before the network still emits start and stop", %{cert: cert} do
