@@ -1,0 +1,26 @@
+{
+    "environment": 1,
+    "model": 55,
+    "series": 1,
+    "number": 4400,
+    "numeric_code": "87654321",
+    "emission_type": 1,
+    "issued_at": "2026-09-13 10:30:00-03:00",
+    "company": {
+        "name": "Papelaria Exemplo Ltda",
+        "trade_name": "Papelaria Exemplo",
+        "cnpj": "11222333000181",
+        "state_registration": null,
+        "municipal_registration": null,
+        "tax_regime": 1,
+        "street": "Rua da Consolação",
+        "number": "100",
+        "complement": "Sala 5",
+        "district": "Consolação",
+        "city_name": "São Paulo",
+        "city_ibge_code": "3550308",
+        "state": "SP",
+        "zip_code": "01302000",
+        "phone": null
+    }
+}

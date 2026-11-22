@@ -1,0 +1,235 @@
+{
+    "ref": "golden-normal-multi",
+    "identification": {
+        "operation_nature": "Venda de mercadoria",
+        "operation_type": 1,
+        "destination": 2,
+        "purpose": 1,
+        "final_consumer": 0,
+        "buyer_presence": 9,
+        "intermediary": 0,
+        "references": [
+            {
+                "access_key": "35260811222333000181550010000010011123456781"
+            },
+            {
+                "access_key": "35260811222333000181550010000010021234567899"
+            }
+        ]
+    },
+    "recipient": {
+        "name": "Cliente Exemplo Ltda",
+        "cnpj": "11222333000181",
+        "state_registration_indicator": 1,
+        "state_registration": "12345678",
+        "suframa_registration": "123456789",
+        "municipal_registration": "9988",
+        "email": "fiscal@cliente.example.com",
+        "address": {
+            "street": "Avenida Rio Branco",
+            "number": "156",
+            "complement": "Sala 3",
+            "district": "Centro",
+            "city_ibge_code": "3304557",
+            "city_name": "Rio de Janeiro",
+            "state": "RJ",
+            "zip_code": "20040003",
+            "country_code": "1058",
+            "country_name": "Brasil",
+            "phone": "2133334444"
+        }
+    },
+    "authorized_parties": [
+        {
+            "cnpj": "34028316000103"
+        },
+        {
+            "cpf": "11144477735"
+        }
+    ],
+    "items": [
+        {
+            "code": "P-20",
+            "gtin": "SEM GTIN",
+            "description": "Produto com base reduzida",
+            "ncm": "96081000",
+            "cfop": "6101",
+            "commercial_unit": "UN",
+            "commercial_quantity": "10.0000",
+            "commercial_unit_price": "10.0000000000",
+            "gross_amount": "100.00",
+            "taxable_gtin": "SEM GTIN",
+            "taxable_unit": "UN",
+            "taxable_quantity": "10.0000",
+            "taxable_unit_price": "10.0000000000",
+            "counts_in_total": 1,
+            "icms": {
+                "origin": 1,
+                "cst": "20",
+                "base_modality": 3,
+                "base_reduction": "33.3333",
+                "base": "66.67",
+                "rate": "12.00",
+                "amount": "8.00"
+            },
+            "pis": {
+                "cst": "01",
+                "base": "100.00",
+                "rate": "1.65",
+                "amount": "0.00"
+            },
+            "cofins": {
+                "cst": "01",
+                "base": "100.00",
+                "rate": "7.60",
+                "amount": "0.00"
+            },
+            "freight": "5.00",
+            "insurance": "1.00",
+            "other_expenses": "2.00",
+            "discount": "3.00",
+            "benefit_code": "RJ123456",
+            "additional_info": "Lote 77 & validade 12/2027",
+            "order_number": "PED-9",
+            "order_item_number": "1"
+        },
+        {
+            "code": "P-60",
+            "gtin": "7891000100103",
+            "description": "Produto com ST retida",
+            "ncm": "96081000",
+            "cfop": "6405",
+            "commercial_unit": "UN",
+            "commercial_quantity": "4.0000",
+            "commercial_unit_price": "25.0000000000",
+            "gross_amount": "100.00",
+            "taxable_gtin": "7891000100103",
+            "taxable_unit": "UN",
+            "taxable_quantity": "4.0000",
+            "taxable_unit_price": "25.0000000000",
+            "counts_in_total": 1,
+            "icms": {
+                "origin": 0,
+                "cst": "60",
+                "retained_st_base": "100.00",
+                "retained_st_rate": "18.00",
+                "substitute_amount": "3.00",
+                "retained_st_amount": "18.00",
+                "retained_fcp_st_base": "100.00",
+                "retained_fcp_st_rate": "2.00",
+                "retained_fcp_st_amount": "2.00"
+            },
+            "pis": {
+                "cst": "01",
+                "base": "100.00",
+                "rate": "1.65",
+                "amount": "0.00"
+            },
+            "cofins": {
+                "cst": "01",
+                "base": "100.00",
+                "rate": "7.60",
+                "amount": "0.00"
+            },
+            "cest": "1902000",
+            "ipi": {
+                "legal_framework_code": "999",
+                "cst": "99",
+                "base": "100.00",
+                "rate": "5.00",
+                "amount": "5.00"
+            }
+        }
+    ],
+    "totals": {
+        "icms_base": "66.67",
+        "icms_amount": "8.00",
+        "products_amount": "200.00",
+        "freight_amount": "5.00",
+        "insurance_amount": "1.00",
+        "discount_amount": "3.00",
+        "ipi_amount": "5.00",
+        "pis_amount": "0.00",
+        "cofins_amount": "0.00",
+        "other_expenses_amount": "2.00",
+        "document_amount": "210.00"
+    },
+    "billing": {
+        "invoice": {
+            "number": "FAT-001",
+            "original_amount": "210.00",
+            "discount_amount": "0.00",
+            "net_amount": "210.00"
+        },
+        "installments": [
+            {
+                "number": "001",
+                "due_date": "2026-10-13",
+                "amount": "70.00"
+            },
+            {
+                "number": "002",
+                "due_date": "2026-11-13",
+                "amount": "70.00"
+            },
+            {
+                "number": "003",
+                "due_date": "2026-12-13",
+                "amount": "70.00"
+            }
+        ]
+    },
+    "payments": [
+        {
+            "indicator": 1,
+            "method": "15",
+            "amount": "100.00",
+            "date": "2026-10-13"
+        },
+        {
+            "indicator": 1,
+            "method": "15",
+            "amount": "60.00",
+            "date": "2026-11-13"
+        },
+        {
+            "indicator": 1,
+            "method": "99",
+            "description": "Compensacao",
+            "amount": "50.00"
+        }
+    ],
+    "transport": {
+        "freight_mode": 1,
+        "carrier": {
+            "cpf": "11144477735",
+            "name": "Carlos Autonomo",
+            "address": "Rua A, 10",
+            "city_name": "Niteroi",
+            "state": "RJ"
+        },
+        "volumes": [
+            {
+                "quantity": "2",
+                "species": "CAIXA",
+                "brand": "X",
+                "numbering": "1-2",
+                "net_weight": "3.500",
+                "gross_weight": "4.000"
+            },
+            {
+                "quantity": "1",
+                "species": "PALLET"
+            }
+        ]
+    },
+    "additional_info": {
+        "for_tax_authority": "Operacao com base reduzida",
+        "complementary": "Pedido 9; entrega agendada."
+    },
+    "purchase": {
+        "commitment_number": "EMP-1",
+        "order_number": "PED-9",
+        "contract_number": "CT-2026"
+    }
+}
