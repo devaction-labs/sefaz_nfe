@@ -106,6 +106,40 @@ Same split as Focus/ACBr: they guarantee **transport**, not fiscal arithmetic.
   transport failures and fails fast for 30 seconds, so a down SP cannot stall
   callers working with MG. A SEFAZ rejection is an answer and never trips it.
 
+## Telemetry
+
+Every public operation emits `[:sefaz_nfe, :operation, :start | :stop | :exception]`
+with the operation, UF, environment, model, contingency and (on stop) the
+outcome, `status` and `cStat`; the SOAP request and the per-UF circuit breaker
+emit their own events. Metadata never carries the certificate, CSC, XML, access
+key or tax ids. `SefazNfe.Telemetry` documents every event and key; with
+`Telemetry.Metrics` (or a PromEx plugin):
+
+```elixir
+import Telemetry.Metrics
+
+[
+  counter("sefaz_nfe.operation.count",
+    event_name: [:sefaz_nfe, :operation, :stop],
+    tags: [:operation, :uf, :outcome]
+  ),
+  distribution("sefaz_nfe.operation.duration",
+    event_name: [:sefaz_nfe, :operation, :stop],
+    measurement: :duration,
+    unit: {:native, :millisecond},
+    tags: [:operation, :uf]
+  ),
+  counter("sefaz_nfe.circuit_breaker.open.count",
+    event_name: [:sefaz_nfe, :circuit_breaker, :open],
+    tags: [:uf]
+  )
+]
+```
+
+Only the total duration is available on the default `:httpc` transport: it does
+not expose connect, transmit and response timings. A custom `SefazNfe.SOAP`
+client can emit finer events.
+
 ## Docs
 
 - Spec (TLC): [`.specs/features/transport-mvp/spec.md`](.specs/features/transport-mvp/spec.md)
