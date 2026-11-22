@@ -16,7 +16,7 @@ defmodule SefazNfe.Endpoints do
   """
 
   @type environment :: :homologation | :production
-  @type model :: 55 | 65
+  @type model :: 55 | 65 | 57 | 67 | 58
   @type service ::
           :nfe_autorizacao
           | :nfe_ret_autorizacao
@@ -26,16 +26,48 @@ defmodule SefazNfe.Endpoints do
           | :nfe_inutilizacao
           | :nfe_distribuicao_dfe
           | :nfe_consulta_cadastro
+          | :cte_recepcao_sinc
+          | :cte_recepcao_os
+          | :cte_consulta
+          | :cte_status_servico
+          | :cte_recepcao_evento
+          | :mdfe_recepcao_sinc
+          | :mdfe_consulta
+          | :mdfe_status_servico
+          | :mdfe_recepcao_evento
+          | :mdfe_consulta_nao_enc
 
   @json_path Path.expand("../../priv/endpoints/nfe_4.00.json", __DIR__)
   @nfce_json_path Path.expand("../../priv/endpoints/nfce_4.00.json", __DIR__)
+  @cte_json_path Path.expand("../../priv/endpoints/cte_4.00.json", __DIR__)
+  @mdfe_json_path Path.expand("../../priv/endpoints/mdfe_3.00.json", __DIR__)
   @external_resource @json_path
   @external_resource @nfce_json_path
+  @external_resource @cte_json_path
+  @external_resource @mdfe_json_path
   @snapshot JSON.decode!(File.read!(@json_path))
   @nfce_snapshot JSON.decode!(File.read!(@nfce_json_path))
-  @snapshots %{55 => @snapshot, 65 => @nfce_snapshot}
+  @cte_snapshot JSON.decode!(File.read!(@cte_json_path))
+  @mdfe_snapshot JSON.decode!(File.read!(@mdfe_json_path))
+  @snapshots %{
+    55 => @snapshot,
+    65 => @nfce_snapshot,
+    57 => @cte_snapshot,
+    67 => @cte_snapshot,
+    58 => @mdfe_snapshot
+  }
 
-  @services ~w(nfe_autorizacao nfe_ret_autorizacao nfe_consulta_protocolo nfe_status_servico nfe_recepcao_evento nfe_inutilizacao nfe_distribuicao_dfe nfe_consulta_cadastro)a
+  @nfe_services ~w(nfe_autorizacao nfe_ret_autorizacao nfe_consulta_protocolo nfe_status_servico nfe_recepcao_evento nfe_inutilizacao nfe_distribuicao_dfe nfe_consulta_cadastro)a
+  @cte_services ~w(cte_recepcao_sinc cte_recepcao_os cte_consulta cte_status_servico cte_recepcao_evento)a
+  @mdfe_services ~w(mdfe_recepcao_sinc mdfe_consulta mdfe_status_servico mdfe_recepcao_evento mdfe_consulta_nao_enc)a
+  @services @nfe_services ++ @cte_services ++ @mdfe_services
+  @model_services %{
+    55 => @nfe_services,
+    65 => @nfe_services,
+    57 => @cte_services,
+    67 => @cte_services,
+    58 => @mdfe_services
+  }
 
   @spec snapshot_date() :: String.t()
   def snapshot_date, do: @snapshot["snapshot_date"]
@@ -57,13 +89,14 @@ defmodule SefazNfe.Endpoints do
 
   @doc """
   Resolves the SOAP URL for `{uf, environment, service}` under `model`
-  (55 by default, or 65 for NFC-e).
+  (55 by default; 65 for NFC-e, 57 and 67 for CT-e and CT-e OS, 58 for MDF-e).
 
   The failures are distinct on purpose: `{:unknown_endpoint, uf, service}`
   is a UF this snapshot cannot resolve, while `{:invalid_environment, _}` and
   `{:unknown_service, _}` mean the caller passed something that is not an
   environment or not a 4.00 service at all, and `{:unsupported_model, _}` a
-  model other than 55 or 65.
+  model this library has no table for. A service that belongs to another model
+  (`:nfe_autorizacao` under 57) is also `{:unknown_service, _}`.
   """
   @spec url(String.t() | atom(), environment(), service(), model()) ::
           {:ok, String.t()}
@@ -76,14 +109,10 @@ defmodule SefazNfe.Endpoints do
   def url(uf, environment, service, model)
       when environment in [:homologation, :production] and service in @services and
              is_map_key(@snapshots, model) do
-    snapshot = Map.fetch!(@snapshots, model)
-    uf = normalize_uf(uf)
-    authorizer = authorizer_for(snapshot, uf, service)
-    env = environment_key(environment)
-
-    case get_in(snapshot, ["authorizers", authorizer, env, Atom.to_string(service)]) do
-      url when is_binary(url) and url != "" -> {:ok, url}
-      _ -> {:error, {:unknown_endpoint, uf, service}}
+    if service in Map.fetch!(@model_services, model) do
+      resolve(Map.fetch!(@snapshots, model), uf, environment, service)
+    else
+      {:error, {:unknown_service, service}}
     end
   end
 
@@ -98,54 +127,112 @@ defmodule SefazNfe.Endpoints do
 
   def url(_uf, _environment, _service, model), do: {:error, {:unsupported_model, model}}
 
-  @svc %{"SVCAN" => :svc_an, "SVCRS" => :svc_rs}
-  @svc_authorizer %{svc_an: "SVCAN", svc_rs: "SVCRS"}
+  defp resolve(snapshot, uf, environment, service) do
+    uf = normalize_uf(uf)
+    authorizer = authorizer_for(snapshot, uf, service)
+    env = environment_key(environment)
+
+    case get_in(snapshot, ["authorizers", authorizer, env, Atom.to_string(service)]) do
+      url when is_binary(url) and url != "" -> {:ok, url}
+      _ -> {:error, {:unknown_endpoint, uf, service}}
+    end
+  end
+
+  @svc %{"SVCAN" => :svc_an, "SVCRS" => :svc_rs, "SVCSP" => :svc_sp}
+  @svc_models [55, 57, 67]
+
+  # {model, svc} to the authorizer whose table serves that SVC. Model 55 has the
+  # SVCAN and SVCRS entries of its own table; for CT-e the snapshot says which
+  # authorizer's endpoints each SVC is served from.
+  @svc_authorizer Map.merge(
+                    %{{55, :svc_an} => "SVCAN", {55, :svc_rs} => "SVCRS"},
+                    Map.new(
+                      for model <- [57, 67],
+                          {name, authorizer} <- @cte_snapshot["contingency_authorizer"] do
+                        {{model, Map.fetch!(@svc, name)}, authorizer}
+                      end
+                    )
+                  )
 
   @doc """
-  The SVC (Sefaz Virtual de Contingência) that serves `uf`, model 55 only.
+  The SVC (Sefaz Virtual de Contingência) that serves `uf`.
 
-  Which one is data (`uf_contingency` in the snapshot, from the MOC): SVC-RS
-  serves AM, BA, GO, MA, MS, MT, PE and PR, SVC-AN every other UF. Nothing here
-  decides to use it; contingency is the caller's choice (AD-005).
+  Which one is data (`uf_contingency` in the snapshot). Model 55 (the default)
+  has SVC-RS for AM, BA, GO, MA, MS, MT, PE and PR and SVC-AN for every other
+  UF, from the MOC. Models 57 and 67 have SVC-SP for the UFs authorized by SVRS,
+  MG, PR and RS and SVC-RS for those authorized by SVSP, MT, MS and SP, from the
+  CT-e portal. NFC-e and MDF-e have none (`{:unsupported_for_model, model}`;
+  MDF-e contingency is off-line). Nothing here decides to use it; contingency
+  is the caller's choice (AD-005).
   """
-  @spec contingency_for(String.t() | atom()) ::
-          {:ok, :svc_an | :svc_rs} | {:error, {:unknown_uf, String.t()}}
-  def contingency_for(uf) do
+  @spec contingency_for(String.t() | atom(), model()) ::
+          {:ok, :svc_an | :svc_rs | :svc_sp}
+          | {:error, {:unknown_uf, String.t()}}
+          | {:error, {:unsupported_for_model, model()}}
+          | {:error, {:unsupported_model, term()}}
+  def contingency_for(uf, model \\ 55)
+
+  def contingency_for(uf, model) when model in @svc_models do
     uf = normalize_uf(uf)
 
-    case @svc[@snapshot["uf_contingency"][uf]] do
+    case @svc[Map.fetch!(@snapshots, model)["uf_contingency"][uf]] do
       nil -> {:error, {:unknown_uf, uf}}
       svc -> {:ok, svc}
     end
   end
 
-  @doc """
-  The URL of `service` on the SVC `svc` (`:svc_an` or `:svc_rs`), model 55.
+  def contingency_for(_uf, model) when is_map_key(@snapshots, model),
+    do: {:error, {:unsupported_for_model, model}}
 
-  It does not check that `svc` serves any particular UF; see `contingency_for/1`.
+  def contingency_for(_uf, model), do: {:error, {:unsupported_model, model}}
+
+  @doc """
+  The URL of `service` on the SVC `svc`: `:svc_an` or `:svc_rs` for model 55
+  (the default), `:svc_sp` or `:svc_rs` for models 57 and 67.
+
+  It does not check that `svc` serves any particular UF; see `contingency_for/2`.
+  For CT-e, SVC-SP is served by the SVSP endpoints and SVC-RS by the SVRS ones.
   """
-  @spec contingency_url(:svc_an | :svc_rs, environment(), service()) ::
+  @spec contingency_url(:svc_an | :svc_rs | :svc_sp, environment(), service(), model()) ::
           {:ok, String.t()} | {:error, term()}
-  def contingency_url(svc, environment, service)
-      when is_map_key(@svc_authorizer, svc) and environment in [:homologation, :production] and
-             service in @services do
-    authorizer = Map.fetch!(@svc_authorizer, svc)
+  def contingency_url(svc, environment, service, model \\ 55)
+
+  def contingency_url(svc, environment, service, model)
+      when is_map_key(@svc_authorizer, {model, svc}) and
+             environment in [:homologation, :production] and service in @services do
+    authorizer = Map.fetch!(@svc_authorizer, {model, svc})
     path = ["authorizers", authorizer, environment_key(environment), Atom.to_string(service)]
 
-    case get_in(@snapshot, path) do
-      url when is_binary(url) and url != "" -> {:ok, url}
-      _ -> {:error, {:unknown_endpoint, authorizer, service}}
+    cond do
+      service not in Map.fetch!(@model_services, model) ->
+        {:error, {:unknown_service, service}}
+
+      (url = get_in(Map.fetch!(@snapshots, model), path)) && url != "" ->
+        {:ok, url}
+
+      true ->
+        {:error, {:unknown_endpoint, authorizer, service}}
     end
   end
 
-  def contingency_url(svc, _environment, _service) when not is_map_key(@svc_authorizer, svc),
-    do: {:error, {:invalid_contingency, svc}}
+  def contingency_url(_svc, _environment, _service, model)
+      when model not in @svc_models and is_map_key(@snapshots, model),
+      do: {:error, {:unsupported_for_model, model}}
 
-  def contingency_url(_svc, environment, _service)
+  def contingency_url(_svc, _environment, _service, model)
+      when not is_map_key(@snapshots, model),
+      do: {:error, {:unsupported_model, model}}
+
+  def contingency_url(svc, _environment, _service, model)
+      when not is_map_key(@svc_authorizer, {model, svc}),
+      do: {:error, {:invalid_contingency, svc}}
+
+  def contingency_url(_svc, environment, _service, _model)
       when environment not in [:homologation, :production],
       do: {:error, {:invalid_environment, environment}}
 
-  def contingency_url(_svc, _environment, service), do: {:error, {:unknown_service, service}}
+  def contingency_url(_svc, _environment, service, _model),
+    do: {:error, {:unknown_service, service}}
 
   @doc """
   The QR code base URL of `uf`'s own SEFAZ, for model 65.
@@ -188,11 +275,14 @@ defmodule SefazNfe.Endpoints do
   `consultaCadastro4` elsewhere), so the snapshot carries it as data under
   `"operations"`, keyed by service and then authorizer, with a `"default"`.
   """
-  @spec operation(String.t() | atom(), service()) :: String.t() | nil
-  def operation(uf, service) when service in @services do
-    authorizer = authorizer_for(@snapshot, normalize_uf(uf), service)
+  @spec operation(String.t() | atom(), service(), model()) :: String.t() | nil
+  def operation(uf, service, model \\ 55)
 
-    case @snapshot["operations"][Atom.to_string(service)] do
+  def operation(uf, service, model) when service in @services and is_map_key(@snapshots, model) do
+    snapshot = Map.fetch!(@snapshots, model)
+    authorizer = authorizer_for(snapshot, normalize_uf(uf), service)
+
+    case snapshot["operations"][Atom.to_string(service)] do
       %{"default" => default} = operations -> Map.get(operations, authorizer, default)
       nil -> nil
     end

@@ -20,10 +20,11 @@ defmodule SefazNfe do
   alias SefazNfe.Result
   alias SefazNfe.Schema
   alias SefazNfe.Signer
-  alias SefazNfe.SOAP
   alias SefazNfe.SOAP.Envelope
   alias SefazNfe.TaxpayerLookup
   alias SefazNfe.Telemetry
+
+  import SefazNfe.Transport, only: [call: 4, call: 5, require_keys: 2, validate_environment: 1]
 
   @justification_min 15
   @tp_amb ~r|<tpAmb>([12])</tpAmb>|
@@ -660,40 +661,6 @@ defmodule SefazNfe do
       model: Map.get(opts, :model, 55)
     })
   end
-
-  # `extra` carries per-call transport options; `operation:` is the one that
-  # makes the SOAP action differ per authorizer (NFeConsultaCadastro only).
-  defp call(url, envelope, opts, service, extra \\ []) do
-    telemetry = Map.get(opts, :telemetry_context, %{})
-
-    SOAP.isolated_call(
-      url,
-      envelope,
-      opts.cert,
-      [
-        uf: opts.uf |> to_string() |> String.upcase(),
-        service: service,
-        environment: telemetry[:environment],
-        model: telemetry[:model],
-        contingency: telemetry[:contingency],
-        timeout: Map.get(opts, :timeout, to_timeout(second: 30)),
-        connect_timeout: Map.get(opts, :connect_timeout, to_timeout(second: 10)),
-        tls_options: Map.get(opts, :tls_options, [])
-      ] ++ extra
-    )
-  end
-
-  defp require_keys(opts, keys) do
-    missing = Enum.reject(keys, &Map.has_key?(opts, &1))
-
-    case missing do
-      [] -> :ok
-      keys -> {:error, {:missing_keys, keys}}
-    end
-  end
-
-  defp validate_environment(environment) when environment in [:homologation, :production], do: :ok
-  defp validate_environment(_), do: {:error, :invalid_environment}
 
   defp reject_an(uf, service) do
     case String.upcase(to_string(uf)) do
