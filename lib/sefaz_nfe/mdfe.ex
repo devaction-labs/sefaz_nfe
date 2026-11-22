@@ -341,6 +341,12 @@ defmodule SefazNfe.MDFe do
 
   defp validate_n_prot(n_prot), do: validate_digits(n_prot, 15, :invalid_n_prot)
 
+  # IBGE codes are numbers to most callers (the builder takes them as integers
+  # too). A number with a significant leading zero — a CPF, a key — comes out
+  # short and is refused by the length check, as it should be.
+  defp validate_digits(value, size, error) when is_integer(value) and value >= 0,
+    do: validate_digits(Integer.to_string(value), size, error)
+
   defp validate_digits(value, size, error) do
     if is_binary(value) and String.match?(value, ~r/^\d+$/) and byte_size(value) == size,
       do: :ok,

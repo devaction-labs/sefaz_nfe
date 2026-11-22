@@ -559,6 +559,14 @@ defmodule SefazNfe.MDFeTransportTest do
       assert result.xml =~ "<procEventoMDFe"
     end
 
+    test "close takes IBGE codes as integers, as the builder does", %{base: base} do
+      opts = event_opts(base, %{c_uf: 35, c_mun: 3_550_308, dt_enc: ~D[2026-09-09]})
+      assert {:ok, %{status: :authorized}} = MDFe.close(opts)
+
+      assert_receive {:posted, _url, body, _opts}
+      assert message(body) =~ ~s(<cUF>35</cUF><cMun>3550308</cMun>)
+    end
+
     test "close takes a date string and the third party flag", %{base: base} do
       opts =
         event_opts(base, %{
@@ -676,7 +684,12 @@ defmodule SefazNfe.MDFeTransportTest do
       close = event_opts(base, %{c_uf: "35", c_mun: "3550308", dt_enc: "2026-09-09"})
       assert {:error, :invalid_dt_enc} = MDFe.close(%{close | dt_enc: "09/09/2026"})
       assert {:error, :invalid_c_mun} = MDFe.close(%{close | c_mun: "355"})
-      assert {:error, :invalid_c_uf} = MDFe.close(%{close | c_uf: 35})
+      assert {:error, :invalid_c_uf} = MDFe.close(%{close | c_uf: 351})
+      assert {:error, :invalid_c_uf} = MDFe.close(%{close | c_uf: -35})
+
+      # A CPF given as an integer loses its leading zero and is refused by length.
+      driver_int = event_opts(base, %{x_nome: "JOSE", cpf: 3_631_716_575})
+      assert {:error, :invalid_cpf} = MDFe.include_driver(driver_int)
 
       driver = event_opts(base, %{x_nome: "JOSE", cpf: "12345678909"})
       assert {:error, :invalid_cpf} = MDFe.include_driver(%{driver | cpf: "123"})
