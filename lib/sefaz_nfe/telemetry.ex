@@ -56,20 +56,22 @@ defmodule SefazNfe.Telemetry do
   CNPJ/CPF or state registration. The first four are secrets, and metadata goes
   to loggers, APM agents and third-party dashboards. The last three are
   unbounded: as a metric label each value is a new time series, which is how a
-  Prometheus gets taken down. `:uf`, `:environment`, `:model` and `:outcome`
+  Prometheus gets taken down. `:uf`, `:host`, `:environment`, `:model` and `:outcome`
   are all small closed sets, which is what makes them safe tags.
 
   ## SOAP span: `[:sefaz_nfe, :soap, :start | :stop | :exception]`
 
-  One per request actually sent, with `:endpoint`, `:uf` and `:service`
+  One per request actually sent, with `:endpoint`, `:host`, `:uf` and `:service`
   (`:nfe_autorizacao`, ...), plus `:environment`, `:model` and `:contingency`
-  as above, and `:outcome` on `:stop`. A call refused by the circuit breaker
+  as above, and `:outcome` on `:stop`. `:host` is `"scheme://host:port"` of the
+  endpoint, lower case: the server actually called, which is what the breaker
+  is keyed by (about forty of them, so safe as a tag). A call refused by the circuit breaker
   emits no SOAP span: see the breaker events. Only the total duration exists on
   the default transport; see `SefazNfe.SOAP`.
 
   ## Circuit breaker
 
-    * `[:sefaz_nfe, :circuit_breaker, :open]` - a UF's breaker tripped (it
+    * `[:sefaz_nfe, :circuit_breaker, :open]` - a host's breaker tripped (it
       reached the failure threshold, or a trial call failed after the cooldown);
     * `[:sefaz_nfe, :circuit_breaker, :close]` - a call reached SEFAZ and closed
       a breaker that was open;
@@ -77,7 +79,8 @@ defmodule SefazNfe.Telemetry do
       because the breaker is open.
 
   Measurements are `%{count: 1}` and, for `:open` and `:close`, also
-  `:system_time`. Metadata is `%{uf: String.t()}`.
+  `:system_time`. Metadata is `%{host: String.t()}`: the breaker is per server, not per UF,
+  because one UF reaches several servers by model and many share SVRS.
 
   The breaker is ETS plus atomic counters and is deliberately not linearised
   (see `SefazNfe.CircuitBreaker`), so concurrent failures at the threshold can
@@ -104,17 +107,17 @@ defmodule SefazNfe.Telemetry do
         ),
         counter("sefaz_nfe.circuit_breaker.open.count",
           event_name: [:sefaz_nfe, :circuit_breaker, :open],
-          tags: [:uf]
+          tags: [:host]
         ),
         counter("sefaz_nfe.circuit_breaker.rejected.count",
           event_name: [:sefaz_nfe, :circuit_breaker, :rejected],
-          tags: [:uf]
+          tags: [:host]
         ),
         last_value("sefaz_nfe.circuit_breaker.open.system_time",
           event_name: [:sefaz_nfe, :circuit_breaker, :open],
           measurement: :system_time,
           unit: {:native, :second},
-          tags: [:uf]
+          tags: [:host]
         )
       ]
 
