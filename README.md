@@ -1,13 +1,20 @@
 # sefaz_nfe
 
-Elixir library for **SEFAZ NF-e communication** (modelo 55): sign, authorize, consult, DistDFe.
+Elixir library for **SEFAZ NF-e (modelo 55) and NFC-e (modelo 65) communication**: sign, authorize, consult, contingency, DistDFe.
 
 It does **not** calculate taxes. The ERP (or Nexus Pro) builds the XML; this library talks to SEFAZ.
 
-> Status: transport live and the whole NF-e lifecycle verified in homologação
-> with a real ICP-Brasil A1: authorization (`cStat` 100, `nfeProc` assembled),
-> CCe and cancellation (135), protocol consultation (100), and inutilização (102),
-> all against SEFAZ BA.
+> Status: 0.2.0. Transport live and the whole NF-e lifecycle verified in
+> homologação with a real ICP-Brasil A1: authorization (`cStat` 100, `nfeProc`
+> assembled), CCe and cancellation (135), protocol consultation (100), and
+> inutilização (102), all against SEFAZ BA. NFC-e 65 (authorize, consult, cancel
+> with the generated QR code 3.00) and SVC-RS contingency were verified the same
+> way. SVC-AN, EPEC, QR 2.00, NFC-e inutilização, DistDFe and manifestação could
+> not be exercised in homologação; see the CHANGELOG.
+>
+> ```elixir
+> {:sefaz_nfe, "~> 0.2.0"}
+> ```
 >
 > **Requires OTP 29.1 or later.** Earlier OTP 29 aborts the TLS handshake on
 > 20 UFs (malformed CA names in `CertificateRequest`, fixed by OTP-20327). On
@@ -21,8 +28,13 @@ It does **not** calculate taxes. The ERP (or Nexus Pro) builds the XML; this lib
 ## Package shell
 
 Public API is in `SefazNfe` (`authorize/1`, `authorization_result/1`, `service_status/1`,
-`dist_dfe/1`, `consult_protocol/1`, `cancel/1`, `cce/1`, `manifest/2`,
-`void_numbers/1`, `start_dist_dfe_poller/1`).
+`dist_dfe/1`, `consult_protocol/1`, `consult_taxpayer/1`, `cancel/1`, `cce/1`,
+`epec/1`, `manifest/2`, `void_numbers/1`, `start_dist_dfe_poller/1`).
+
+`authorize/1` routes by the document's `<mod>` (55 or 65) and `tpEmis`. NFC-e
+needs the QR code in `infNFeSupl`: `SefazNfe.NFCe.put_supl` builds it (3.00
+on-line, or 2.00 with CSC). Contingency is explicit, never automatic: pass
+`contingency:` to use SVC-AN or SVC-RS, or send an EPEC event with `epec/1`.
 
 Input is validated and the UF URL is resolved from `priv/endpoints/nfe_4.00.json`.
 All services run live over mTLS, with documents signed by XMLDSig. `mix test` never opens a socket —
@@ -54,8 +66,9 @@ obvious.
 for it, so `SefazNfe.Certificate.PKCS12` reads the PFX itself (RFC 7292),
 verified byte-for-byte against a real ICP-Brasil A1 and against `openssl`.
 `pbeWithSHAAnd3-KeyTripleDES-CBC` with a SHA-1 MAC — what ICP-Brasil issues
-today — is supported; a PBES2/AES-256 file is refused by name, never as a
-misleading "invalid password" (AD-007).
+today — and PBES2/AES with SHA-256/512 MACs are supported. The reader is bounded
+(size, bag count, iterations), checks that the key matches the leaf certificate,
+and a wrong password is `{:error, :invalid_password}` (AD-007).
 
 OTP (Elixir 1.20 / OTP 29): `Task.Supervisor` isolates SOAP, `Registry` + DistDFe **poller per `tax_id`** (`Process.set_label/1`), timeouts via `Duration` + `to_timeout/1`, `JSON` stdlib.
 

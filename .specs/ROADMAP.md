@@ -27,14 +27,14 @@ tax calculation.
 - NF-e 55: ✅ sync authorization · ✅ consult by key · ✅ status ·
   ✅ inutilização · ✅ cancel · ✅ CCe · ✅ DistDFe by ultNSU / single NSU /
   by key (download) · ✅ manifestação (4 events) · ✅ optional XSD.
-- NF-e 55 gaps: ⬜ P1 cadastro consult · ⬜ P1 EPEC 110140 · ⬜ P1 SVC-AN /
-  SVC-RS routing · ⬜ P1 certificate validity + tax id (issue #3) ·
-  ⬜ P1 `cStat` classification incl. retryable/denied (issue #4).
+- NF-e 55 parity gaps closed: ✅ cadastro consult · ✅ EPEC 110140 · ✅ SVC-AN /
+  SVC-RS routing · ✅ certificate validity + tax id (issue #3) ·
+  ✅ `cStat` classification incl. retryable/denied (issue #4).
 - ⬜ P2 Builder: `Make` with ~35 tags, incl. IBS/CBS TribRegular/Mono, IS,
   med, rastro, ICMSUFDest, DFeReferenciado, autXML, pag/detPag, fat/dup,
   transp/vol. ⬜ P2 `Complements` toAuthorize / cancelRegister.
-- NFC-e 65: ⬜ P1 endpoint routing + inutilização (moved earlier) ·
-  ⬜ P3 QR code version 3.00 (no CSC). Not used by the gateway: offline
+- NFC-e 65: ✅ P1 endpoint routing + inutilização (moved earlier) ·
+  ✅ P3 QR code version 3.00 (no CSC) · ✅ QR code 2.00 with CSC. Not used by the gateway: offline
   contingency (`tpEmis` 9), cancelamento por substituição.
 - ⬜ P4 Printing: DANFE portrait with 8–21 installments and multiple `rastro`
   lots, EPEC and cancelled stamps; DANFCE 80mm; DACTE; DACTE OS; DAMDFE.
@@ -53,34 +53,36 @@ tax calculation.
 
 Status legend: ✅ done · 🔜 next · ⬜ planned
 
-## Phase 0 — close v0.1 (now)
+## Phase 0 — close v0.1
 
 - ✅ Full NF-e lifecycle verified in homologação on OTP 29.1.2 (STATE handoff).
 - ✅ OTP-20327 handshake fix lands in 29.1; `patches/` removed (AD-020).
-- 🔜 Merge `chore/otp-29-1-live-check`; publish 0.1.1 to Hex (issue #13).
-- 🔜 Close the delivered issues #1–#4; triage the dependabot PRs.
+- ✅ 0.1.1 published to Hex.
+- ⬜ Dependabot PRs still open.
 - ⬜ Find why AN and SVAN homologação answer HTTP 403 to every client (with
   or without a client certificate) while production accepts the same A1.
   Neither host advertises client CA names in the initial handshake, which
   points at renegotiation or an allowlist. Until then, manifestação and
   DistDFe are verified in production only.
 
-## Phase 1 — `Tools` parity for NF-e 55
+## Phase 1 — `Tools` parity for NF-e 55 (complete in 0.2.0, except the items below)
 
 Every webservice and event a modelo 55 issuer or recipient can call. Items
 the gateway uses come first.
 
-- ⬜ Certificate validity and tax id extraction (issue #3).
-- ⬜ `cStat` classification, including retryable and denied (issue #4).
-- ⬜ `NfeConsultaCadastro` (`CadConsultaCadastro4`) — consult a taxpayer's
+- ✅ Certificate validity and tax id extraction (issue #3).
+- ✅ `cStat` classification, including retryable and denied (issue #4).
+- ✅ `NfeConsultaCadastro` (`CadConsultaCadastro4`) — consult a taxpayer's
   registration by CNPJ/CPF/IE per UF. Not every UF offers it; the endpoint
   table must say so.
-- ⬜ Contingency support, explicit, never automatic (AD-005, issue #5):
+- ✅ Contingency support, explicit, never automatic (AD-005, issue #5):
   EPEC (110140) and SVC-AN / SVC-RS endpoint routing selected by `tpEmis`.
-- ⬜ NFC-e 65 transport: model 65 endpoint routing and inutilização (QR code
-  stays in Phase 3).
-- ⬜ Telemetry per operation, UF and `cStat` (issue #6).
-- ⬜ PKCS#12: security review of the in-tree reader; PBES2/AES-256 support so
+- ✅ NFC-e 65 transport: model 65 endpoint routing and inutilização (QR code
+  in Phase 3). NFC-e inutilização could not be verified live (SVRS and SP
+  answer 998 Serviço Desativado).
+- ✅ Telemetry per operation, UF and `cStat` (issue #6). Phase timings are not
+  possible on the default `:httpc` transport and are documented as such.
+- ✅ PKCS#12: security review of the in-tree reader; PBES2/AES-256 support so
   OpenSSL 3 exports load (AD-007 trade-off).
 - ⬜ IBS/CBS events introduced by the reforma tributária NTs (NT 2025.002
   and successors) — inventory from the current NT before building.
@@ -120,7 +122,7 @@ value and `Make` puts it in schema order. AD-001 was amended for this
 
 Model 65 transport (endpoint routing, inutilização) is in Phase 1.
 
-- ⬜ QR code (v2 and the current version) with CSC/`idCSC`; version 3.00
+- ✅ QR code (v2 and the current version) with CSC/`idCSC`; version 3.00
   needs no CSC. `urlChave` table per UF as data (AD-004).
 - ⬜ Cancelamento por substituição (110112).
 - ⬜ Offline contingency (`tpEmis` 9) — signing and later transmission.
