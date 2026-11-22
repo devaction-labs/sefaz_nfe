@@ -7,8 +7,10 @@ defmodule SefazNfe.NFeBuilder do
   library a second fiscal engine. It exists only so the transport can be proven
   end to end without one.
 
-  The numbers here are fixed test values, not a calculation: the ICMS is
-  written, not derived.
+  The numbers here are fixed test values, not a calculation: the taxes are
+  written, not derived. With the default `crt: 3` (Regime Normal) the item
+  carries ICMS 18%, PIS and COFINS; with `crt: 1` (Simples Nacional) it carries
+  ICMSSN102 and PIS/COFINS not taxed, and the ICMS, PIS and COFINS totals are zero.
   """
 
   @homologation_name "NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
@@ -59,6 +61,10 @@ defmodule SefazNfe.NFeBuilder do
     serie = Keyword.get(opts, :serie, 1)
     number = Keyword.get(opts, :number, 1)
     tp_amb = Keyword.get(opts, :tp_amb, 2)
+    crt = Keyword.get(opts, :crt, 3)
+
+    unless crt in [1, 3], do: raise(ArgumentError, "crt must be 1 or 3, got: #{inspect(crt)}")
+
     # The emitter's IE is TIe in the XSD: digits only. "ISENTO" is legal for a
     # recipient and rejected here as cStat 225.
     ie = Keyword.get(opts, :ie, "110042490114")
@@ -83,11 +89,11 @@ defmodule SefazNfe.NFeBuilder do
         ~s(<NFe xmlns="http://www.portalfiscal.inf.br/nfe">) <>
         ~s(<infNFe Id="NFe#{key}" versao="4.00">) <>
         ide(uf_code, c_nf, serie, number, emitted_at, tp_amb, String.last(key), municipality) <>
-        emit(tax_id, ie, uf, municipality, city) <>
+        emit(tax_id, ie, uf, municipality, city, crt) <>
         dest(tp_amb, uf, municipality, city, Keyword.get(opts, :dest_tax_id, "99999999000191")) <>
         aut_xml(Keyword.get(opts, :auth_tax_id)) <>
-        det() <>
-        total() <>
+        det(crt) <>
+        total(crt) <>
         ~s(<transp><modFrete>9</modFrete></transp>) <>
         ~s(<pag><detPag><indPag>0</indPag><tPag>01</tPag><vPag>100.00</vPag></detPag></pag>) <>
         ~s(</infNFe></NFe>)
@@ -165,13 +171,13 @@ defmodule SefazNfe.NFeBuilder do
       ~s(<indPres>1</indPres><procEmi>0</procEmi><verProc>sefaz_nfe</verProc></ide>)
   end
 
-  defp emit(tax_id, ie, uf, municipality, city) do
+  defp emit(tax_id, ie, uf, municipality, city, crt) do
     ~s(<emit><CNPJ>#{tax_id}</CNPJ><xNome>EMPRESA TESTE LTDA</xNome>) <>
       ~s(<xFant>TESTE</xFant>) <>
       ~s(<enderEmit><xLgr>RUA TESTE</xLgr><nro>100</nro><xBairro>CENTRO</xBairro>) <>
       ~s(<cMun>#{municipality}</cMun><xMun>#{city}</xMun><UF>#{uf}</UF><CEP>01001000</CEP>) <>
       ~s(<cPais>1058</cPais><xPais>BRASIL</xPais></enderEmit>) <>
-      ~s(<IE>#{ie}</IE><CRT>3</CRT></emit>)
+      ~s(<IE>#{ie}</IE><CRT>#{crt}</CRT></emit>)
   end
 
   # A CPF recipient is a natural person, so the document goes out as CPF and
@@ -186,21 +192,31 @@ defmodule SefazNfe.NFeBuilder do
       ~s(<indIEDest>9</indIEDest></dest>)
   end
 
-  defp det do
+  defp det(crt) do
     ~s(<det nItem="1"><prod><cProd>001</cProd><cEAN>SEM GTIN</cEAN>) <>
       ~s(<xProd>PRODUTO TESTE</xProd><NCM>84713012</NCM><CFOP>5102</CFOP>) <>
       ~s(<uCom>UN</uCom><qCom>1.0000</qCom><vUnCom>100.0000000000</vUnCom>) <>
       ~s(<vProd>100.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib>) <>
       ~s(<qTrib>1.0000</qTrib><vUnTrib>100.0000000000</vUnTrib><indTot>1</indTot></prod>) <>
       ~s(<imposto>) <>
-      ~s(<ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC>) <>
+      item_taxes(crt) <>
+      ibs_cbs() <>
+      ~s(</imposto></det>)
+  end
+
+  defp item_taxes(3) do
+    ~s(<ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC>) <>
       ~s(<vBC>100.00</vBC><pICMS>18.00</pICMS><vICMS>18.00</vICMS></ICMS00></ICMS>) <>
       ~s(<PIS><PISAliq><CST>01</CST><vBC>100.00</vBC><pPIS>1.65</pPIS><vPIS>1.65</vPIS>) <>
       ~s(</PISAliq></PIS>) <>
       ~s(<COFINS><COFINSAliq><CST>01</CST><vBC>100.00</vBC><pCOFINS>7.60</pCOFINS>) <>
-      ~s(<vCOFINS>7.60</vCOFINS></COFINSAliq></COFINS>) <>
-      ibs_cbs() <>
-      ~s(</imposto></det>)
+      ~s(<vCOFINS>7.60</vCOFINS></COFINSAliq></COFINS>)
+  end
+
+  defp item_taxes(1) do
+    ~s(<ICMS><ICMSSN102><orig>0</orig><CSOSN>102</CSOSN></ICMSSN102></ICMS>) <>
+      ~s(<PIS><PISNT><CST>07</CST></PISNT></PIS>) <>
+      ~s(<COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS>)
   end
 
   # NT 2025.002 (reforma tributária) requires the IBS/CBS group per item from
@@ -231,12 +247,18 @@ defmodule SefazNfe.NFeBuilder do
       ~s(</IBSCBSTot>)
   end
 
-  defp total do
-    ~s(<total><ICMSTot><vBC>100.00</vBC><vICMS>18.00</vICMS><vICMSDeson>0.00</vICMSDeson>) <>
+  defp total(crt) do
+    {v_bc, v_icms, v_pis, v_cofins} =
+      case crt do
+        3 -> {"100.00", "18.00", "1.65", "7.60"}
+        1 -> {"0.00", "0.00", "0.00", "0.00"}
+      end
+
+    ~s(<total><ICMSTot><vBC>#{v_bc}</vBC><vICMS>#{v_icms}</vICMS><vICMSDeson>0.00</vICMSDeson>) <>
       ~s(<vFCP>0.00</vFCP><vBCST>0.00</vBCST><vST>0.00</vST><vFCPST>0.00</vFCPST>) <>
       ~s(<vFCPSTRet>0.00</vFCPSTRet><vProd>100.00</vProd><vFrete>0.00</vFrete>) <>
       ~s(<vSeg>0.00</vSeg><vDesc>0.00</vDesc><vII>0.00</vII><vIPI>0.00</vIPI>) <>
-      ~s(<vIPIDevol>0.00</vIPIDevol><vPIS>1.65</vPIS><vCOFINS>7.60</vCOFINS>) <>
+      ~s(<vIPIDevol>0.00</vIPIDevol><vPIS>#{v_pis}</vPIS><vCOFINS>#{v_cofins}</vCOFINS>) <>
       ~s(<vOutro>0.00</vOutro><vNF>100.00</vNF></ICMSTot>) <>
       ibs_cbs_total() <>
       ~s(</total>)
