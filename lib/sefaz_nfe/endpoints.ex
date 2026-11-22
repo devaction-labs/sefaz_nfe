@@ -244,6 +244,29 @@ defmodule SefazNfe.Endpoints do
   def qr_code_url(uf, environment), do: nfce_address("qr_code", :qr_code, uf, environment)
 
   @doc """
+  The CT-e QR code base address (`infCTeSupl/qrCodCTe`) for `uf`.
+
+  It is the portal of the authorizer that serves the emitting UF (SVRS for BA,
+  SVSP for PE, the UF's own for MG, MS, MT, PR, RS and SP), per environment, as
+  NFePHP does; the same one is used when the document is sent through an SVC.
+  Returned as published: the case of the path differs between portals and the
+  MOC says it is not validated.
+  """
+  @spec cte_qr_code_url(String.t() | atom(), environment()) ::
+          {:ok, String.t()} | {:error, term()}
+  def cte_qr_code_url(uf, environment) when environment in [:homologation, :production] do
+    uf = normalize_uf(uf)
+    authorizer = authorizer_for(@cte_snapshot, uf, :cte_consulta)
+
+    case get_in(@cte_snapshot, ["qr_code", authorizer, environment_key(environment)]) do
+      url when is_binary(url) and url != "" -> {:ok, url}
+      _ -> {:error, {:unknown_endpoint, uf, :cte_qr_code}}
+    end
+  end
+
+  def cte_qr_code_url(_uf, environment), do: {:error, {:invalid_environment, environment}}
+
+  @doc """
   The "consulta pela chave" address of `uf` for model 65, which `urlChave` and
   the DANFCE carry.
 

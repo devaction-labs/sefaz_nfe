@@ -10,8 +10,11 @@ defmodule SefazNfe.Telemetry do
   One span around every public operation of `SefazNfe`: `:authorize`,
   `:authorization_result`, `:service_status`, `:consult_protocol`, `:cancel`,
   `:cce`, `:manifest`, `:void_numbers`, `:dist_dfe`, `:consult_taxpayer` and
-  `:epec`; `SefazNfe.CTe` and `SefazNfe.MDFe` add `:cte_service_status` (model
-  57, or 67) and `:mdfe_service_status` (model 58). It covers the whole call,
+  `:epec`; `SefazNfe.CTe` adds `:cte_authorize`, `:cte_consult`,
+  `:cte_service_status`, `:cte_cancel`, `:cte_cce`, `:cte_delivery_proof`,
+  `:cte_cancel_delivery_proof`, `:cte_delivery_failure` and
+  `:cte_cancel_delivery_failure` (model 57, or 67), and `SefazNfe.MDFe` adds
+  `:mdfe_service_status` (model 58). It covers the whole call,
   so an answer refused before the network
   (a missing key, a bad CNPJ, `tpAmb` against `:environment`) still emits
   `:start` and `:stop`, with the failure as `:outcome`: callers can count
@@ -33,8 +36,9 @@ defmodule SefazNfe.Telemetry do
       access key for `:consult_protocol`, `:cancel` and `:cce`, from `:model`
       (default 55) for the services that take no document. `nil` where it does
       not apply (`:dist_dfe`, `:consult_taxpayer`);
-    * `:contingency` - `nil | :svc_an | :svc_rs | :epec`. For `:authorize` it
-      follows `tpEmis` (6, 7 and 4); `:epec` is the EPEC event itself; the rest
+    * `:contingency` - `nil | :svc_an | :svc_rs | :svc_sp | :epec`. For
+      `:authorize` it follows `tpEmis` (6, 7 and 4) and for `:cte_authorize`
+      too (7 is SVC-RS, 8 is SVC-SP); `:epec` is the EPEC event itself; the rest
       take the caller's `:contingency` option. Never inferred from an access key.
 
   `:stop` carries the same keys and adds:
@@ -139,7 +143,16 @@ defmodule SefazNfe.Telemetry do
 
   @an_operations [:dist_dfe, :manifest, :epec]
   @environments [:production, :homologation]
-  @contingencies [:svc_an, :svc_rs]
+  @contingencies [:svc_an, :svc_rs, :svc_sp]
+  @cte_key_operations [
+    :cte_consult,
+    :cte_cancel,
+    :cte_cce,
+    :cte_delivery_proof,
+    :cte_cancel_delivery_proof,
+    :cte_delivery_failure,
+    :cte_cancel_delivery_failure
+  ]
 
   @doc "Every event name this library emits."
   @spec events() :: [[atom()]]
@@ -220,6 +233,23 @@ defmodule SefazNfe.Telemetry do
   end
 
   defp model(:manifest, _opts), do: 55
+
+  defp model(:cte_authorize, opts) do
+    case cte_tag(opts, "mod", [:ide, :mod]) do
+      "57" -> 57
+      "67" -> 67
+      _ -> nil
+    end
+  end
+
+  defp model(operation, opts) when operation in @cte_key_operations do
+    case Map.get(opts, :ch_cte) do
+      <<_::binary-size(20), "57", _::binary>> -> 57
+      <<_::binary-size(20), "67", _::binary>> -> 67
+      _ -> nil
+    end
+  end
+
   defp model(:mdfe_service_status, _opts), do: 58
 
   defp model(:cte_service_status, opts) do
@@ -240,6 +270,14 @@ defmodule SefazNfe.Telemetry do
 
   defp contingency(:epec, _opts), do: :epec
 
+  defp contingency(:cte_authorize, opts) do
+    case cte_tag(opts, "tpEmis", [:ide, :tp_emis]) do
+      "7" -> :svc_rs
+      "8" -> :svc_sp
+      _ -> nil
+    end
+  end
+
   defp contingency(:authorize, opts) do
     case xml_tag(Map.get(opts, :xml), "tpEmis") do
       "4" -> :epec
@@ -255,6 +293,21 @@ defmodule SefazNfe.Telemetry do
     case Map.get(opts, :contingency) do
       svc when svc in @contingencies -> svc
       _ -> nil
+    end
+  end
+
+  # A CT-e is given as `:xml` or as the `:cte` map the builder takes; either
+  # way the value is read without parsing anything.
+  defp cte_tag(opts, tag, path) do
+    case opts do
+      %{xml: xml} when is_binary(xml) ->
+        xml_tag(xml, tag)
+
+      %{cte: %{} = cte} ->
+        cte |> get_in(path) |> then(&if(is_nil(&1), do: nil, else: to_string(&1)))
+
+      _ ->
+        nil
     end
   end
 

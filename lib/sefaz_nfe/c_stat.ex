@@ -11,7 +11,7 @@ defmodule SefazNfe.CStat do
   |--------|-------|-----|
   | `:authorized` | 100, 150 | NF-e authorized (150: outside the deadline) |
   | | 102 | number range voided (inutilização homologada) |
-  | | 135, 136, 155 | event registered (155: cancellation homologated outside the deadline) |
+  | | 134, 135, 136, 155 | event registered (134: with a warning about the document's situation; 155: cancellation homologated outside the deadline) |
   | | 124 | EPEC authorized |
   | `:denied` | 110, 301, 302, 303 | uso denegado: the document exists and must be stored; the number is consumed, never retry with it and never reuse it |
   | `:cancelled` | 101, 151 | a consultation found the NF-e cancelled |
@@ -23,6 +23,16 @@ defmodule SefazNfe.CStat do
   | | 656 | consumo indevido: wait at least 1 hour before asking again |
   | | 999 | uncatalogued error on SEFAZ's side |
   | `:rejected` | every other code | 200..999 (minus the above) and any unknown 1xx: definitive, fix the document and send again |
+
+  ## CT-e (models 57 and 67)
+
+  The CT-e MOC 4.00 uses the same codes with the same consequence (100, 101,
+  110, 134, 135, 136, 107, 108, 109 and 301 included) except one:
+  678 is "Consumo Indevido" for CT-e, where for NF-e it is an ordinary
+  rejection (NF referenciada com UF diferente). `classify/1` cannot tell them
+  apart, so `classify/2` takes the model: 678 under 57 or 67 is `:retryable`
+  (wait about an hour, like 656), and every other code is `classify/1`.
+  `SefazNfe.CTe` classifies with it.
 
   On `:retryable` the same request may be sent again later, unchanged. For an
   authorization, consult by key first: SEFAZ may have processed the document
@@ -42,7 +52,7 @@ defmodule SefazNfe.CStat do
           | :retryable
           | :rejected
 
-  @authorized [100, 102, 124, 135, 136, 150, 155]
+  @authorized [100, 102, 124, 134, 135, 136, 150, 155]
   @denied [110, 301, 302, 303]
   @cancelled [101, 151]
   @batch_processed [104, 128]
@@ -61,4 +71,12 @@ defmodule SefazNfe.CStat do
   def classify(105), do: :processing
   def classify(c_stat) when c_stat in @retryable, do: :retryable
   def classify(c_stat) when is_integer(c_stat) and c_stat > 0, do: :rejected
+
+  @doc """
+  `classify/1` for a document model. Only CT-e (57, 67) differs: 678 is
+  `:retryable` there (Consumo Indevido). See the moduledoc.
+  """
+  @spec classify(pos_integer(), pos_integer()) :: status()
+  def classify(678, model) when model in [57, 67], do: :retryable
+  def classify(c_stat, _model), do: classify(c_stat)
 end

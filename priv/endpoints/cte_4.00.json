@@ -1,5 +1,5 @@
 {
-  "source": "Official CT-e portal https://www.cte.fazenda.gov.br/portal/webServices.aspx (production) and https://hom.cte.fazenda.gov.br/portal/webServices.aspx (homologation), fetched 2026-11-22; cross-checked against nfephp-org/sped-cte storage/wscte_4.00_mod57.xml and wscte_4.00_mod67.xml. Models 57 and 67 share the authorizers: model 57 sends through cte_recepcao_sinc, model 67 through cte_recepcao_os. uf_contingency: SVCSP (SVC-SP) serves the UFs authorized by SVRS, MG, PR and RS; SVCRS (SVC-RS) those authorized by SVSP, MT, MS and SP. contingency_authorizer names the table each SVC is served from (SVC-SP on the SVSP endpoints, SVC-RS on the SVRS ones). CTeRecepcaoSimpV4 and CTeRecepcaoGTVeV4 are not carried.",
+  "source": "Official CT-e portal https://www.cte.fazenda.gov.br/portal/webServices.aspx (production) and https://hom.cte.fazenda.gov.br/portal/webServices.aspx (homologation), fetched 2026-11-22; cross-checked against nfephp-org/sped-cte storage/wscte_4.00_mod57.xml and wscte_4.00_mod67.xml. Models 57 and 67 share the authorizers: model 57 sends through cte_recepcao_sinc, model 67 through cte_recepcao_os. uf_contingency: SVCSP (SVC-SP) serves the UFs authorized by SVRS, MG, PR and RS; SVCRS (SVC-RS) those authorized by SVSP, MT, MS and SP. contingency_authorizer names the table each SVC is served from (SVC-SP on the SVSP endpoints, SVC-RS on the SVRS ones). CTeRecepcaoSimpV4 and CTeRecepcaoGTVeV4 are not carried. qr_code: the infCTeSupl/qrCodCTe base address per authorizer and environment, as listed on https://dfe-portal.svrs.rs.gov.br/CTe/Servicos (fetched 2026-11-22) and in nfephp-org/sped-cte storage/wscte_4.00_mod57.xml (identical in mod67); it is the portal of the authorizer that serves the emitting UF, also when the document goes through an SVC.",
   "snapshot_date": "2026-11-22",
   "layout": "4.00",
   "family": "cte",
@@ -68,6 +68,40 @@
   "contingency_authorizer": {
     "SVCSP": "SVSP",
     "SVCRS": "SVRS"
+  },
+  "qr_code": {
+    "MG": {
+      "homologation": "https://portalcte.fazenda.mg.gov.br/portalcte/sistema/qrcode.xhtml",
+      "production": "https://portalcte.fazenda.mg.gov.br/portalcte/sistema/qrcode.xhtml"
+    },
+    "MS": {
+      "homologation": "http://www.dfe.ms.gov.br/cte/qrcode",
+      "production": "http://www.dfe.ms.gov.br/cte/qrcode"
+    },
+    "MT": {
+      "homologation": "https://homologacao.sefaz.mt.gov.br/cte/qrcode",
+      "production": "https://www.sefaz.mt.gov.br/cte/qrcode"
+    },
+    "PR": {
+      "homologation": "http://www.fazenda.pr.gov.br/cte/qrcode",
+      "production": "http://www.fazenda.pr.gov.br/cte/qrcode"
+    },
+    "RS": {
+      "homologation": "https://dfe-portal.svrs.rs.gov.br/cte/qrCode",
+      "production": "https://dfe-portal.svrs.rs.gov.br/cte/qrCode"
+    },
+    "SP": {
+      "homologation": "https://homologacao.nfe.fazenda.sp.gov.br/CTeConsulta/qrCode",
+      "production": "https://nfe.fazenda.sp.gov.br/CTeConsulta/qrCode"
+    },
+    "SVRS": {
+      "homologation": "https://dfe-portal.svrs.rs.gov.br/cte/qrCode",
+      "production": "https://dfe-portal.svrs.rs.gov.br/cte/qrCode"
+    },
+    "SVSP": {
+      "homologation": "https://homologacao.nfe.fazenda.sp.gov.br/CTeConsulta/qrCode",
+      "production": "https://nfe.fazenda.sp.gov.br/CTeConsulta/qrCode"
+    }
   },
   "authorizers": {
     "MG": {
