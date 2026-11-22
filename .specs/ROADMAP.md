@@ -168,6 +168,17 @@ SEFAZ-PE GNRE portal, the state payment guide.
 - ⬜ NFS-e padrão nacional (ADN): REST + JSON, not SOAP — probably its own
   package on top of the shared certificate/signing core.
 
+## After Phase 2 — fiscal-gateway API in Elixir (separate project)
+
+A new Phoenix application on top of this library, exposing the **same HTTP
+contract** as `fiscal-gateway`, so a client migrates by pointing at another
+domain. The gateway's Scramble OpenAPI document (`/docs/api`) is the contract
+and is checked by contract tests. Host-side concerns live there: numbering,
+idempotency, webhooks (same HMAC and event names), tenancy, queues, storage,
+e-mail, contingency policy. Open question: whether clients use the gateway's
+`computed` tax mode — a tax engine is allowed in the app (AD-001 binds the
+library only) but sizes the project.
+
 ## Open decisions
 
 All three resolved by the maintainer on 2026-11-22.

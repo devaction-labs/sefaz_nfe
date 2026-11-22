@@ -193,6 +193,22 @@
 - **Date**: 2026-11-22
 - **Status**: active
 
+### AD-024
+- **Decision**: The NF-e builder is data-driven. `mix sefaz.gen_layout PATH` compiles the official PL package (leiauteNFe + tipos) into an ordered layout tree committed under `priv/layouts/`; the builder and its parser walk that tree.
+- **Reason**: PL_010 is ~7.7k lines with 44 choices and moves with every NT. One hand-written function per group (NFePHP `Make`) must be re-read against the XSD each time; a generated layout is refreshed by re-running the task. It also gives XSD-equivalent validation without `:xmerl_xsd`, which cannot compile PL_010.
+- **Trade-off**: A small XSD-subset compiler to maintain (sequence, choice, occurs, attributes, simple-type facets). The XSDs stay unvendored (AD-015); only the generated tree ships.
+- **Scope**: `SefazNfe.Layout`, `SefazNfe.Builder`, `Mix.Tasks.Sefaz.GenLayout`
+- **Date**: 2026-11-22
+- **Status**: active
+
+### AD-025
+- **Decision**: Builder input mirrors the layout: snake_case XSD names (AD-008), lists for `maxOccurs > 1`, choices selected explicitly by element (`icms: %{icms00: ...}`), strings/integers/`Decimal` leaves formatted without rounding, floats refused, errors collected with paths.
+- **Reason**: The builder must be debuggable against the MOC and must not embed business rules; inferring an ICMS variant from a CST, or rounding a value, would be both. The HTTP contract of `fiscal-gateway` is the job of the API built on top, not of the library.
+- **Trade-off**: Hosts map their own payload to the layout shape once. `Decimal` becomes an optional dependency.
+- **Scope**: `SefazNfe.Builder`
+- **Date**: 2026-11-22
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: Phase 1 of `.specs/ROADMAP.md` (`Tools` parity for NF-e 55 plus NFC-e transport)
