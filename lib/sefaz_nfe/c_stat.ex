@@ -24,8 +24,11 @@ defmodule SefazNfe.CStat do
   | | 999 | uncatalogued error on SEFAZ's side |
   | `:rejected` | every other code | 200..999 (minus the above) and any unknown 1xx: definitive, fix the document and send again |
 
-  The same document is never resent unchanged on `:retryable`, but it may be
-  asked about again; on `:rejected` the request itself is wrong.
+  On `:retryable` the same request may be sent again later, unchanged. For an
+  authorization, consult by key first: SEFAZ may have processed the document
+  despite the answer, and a resend would then come back as 204 (duplicidade).
+  On `:rejected` the request itself is wrong and must change before it is sent
+  again.
   """
 
   @type status ::
