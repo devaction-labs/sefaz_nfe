@@ -52,13 +52,15 @@ defmodule SefazNfe.Layout.Generator do
   `snake_case/1` turns an XSD name into the key hosts write in their input
   map. The algorithm:
 
-    1. `NFe` is treated as one acronym (`NFE`).
+    1. `NFe`, `DFe` and `CTe` are treated as one acronym (`NFE`, `DFE`, `CTE`).
     2. The name is cut into runs of capitals, of lowercase letters and of
        digits; digits stay attached to the run before them.
-    3. A run of capitals followed by lowercase gives its last capital to the
-       next word (`ICMSUFDest` is `ICMSUF` + `Dest`). That head is then split
-       on known acronyms (`@acronyms`) when it is made only of them; a run at
-       the end of the name is never split.
+    3. A run of capitals is always split on the known acronyms (`@acronyms`)
+       when it decomposes completely into them; otherwise it stays one token.
+       Digits stay attached to the token before them. When lowercase follows
+       the run, its last capital belongs to the next word (`ICMSUFDest` is
+       `ICMSUF` + `Dest`) unless the whole run is itself made of acronyms
+       (`ISSQNtot` is `ISSQN` + `tot`).
     4. Words are lowercased and joined with `_`.
 
   | XSD name        | key               |
@@ -66,13 +68,15 @@ defmodule SefazNfe.Layout.Generator do
   | `vICMSUFDest`   | `v_icms_uf_dest`  |
   | `CNPJ`          | `cnpj`            |
   | `ICMS00`        | `icms00`          |
-  | `ICMSSN102`     | `icmssn102`       |
+  | `ICMSSN102`     | `icms_sn102`      |
+  | `ICMSST`        | `icms_st`         |
   | `infNFeSupl`    | `inf_nfe_supl`    |
   | `xPed`          | `x_ped`           |
   | `nItemPed`      | `n_item_ped`      |
-  | `IBSCBS`        | `ibscbs`          |
-  | `gIBSCBS`       | `g_ibscbs`        |
-  | `vIBSUF`        | `v_ibsuf`         |
+  | `IBSCBS`        | `ibs_cbs`         |
+  | `gIBSCBS`       | `g_ibs_cbs`       |
+  | `IBSCBSTot`     | `ibs_cbs_tot`     |
+  | `vIBSUF`        | `v_ibs_uf`        |
   | `vBCSTDest`     | `v_bc_st_dest`    |
   | `ISSQNtot`      | `issqn_tot`       |
   | `CNPJBasePSP`   | `cnpj_base_psp`   |
@@ -133,7 +137,7 @@ defmodule SefazNfe.Layout.Generator do
     "time" => :time
   }
 
-  @acronyms ~w(ISSQN COFINS NFE ICMS CNPJ CFOP CEST CSLL CIDE IRRF FCP IBS CBS IPI PIS CST CPF EAN NCM CRT MVA IOF ANP GLP BC ST UF IS SN NF IE)
+  @acronyms ~w(ISSQN COFINS NFE ICMS CNPJ CFOP CEST CSLL CIDE IRRF FCP IBS CBS IPI PIS CST CPF EAN NCM CRT MVA IOF ANP GLP BC ST UF IS SN NF IE NT PAA FG ZFM ALC DFE CTE)
             |> Enum.sort_by(&{-String.length(&1), &1})
 
   @facet_ints %{
@@ -632,7 +636,12 @@ defmodule SefazNfe.Layout.Generator do
   @spec snake_case(String.t()) :: String.t()
   def snake_case(name) do
     ~r/[A-Z]+[0-9]*|[a-z]+[0-9]*|[0-9]+/
-    |> Regex.scan(String.replace(name, "NFe", "NFE"))
+    |> Regex.scan(
+      name
+      |> String.replace("NFe", "NFE")
+      |> String.replace("DFe", "DFE")
+      |> String.replace("CTe", "CTE")
+    )
     |> List.flatten()
     |> words()
     |> Enum.map_join("_", &String.downcase/1)
@@ -649,7 +658,21 @@ defmodule SefazNfe.Layout.Generator do
     end
   end
 
+  defp words([<<first, _::binary>> = upper | rest]) when first in ?A..?Z do
+    {letters, digits} = split_digits(upper)
+
+    case segment(letters) do
+      nil -> [upper | words(rest)]
+      parts -> List.update_at(parts, -1, &(&1 <> digits)) ++ words(rest)
+    end
+  end
+
   defp words([word | rest]), do: [word | words(rest)]
+
+  defp split_digits(word) do
+    [letters, digits] = Regex.run(~r/\A([A-Z]*)([0-9]*)\z/, word, capture: :all_but_first)
+    {letters, digits}
+  end
 
   defp digit_end?(word), do: String.last(word) in ~w(0 1 2 3 4 5 6 7 8 9)
 

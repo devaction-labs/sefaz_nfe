@@ -105,7 +105,7 @@ defmodule SefazNfe.LayoutTest do
 
     assert hd(variant_tags) == "ICMS00"
     assert variants |> Enum.map(& &1.key) |> Enum.take(3) == [:icms00, :icms02, :icms10]
-    assert :icmssn102 in Enum.map(variants, & &1.key)
+    assert :icms_sn102 in Enum.map(variants, & &1.key)
   end
 
   test "a sequence nested in a choice and a choice nested in a sequence are kept" do
@@ -156,13 +156,13 @@ defmodule SefazNfe.LayoutTest do
   end
 
   test "IBS/CBS groups from NT 2025.002 are present" do
-    assert %{kind: :element, key: :ibscbs} = find!([:inf_nfe, :det, :imposto, :ibscbs])
+    assert %{kind: :element, key: :ibs_cbs} = find!([:inf_nfe, :det, :imposto, :ibs_cbs])
     assert "IBSCBS" in tags(find!([:inf_nfe, :det, :imposto]))
-    assert "gIBSCBS" in tags(find!([:inf_nfe, :det, :imposto, :ibscbs]))
+    assert "gIBSCBS" in tags(find!([:inf_nfe, :det, :imposto, :ibs_cbs]))
 
-    g_ibscbs = find!([:inf_nfe, :det, :imposto, :ibscbs, :g_ibscbs])
+    g_ibscbs = find!([:inf_nfe, :det, :imposto, :ibs_cbs, :g_ibs_cbs])
 
-    for key <- [:v_bc, :g_ibsuf, :g_ibs_mun, :v_ibs, :g_cbs] do
+    for key <- [:v_bc, :g_ibs_uf, :g_ibs_mun, :v_ibs, :g_cbs] do
       assert Enum.any?(Layout.elements(g_ibscbs), &(&1.key == key)), "missing #{key}"
     end
 
