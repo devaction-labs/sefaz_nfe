@@ -8,16 +8,16 @@ The NFePHP map, and where each piece lands here:
 
 | NFePHP | Role | Here |
 |---|---|---|
-| `sped-common` | certificate, signer, SOAP, C14N | done, inside `sefaz_nfe` (see D2) |
+| `sped-common` | certificate, signer, SOAP, C14N | done, inside `sefaz_nfe` (AD-022) |
 | `sped-nfe` `Tools` | every NF-e webservice and event | Phase 1 |
-| `sped-nfe` `Make` / `Complements` / `Standardize` | typed XML builder, `nfeProc`, XML → data | Phase 2 (needs D1) |
+| `sped-nfe` `Make` / `Complements` / `Standardize` | typed XML builder, `nfeProc`, XML → data | Phase 2 (AD-021) |
 | `sped-nfe` NFC-e bits | QR code, CSC, offline contingency | Phase 3 |
 | `sped-da` | DANFE, DANFCE, DACCE, event PDFs | Phase 4, separate package |
 | `sped-cte`, `sped-mdfe` | CT-e 57/67, MDF-e 58 | Phase 5 |
 | `sped-nfcom`, `sped-bpe`, NFS-e | other models | Phase 6 |
 | `sped-ibpt`, tax tables | tax arithmetic | **never** (AD-001) |
 
-Status legend: ✅ done · 🔜 next · ⬜ planned · ❓ needs a decision
+Status legend: ✅ done · 🔜 next · ⬜ planned
 
 ## Phase 0 — close v0.1 (now)
 
@@ -56,12 +56,11 @@ Every webservice and event a modelo 55 issuer or recipient can call.
 - ⬜ Optional live conformance job in CI (manual dispatch, homologação,
   secrets held by the maintainer) running the lifecycle script.
 
-## Phase 2 — build and read documents ❓ D1
+## Phase 2 — build and read documents
 
 NFePHP's `Make` does not calculate taxes either: the caller passes every
-value and `Make` puts it in schema order. That is compatible with the spirit
-of AD-001, but not with its trade-off line ("callers must supply a
-schema-valid XML"), so it needs an amendment first.
+value and `Make` puts it in schema order. AD-001 was amended for this
+(AD-021).
 
 - ⬜ Typed builder for `infNFe` groups (ide, emit, dest, det/prod/imposto,
   total, transp, cobr, pag, infAdic, autXML, IBS/CBS groups), emitted in
@@ -82,12 +81,13 @@ schema-valid XML"), so it needs an amendment first.
 - ⬜ Cancelamento por substituição (110112).
 - ⬜ Offline contingency (`tpEmis` 9) — signing and later transmission.
 
-## Phase 4 — DANFE and friends (separate package) ❓ D3
+## Phase 4 — DANFE and friends (separate package)
 
 - ⬜ `sefaz_da` (name TBD): DANFE (retrato/paisagem), DANFE simplificado,
   DANFCE (80mm/58mm), DACCE, event and inutilização printouts.
 - ⬜ Input is an authorized XML; output is PDF bytes. No SEFAZ calls.
-- ⬜ Barcode (Code 128C for the key) and QR code generated in Elixir.
+- ⬜ Pure Elixir, no external renderer (AD-023). Barcode (Code 128C for the
+  key) and QR code generated in Elixir.
 
 ## Phase 5 — CT-e and MDF-e
 
@@ -109,12 +109,11 @@ Issue #7.
 
 ## Open decisions
 
-- **D1** — Amend AD-001 to allow a structural builder (Phase 2). Proposed:
-  yes; the line that matters is "never computes a tax value or a total",
-  which stays.
-- **D2** — Package layout. Proposed: keep one package until Phase 5, then
-  extract `sefaz_core` (certificate, signer, C14N, SOAP, circuit breaker)
-  and publish `sefaz_nfe`, `sefaz_cte`, `sefaz_mdfe` on top of it, the way
-  `sped-common` underpins the `sped-*` family.
-- **D3** — PDF engine for Phase 4: pure Elixir generation versus an external
-  renderer. A Hex library should not require a headless browser.
+All three resolved by the maintainer on 2026-11-22.
+
+- **D1** — resolved: AD-021. AD-001 amended; a structural builder is
+  allowed, tax values and totals are still never computed.
+- **D2** — resolved: AD-022. One package until Phase 5, then extract
+  `sefaz_core` and publish `sefaz_nfe`, `sefaz_cte`, `sefaz_mdfe` on top.
+- **D3** — resolved: AD-023. DANFE family in pure Elixir, separate package;
+  no headless browser, wkhtmltopdf, NIF or shell-out.

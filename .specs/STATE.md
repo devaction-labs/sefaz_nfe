@@ -8,6 +8,7 @@
 - **Trade-off**: Callers must supply a schema-valid XML (or accept XSD rejection before SOAP).
 - **Scope**: entire library
 - **Date**: 2026-09-07
+- **Amended**: by AD-021 (2026-11-22) — a structural builder is allowed; tax arithmetic is still out.
 - **Status**: active
 
 ### AD-002
@@ -167,11 +168,35 @@
 - **Date**: 2026-11-22
 - **Status**: active
 
+### AD-021
+- **Decision**: AD-001 is amended: the library may ship a structural NF-e builder (NFePHP `Make` equivalent) that places caller-supplied values in schema order, generates `cNF`/`cDV`/`Id`, and assembles `nfeProc`/`procEventoNFe`/`procInutNFe`. It still never computes a tax value or a total — the caller passes every number, including totals.
+- **Reason**: NFePHP's `Make` already works this way and is what makes it the default choice; requiring hand-built XML is the biggest adoption barrier. The risk AD-001 guards against (becoming a second tax engine that drifts with every NT) is about arithmetic, not structure.
+- **Trade-off**: The builder must track schema changes per Pacote de Liberação (layout churn), mitigated by optional XSD validation (AD-015).
+- **Scope**: Phase 2 (`SefazNfe.Make` or similar, name TBD)
+- **Date**: 2026-11-22
+- **Status**: active
+
+### AD-022
+- **Decision**: One package (`sefaz_nfe`) until Phase 5 (CT-e/MDF-e). At that point extract `sefaz_core` (certificate/PKCS#12, signer, C14N, SOAP transport, circuit breaker, endpoints machinery) and publish `sefaz_nfe`, `sefaz_cte`, `sefaz_mdfe` on top of it, the way `sped-common` underpins the `sped-*` family.
+- **Reason**: Splitting before a second model exists means guessing the seam; CT-e is the first real second consumer.
+- **Trade-off**: One later breaking reorganisation of module names for core pieces (plan: keep `SefazNfe.*` aliases/delegates for one minor version).
+- **Scope**: packaging
+- **Date**: 2026-11-22
+- **Status**: active
+
+### AD-023
+- **Decision**: The DANFE family (DANFE, DANFE simplificado, DANFCE, DACCE, event/inutilização printouts) is generated in pure Elixir, in a separate package (Phase 4). No headless browser, no wkhtmltopdf, no NIF, no shell-out.
+- **Reason**: Same as AD-010 / AD-007 — a Hex library must not put a binary on the host's runtime path.
+- **Trade-off**: PDF primitives (text layout, fonts, Code 128C barcode, QR code) must be written or taken from a pure-Elixir dependency, evaluated in Phase 4; layout fidelity to the MOC's DANFE annex is tested by golden PDFs.
+- **Scope**: Phase 4 package
+- **Date**: 2026-11-22
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: transport-mvp (`.specs/features/transport-mvp/`)
 - **Phase / Task**: Done and re-verified 2026-11-22 on OTP 29.1.2 / Elixir 1.20.5 with a real A1. `service_status/1` answers `cStat` 107 on 26 of 27 UFs. SEFAZ BA homologação, série 3: authorize 100, CCe 135, cancel 135, `consult_protocol/1` 100 (can answer 217/494 for a few seconds after authorization), inutilização 102.
 - **Known gaps**: `authorization_result/1` still unexercised against a real receipt (AD-019); AN homologação and SVAN homologação refuse with HTTP 403 (server-side, under investigation); PKCS12 security review pending; Hex 0.1.1 unpublished (issue #13).
-- **Next step**: Publish 0.1.1, then the roadmap in `.specs/ROADMAP.md`.
+- **Next step**: Merge PR #16, tag and publish 0.1.1 (maintainer 2FA), then Phase 1 of `.specs/ROADMAP.md`.
 - **Blockers**: none
 - **Branch**: chore/otp-29-1-live-check

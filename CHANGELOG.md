@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.1
 
 - OTP 29.1 resolves the handshake failure on 20 UFs (OTP-20327). The minimum
   runtime for the per-UF services is now OTP 29.1.
@@ -12,8 +12,6 @@
   The Ambiente Nacional and SVAN homologação endpoints answer 403 server-side.
 - README trust-anchor guidance corrected: the ICP-Brasil v10 root is needed by
   nearly every UF, not only SP and MT; its SHA-256 fingerprint is listed.
-
-## 0.1.1
 
 `:connect_timeout` never left `SefazNfe.authorize/1` and its siblings, so the
 client's 10 second default was the only value there was. Measured against
