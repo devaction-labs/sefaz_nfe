@@ -195,9 +195,9 @@
 
 ## Handoff
 
-- **Feature**: transport-mvp (`.specs/features/transport-mvp/`)
-- **Phase / Task**: Done and re-verified 2026-11-22 on OTP 29.1.2 / Elixir 1.20.5 with a real A1. `service_status/1` answers `cStat` 107 on 26 of 27 UFs. SEFAZ BA homologação, série 3: authorize 100, CCe 135, cancel 135, `consult_protocol/1` 100 (can answer 217/494 for a few seconds after authorization), inutilização 102.
-- **Known gaps**: `authorization_result/1` still unexercised against a real receipt (AD-019); AN homologação and SVAN homologação refuse with HTTP 403 (server-side, under investigation); PKCS12 security review pending; Hex 0.1.1 unpublished (issue #13).
-- **Next step**: Merge PR #16, tag and publish 0.1.1 (maintainer 2FA), then Phase 1 of `.specs/ROADMAP.md`.
+- **Feature**: Phase 1 of `.specs/ROADMAP.md` (`Tools` parity for NF-e 55 plus NFC-e transport)
+- **Phase / Task**: Phase 1 complete, release 0.2.0 prepared (PR `release/0.2.0`). Verified live in homologação on OTP 29.1.2 with a real A1: `service_status/1` 107 on 26/27 UFs (model 55) and 27/27 (model 65); `consult_taxpayer` on the 25 UFs that offer it; NFC-e on BA (authorize 100 with QR 3.00, consult 100, cancel 135); SVC-RS for BA (authorize 100, consult 100, cancel 135).
+- **Known gaps**: not verifiable live: SVC-AN, EPEC, DistDFe and manifestação in homologação (AN/SVAN answer HTTP 403 server-side; DistDFe works in production); QR 2.00 (available CSCs rejected as 462, not registered); NFC-e inutilização (SVRS and SP answer 998 Serviço Desativado). `authorization_result/1` still unexercised against a real receipt (AD-019).
+- **Next step**: Merge the release PR, tag and publish 0.2.0 (maintainer 2FA), then Phase 2 (builder, AD-021).
 - **Blockers**: none
-- **Branch**: chore/otp-29-1-live-check
+- **Branch**: release/0.2.0

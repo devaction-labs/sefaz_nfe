@@ -1,5 +1,71 @@
 # Changelog
 
+## 0.2.0
+
+### Breaking changes
+
+- `Certificate.load/2,3`: a wrong or empty password returns
+  `{:error, :invalid_password}` (was `:invalid_certificate`); certificates
+  outside their validity window are refused by default
+  (`{:expired, not_after}` / `{:not_yet_valid, not_before}`; pass
+  `allow_expired: true` to inspect them); new errors `:key_cert_mismatch`,
+  `:multiple_keys`, `{:unsupported_key, _}` and `{:limit_exceeded, _}`.
+- `Result.status` is classified by `SefazNfe.CStat`: 107 is `:in_operation`
+  (was `:rejected`), 110/301/302/303 are `:denied`, 101/151 `:cancelled`, and
+  108/109/656/999 `:retryable`. `%Result{}` gains `:dh_recbto`.
+- `authorize/1` routes by `<mod>` and `tpEmis`: XML without `<mod>` is refused,
+  `tpEmis` 2/3/5 are unsupported, and 4/6/7 require `dhCont` and `xJust`.
+- `Certificate.ssl_options/1` presents the PFX chain as the client chain and no
+  longer adds it to `:cacerts`.
+
+### Added
+
+- `consult_taxpayer` (`CadConsultaCadastro4`), per UF that offers it.
+- NFC-e 65 transport: endpoint routing, QR code 3.00 on-line, and
+  `SefazNfe.NFCe.put_supl`.
+- QR code 2.00 with CSC, on-line and off-line.
+- SVC-AN / SVC-RS routing and the `contingency:` option.
+- EPEC (`epec/1`).
+- Telemetry: `[:sefaz_nfe, :operation | :soap | :circuit_breaker, ...]`, documented
+  in `SefazNfe.Telemetry`.
+- Certificate `not_before`, `not_after` and `tax_id`, plus `expired?/2` and
+  `days_until_expiry/2`.
+
+### Security
+
+The PKCS#12 reader is hardened (PR #25), since the PFX and its password can be
+attacker-controlled in hosts that accept uploads.
+
+- Bounded work: size at most 64 KiB, at most 32 bags, iteration counts capped
+  per call and per PFX, PBKDF2 key length checked, all before any key derivation.
+- The leaf is the certificate whose RSA public key matches the private key;
+  otherwise `:key_cert_mismatch`, `:multiple_keys` or `{:unsupported_key, _}`.
+- Parameters are validated before `:crypto`, and a catch-all never keeps a
+  stacktrace (crypto errors could carry the derived key or the password).
+- Strict PKCS#7 unpadding, unknown PBKDF2 PRFs refused by name, constant-time
+  MAC comparison, lossless UTF-16 password encoding, PFX version 3 only, BER
+  indefinite length refused.
+- The PFX chain is no longer added to `:cacerts`, where it acted as trusted
+  roots for the server.
+
+### Fixed
+
+- Event author uses `<CPF>` for CPF emitters.
+- The circuit breaker is keyed on the upper-cased UF.
+
+### Verified live (homologação, real ICP-Brasil A1, OTP 29.1.2)
+
+`service_status/1` answers 107 on 26 of 27 UFs for model 55 (MA/SVAN answers
+403) and on 27 of 27 for model 65. `consult_taxpayer` was run on the 25 UFs that
+offer it: BA answered 111 with the real record, the others 259 (AM and MA do not
+offer it). NFC-e on BA (SVRS): authorize 100 with the generated QR 3.00,
+consult 100, cancel 135. SVC-RS for BA: authorize 100, consult 100, cancel 135.
+
+Not verifiable live: SVC-AN, EPEC, DistDFe and manifestação in homologação
+(AN/SVAN answer HTTP 403 server-side; DistDFe works in production); QR 2.00 (the
+available CSCs were rejected as 462, not registered); NFC-e inutilização (SVRS
+and SP answer 998 Serviço Desativado).
+
 ## 0.1.1
 
 - OTP 29.1 resolves the handshake failure on 20 UFs (OTP-20327). The minimum
