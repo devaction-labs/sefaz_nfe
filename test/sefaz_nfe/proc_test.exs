@@ -80,13 +80,15 @@ defmodule SefazNfe.ProcTest do
       @behaviour SefazNfe.SOAP
       @impl SefazNfe.SOAP
       def call(_endpoint, body, _cert, _opts) do
-        send(:sefaz_nfe_proc_test, {:sent, IO.iodata_to_binary(body)})
+        sent = IO.iodata_to_binary(body)
+        [_, key] = Regex.run(~r/Id="NFe(\d+)"/, sent)
+        send(:sefaz_nfe_proc_test, {:sent, sent})
 
         {:ok,
          ~s(<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"><soap:Body>) <>
            ~s(<retEnviNFe xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">) <>
            ~s(<cStat>104</cStat><xMotivo>Lote processado</xMotivo>) <>
-           ~s(<protNFe versao="4.00"><infProt><chNFe>35260100000000000191550010000000011000000017</chNFe>) <>
+           ~s(<protNFe versao="4.00"><infProt><chNFe>#{key}</chNFe>) <>
            ~s(<nProt>135260000000001</nProt><cStat>100</cStat>) <>
            ~s(<xMotivo>Autorizado o uso da NF-e</xMotivo></infProt></protNFe>) <>
            ~s(</retEnviNFe></soap:Body></soap:Envelope>)}

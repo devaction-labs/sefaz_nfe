@@ -146,6 +146,46 @@ defmodule SefazNfe.XML do
     element |> xml_element(:attributes) |> Enum.find_value(&match_attribute(&1, attr))
   end
 
+  @doc """
+  The element children of `element`, in document order (text is skipped).
+  """
+  @spec children(doc()) :: [doc()]
+  def children(xml_element(content: content)),
+    do: Enum.filter(content, &Record.is_record(&1, :xmlElement))
+
+  @doc """
+  The namespace URI (`nil` when there is none) and local name of `element`.
+  """
+  @spec qname(doc()) :: {String.t() | nil, String.t()}
+  def qname(xml_element(name: name, expanded_name: expanded)) do
+    case expanded do
+      {uri, local} -> {Atom.to_string(uri), Atom.to_string(local)}
+      _no_namespace -> {nil, name |> Atom.to_string() |> String.split(":") |> List.last()}
+    end
+  end
+
+  @doc """
+  The attributes of `element` as `{name, value}`, in document order, without
+  namespace declarations (`xmlns`, `xmlns:p`).
+  """
+  @spec attributes(doc()) :: [{String.t(), String.t()}]
+  def attributes(xml_element(attributes: attributes)) do
+    for attribute <- attributes,
+        name = Atom.to_string(xml_attribute(attribute, :name)),
+        name != "xmlns" and not String.starts_with?(name, "xmlns:") do
+      {name, attribute |> xml_attribute(:value) |> List.to_string()}
+    end
+  end
+
+  @doc """
+  The text directly inside `element`, exactly as written: not trimmed, entities
+  resolved. Descendant elements are not read.
+  """
+  @spec raw_text(doc()) :: String.t()
+  def raw_text(xml_element(content: content)) do
+    for xml_text(value: value) <- content, into: "", do: IO.chardata_to_string(value)
+  end
+
   defp find(doc, name) do
     doc |> elements() |> Enum.find(&(local_name(&1) == name))
   end

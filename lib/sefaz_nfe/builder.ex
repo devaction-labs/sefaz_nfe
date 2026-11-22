@@ -86,6 +86,7 @@ defmodule SefazNfe.Builder do
 
   alias SefazNfe.Builder.Key
   alias SefazNfe.Builder.Leaf
+  alias SefazNfe.Builder.Parser
   alias SefazNfe.Layout
 
   @declaration ~s(<?xml version="1.0" encoding="UTF-8"?>)
@@ -129,6 +130,58 @@ defmodule SefazNfe.Builder do
   end
 
   def build_nfe(_input, _opts), do: {:error, [{[], :invalid_type}]}
+
+  @doc """
+  Reads an `NFe` or an `nfeProc` back into the map `build_nfe/2` takes
+  (NFePHP's `Standardize`).
+
+  Returns `{:ok, parsed}` with one shape for both documents:
+
+      %{
+        nfe: map,              # the content of infNFe, the builder's input
+        supl: map | nil,       # infNFeSupl (NFC-e QR code), when present
+        protocol: map | nil,   # protNFe, only in an nfeProc
+        signed?: boolean       # a Signature element is present
+      }
+
+  The signature itself is not returned: it is the signed bytes that matter
+  (`SefazNfe.Signer`), never a re-read of them.
+
+  `nfe` is walked with the same layout tree as the builder, so keys are the
+  same snake_case keys, elements with `maxOccurs > 1` are always lists (also
+  with one occurrence), choices are the selected branch's key
+  (`icms: %{icms00: %{...}}`) and an empty element is `true`. Attributes are
+  keys too: `id`, `versao` (`infNFe/@versao`) and `n_item` (`det/@nItem`) are
+  included, as strings, so that `build_nfe(parsed.nfe)` writes the document
+  again, and `parse_nfe(xml).nfe` is exactly the input once its leaves are
+  strings (the generated `c_nf`, `c_dv` and `id` included).
+
+  `protocol` is `protNFe` as a flat map of strings: `:versao`, `:id`, and the
+  `infProt` fields `:tp_amb`, `:ver_aplic`, `:ch_nfe`, `:dh_recbto`, `:n_prot`,
+  `:dig_val`, `:c_stat`, `:x_motivo` (and `:c_msg`, `:x_msg` when present).
+
+  Leaves are the exact XML text (entities resolved, nothing trimmed or
+  converted), so the result is lossless. Reading is by element name inside
+  the NF-e namespace, whatever the prefix. An element the layout does not know
+  (a newer PL) is `{:error, {:unknown_element, path}}`, an attribute
+  `{:error, {:unknown_attribute, path}}`; a second occurrence of an element
+  with `maxOccurs` 1 is `{:error, {:duplicate_element, path}}`. A DTD, a
+  malformed document or a root that is neither `NFe` nor `nfeProc`
+  (`{:unexpected_root, name}`) is an error too.
+
+  ## Options
+
+    * `:strict` - `false` keeps what the layout does not know under
+      `:__unknown__` of the element that holds it (tag, or `"@name"` for an
+      attribute, to raw text; an element with children is a map of its own).
+      Such a map is no longer builder input. Default `true`.
+    * `:decimals` - `true` turns the `TDec*` leaves into `Decimal` and integer
+      leaves into integers (`{:error, :decimal_not_loaded}` when the optional
+      `Decimal` is not available). NF-e leaves other than `TDec*` are text
+      types in the XSD and stay strings. Default `false`.
+  """
+  @spec parse_nfe(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def parse_nfe(xml, opts \\ []) when is_binary(xml), do: Parser.parse(xml, opts)
 
   # Without a key nothing can be generated, and the field that stopped it is
   # already an error of its own; a bare `:required` for what would have been

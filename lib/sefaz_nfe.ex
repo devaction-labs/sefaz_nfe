@@ -16,6 +16,7 @@ defmodule SefazNfe do
   alias SefazNfe.EPEC
   alias SefazNfe.Events
   alias SefazNfe.NFCe
+  alias SefazNfe.Proc
   alias SefazNfe.Result
   alias SefazNfe.Schema
   alias SefazNfe.Signer
@@ -50,7 +51,7 @@ defmodule SefazNfe do
   exists, `:xml` holding the `nfeProc`. Store `:signed_xml` even on a receipt:
   an asynchronous lote answers `cStat` 103 with no protocol, and without those
   bytes the protocol collected later by `authorization_result/1` cannot be
-  attached to anything. `SefazNfe.Result.proc/2` joins the two.
+  attached to anything. `SefazNfe.Proc.nfe_proc/2` joins the two.
 
   `tpAmb` is MOC data rather than a boolean — 1 is produção, 2 is homologação —
   so a mismatch against `:environment` is refused before anything is sent.
@@ -103,7 +104,7 @@ defmodule SefazNfe do
          {:ok, envelope} <- Envelope.wrap(:nfe_autorizacao, message),
          {:ok, body} <- call(url, envelope, opts, :nfe_autorizacao),
          {:ok, result} <- Result.parse(body) do
-      {:ok, %{result | signed_xml: signed, xml: Result.proc(signed, body)}}
+      {:ok, %{result | signed_xml: signed, xml: processed(Proc.nfe_proc(signed, body))}}
     end
   end
 
@@ -430,6 +431,12 @@ defmodule SefazNfe do
   least 15 characters as the MOC requires. The model comes from the key, so an
   NFC-e is cancelled at the NFC-e authorizer. Takes the optional `:contingency`
   described in `consult_protocol/1`.
+
+  Like every event (`cce/1`, `manifest/2`, `epec/1`), the result carries
+  `:signed_xml` (the `evento` sent) and, once SEFAZ registered it (`cStat` 135,
+  136 or 155), `:xml` holding the `procEventoNFe` from
+  `SefazNfe.Proc.event_proc/2`. `SefazNfe.Proc.cancel_register/2` appends the
+  cancellation to the `nfeProc`.
   """
   @spec cancel(map()) :: {:ok, Result.t()} | {:error, term()}
   def cancel(opts) when is_map(opts), do: Telemetry.span(:cancel, opts, &do_cancel/1)
@@ -577,8 +584,9 @@ defmodule SefazNfe do
          {:ok, signed} <- Signer.sign(event, opts.cert, "infEvento", "evento"),
          message = Envelope.send_event(signed, Map.get(opts, :id_lote, "1")),
          {:ok, envelope} <- Envelope.wrap(:nfe_recepcao_evento, message),
-         {:ok, body} <- call(url, envelope, opts, :nfe_recepcao_evento) do
-      Result.parse(body)
+         {:ok, body} <- call(url, envelope, opts, :nfe_recepcao_evento),
+         {:ok, result} <- Result.parse(body) do
+      {:ok, %{result | signed_xml: signed, xml: processed(Proc.event_proc(signed, body))}}
     end
   end
 
@@ -606,6 +614,9 @@ defmodule SefazNfe do
   defaults to 55 and `:year` to the current one; it is the `mod` of the voided
   range and also selects the endpoints, so 65 voids NFC-e numbers at the NFC-e
   authorizer.
+
+  The result carries `:signed_xml` (the `inutNFe` sent) and, on `cStat` 102,
+  `:xml` holding the `procInutNFe` from `SefazNfe.Proc.void_proc/2`.
   """
   @spec void_numbers(map()) :: {:ok, Result.t()} | {:error, term()}
   def void_numbers(opts) when is_map(opts),
@@ -632,10 +643,15 @@ defmodule SefazNfe do
          message = Events.void_numbers(void_opts(opts, uf_code)),
          {:ok, signed} <- Signer.sign(message, opts.cert, "infInut", "inutNFe"),
          {:ok, envelope} <- Envelope.wrap(:nfe_inutilizacao, signed),
-         {:ok, body} <- call(url, envelope, opts, :nfe_inutilizacao) do
-      Result.parse(body)
+         {:ok, body} <- call(url, envelope, opts, :nfe_inutilizacao),
+         {:ok, result} <- Result.parse(body) do
+      {:ok, %{result | signed_xml: signed, xml: processed(Proc.void_proc(signed, body))}}
     end
   end
+
+  # `Result.xml` is the processed document once SEFAZ accepted it, else `nil`.
+  defp processed({:ok, xml}), do: xml
+  defp processed({:error, _reason}), do: nil
 
   defp void_opts(opts, uf_code) do
     Map.merge(opts, %{
