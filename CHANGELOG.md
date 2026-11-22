@@ -1,5 +1,72 @@
 # Changelog
 
+## 0.4.0
+
+### Breaking changes
+
+- The circuit breaker is keyed by the authorizer host (`scheme://host:port` of
+  the endpoint actually called), not by UF. `SefazNfe.CircuitBreaker.check/1`,
+  `record_success/1` and `record_failure/1` take the host, an open breaker
+  returns `{:error, {:circuit_open, host}}` (was the UF), and the SOAP and
+  circuit-breaker telemetry events gain a `host` key (`uf` is kept). One UF now
+  reaches several servers by model, and many UFs share one (SVRS): a down SVRS
+  fails fast for every UF routed there and no longer blocks a UF's NF-e.
+- `CStat.classify(132)` is now `:closed` (MDF-e "Encerramento homologado"); it
+  was `:rejected` before. `classify/2` (code and model) is new, and
+  `classify(134)` is `:authorized`.
+
+Endpoint functions (`Endpoints.url/4`, `contingency_for/2`,
+`contingency_url/4`, `operation/3`) gained a trailing `model` argument that
+defaults to 55, so NF-e callers are unaffected. `%Result{}` is unchanged.
+
+### Added
+
+- One package (AD-026, superseding AD-022): CT-e and MDF-e live in
+  `SefazNfe.CTe` and `SefazNfe.MDFe` on the same core (certificate, signer,
+  C14N, SOAP, breaker, telemetry, layout generator, builder).
+- `SefazNfe.CTe` (CT-e 57 and CT-e OS 67): `authorize/1` (synchronous, from a
+  map or XML, with the QR code and base64(gzip) transport), `consult/1`,
+  `service_status/1`, contingency SVC-SP and SVC-RS (`tpEmis` 8 and 7, explicit
+  and validated per UF), `cancel/1`, structured `cce/1`, comprovante de entrega
+  and its cancellation (110180/110181) and insucesso de entrega and its
+  cancellation (110190/110191). `SefazNfe.CTe.Proc` assembles `cteProc`,
+  `cteOSProc`, the event proc and the cancel register.
+- `SefazNfe.MDFe` (MDF-e 58): `authorize/1` (with `infMDFeSupl` QR code and the
+  contingency signature), `consult/1`, `pending/1` (não encerrados),
+  `service_status/1`, `cancel/1`, `close/1` (encerramento), `include_driver/1`
+  (inclusão de condutor) and `include_dfe/1` (inclusão de DF-e). `Proc` gains
+  the MDF-e procs and registers.
+- Endpoint tables for CT-e (`cte_4.00.json`, models 57 and 67) and MDF-e
+  (`mdfe_3.00.json`), taken from the official portals; `mix sefaz.endpoints`
+  audits all four tables.
+- Layouts for CT-e, CT-e OS and MDF-e and their road modals, and
+  `Builder.build_cte/2`, `build_cte_os/2`, `build_mdfe/2` with
+  `parse_cte/2`, `parse_cte_os/2`, `parse_mdfe/2`. Access keys for models 57,
+  67 and 58.
+- Layout generator: `xs:any` as a `:any` node, untyped elements as free-text
+  leaves, and `--element` for global elements with anonymous types.
+
+### Verified
+
+Live in homologação with a real ICP-Brasil A1:
+
+- `service_status` 107 on 27 of 27 UFs for CT-e 57, CT-e OS 67 and MDF-e 58.
+- MDF-e built from a map: authorize 100, consult 100, pending 111/112,
+  inclusão de condutor 135, encerramento 135, consult 132.
+- CT-e built from a map reached 203 (emitter not credentialed for CT-e):
+  schema, signature, QR code and gzip transport were accepted. Consult and
+  cancel answered 217 and were parsed; SVC-RS status 107; SVC-SP for BA 114.
+  A 100 needs a credentialed emitter.
+
+Golden tests: the builder's canonical `infCte` and `infMDFe` equal
+fiscal-gateway's NFePHP output for 10 documents. One NFePHP defect was found:
+a vehicle owner with a UF and no IE produces an invalid `prop`; the builder
+refuses it.
+
+Tests that depend on the PL XSDs read `SEFAZ_NFE_CTE_PL_PATH` (e.g.
+`PL_CTe_400_RTC`) and `SEFAZ_NFE_MDFE_PL_PATH` (e.g. `PL_MDFe_300b`) and skip
+without them.
+
 ## 0.3.0
 
 ### Breaking changes

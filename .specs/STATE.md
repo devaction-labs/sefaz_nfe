@@ -220,10 +220,10 @@
 
 ## Handoff
 
-- **Feature**: Phase 2 of `.specs/ROADMAP.md` (build and read documents: NF-e builder, access key, `Proc`, `parse_nfe`)
-- **Phase / Task**: Phase 2 complete, release 0.3.0 prepared (PR `release/0.3.0`). Verified live in SEFAZ-BA homologação with documents built from maps: NF-e 55 authorize 100 / cancel 135 and NFC-e 65 authorize 100 (generated QR 3.00) / cancel 135. Golden tests: the builder's canonical `infNFe` equals fiscal-gateway's NFePHP output for 11 payloads.
-- **Known gaps**: golden coverage missing ICMS 30/51/70/90, ISSQN and IBS/CBS regular/mono/seletivo. Carried over from 0.2.0: SVC-AN, EPEC, DistDFe and manifestação not verifiable in homologação (AN/SVAN answer 403); QR 2.00 (CSCs rejected as 462); NFC-e inutilização (998); `authorization_result/1` unexercised against a real receipt (AD-019).
-- **Next step**: Merge the release PR, tag and publish 0.3.0 (maintainer 2FA), then the fiscal-gateway-compatible Phoenix API (separate project) and/or Phase 3/4 per ROADMAP.
+- **Feature**: Phase 5 of `.specs/ROADMAP.md` (CT-e 57/67 and MDF-e 58, one package, AD-026)
+- **Phase / Task**: Phase 5 complete, release 0.4.0 prepared (PR `release/0.4.0`). Live in homologação with a real A1: `service_status` 107 on 27/27 UFs for CT-e 57, CT-e OS 67 and MDF-e 58; MDF-e lifecycle (authorize 100, consult, pending, condutor 135, encerramento 135, consult 132); CT-e reached 203 (emitter not credentialed). Golden: `infCte` / `infMDFe` equal to NFePHP for 10 documents.
+- **Known gaps**: CT-e live 100 needs a credentialed emitter; QR 2.00 live needs current CSCs; AN/SVAN homologação answer 403 (SVC-AN, EPEC, DistDFe, manifestação unverifiable there); NFC-e inutilização (998); `authorization_result/1` against a real receipt (AD-019); NF-e golden coverage for ICMS 30/51/70/90, ISSQN and IBS/CBS.
+- **Next step**: Merge the release PR, tag and publish 0.4.0 (maintainer 2FA), then one of: the fiscal-gateway-compatible API (separate project), Phase 4 (DANFE family) or GNRE (Phase 5b).
 - **Open question**: whether clients use the gateway's `computed` tax mode (sizes the API project).
 - **Blockers**: none
-- **Branch**: release/0.3.0
+- **Branch**: release/0.4.0

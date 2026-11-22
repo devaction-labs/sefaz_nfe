@@ -1,7 +1,7 @@
 defmodule SefazNfe.MixProject do
   use Mix.Project
 
-  @version "0.3.0"
+  @version "0.4.0"
   @source_url "https://github.com/devaction-labs/sefaz_nfe"
 
   def project do
@@ -15,9 +15,9 @@ defmodule SefazNfe.MixProject do
       name: "sefaz_nfe",
       source_url: @source_url,
       description:
-        "SEFAZ NF-e (55) and NFC-e (65) for Elixir: NF-e builder and parser, " <>
-          "A1 certificates, mTLS, XMLDSig, webservices 4.00, DistDFe, contingency " <>
-          "and telemetry. Does not calculate taxes.",
+        "SEFAZ transport for Elixir: NF-e (55), NFC-e (65), CT-e (57/67) and MDF-e (58), " <>
+          "with builder and parser, A1 certificates, mTLS, XMLDSig, webservices, " <>
+          "DistDFe, contingency and telemetry. Does not calculate taxes.",
       package: [
         licenses: ["Apache-2.0"],
         files: ~w(lib priv/endpoints priv/layouts mix.exs README.md CHANGELOG.md LICENSE),

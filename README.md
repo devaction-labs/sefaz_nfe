@@ -1,10 +1,14 @@
 # sefaz_nfe
 
-Elixir library for **SEFAZ NF-e (modelo 55) and NFC-e (modelo 65) communication**: sign, authorize, consult, contingency, DistDFe.
+Elixir library for **SEFAZ communication** for NF-e (55), NFC-e (65), CT-e (57/67) and MDF-e (58): build, sign, authorize, consult, events, contingency, DistDFe.
 
 It does **not** calculate taxes. The ERP (or Nexus Pro) supplies every value; this library builds the XML from a map, signs it and talks to SEFAZ.
 
-> Status: 0.3.0. Transport live and the whole NF-e lifecycle verified in
+> Status: 0.4.0. CT-e 57/67 and MDF-e 58 transport, events and builder were added
+> (see below and the CHANGELOG): MDF-e ran its whole lifecycle in homologação
+> (authorize 100, condutor, encerramento 135, consult 132); CT-e reached SEFAZ
+> validation (203, emitter not credentialed), so a CT-e 100 is still unverified.
+> `service_status` answers 107 on 27/27 UFs for all three. NF-e transport live and the whole NF-e lifecycle verified in
 > homologação with a real ICP-Brasil A1: authorization (`cStat` 100, `nfeProc`
 > assembled), CCe and cancellation (135), protocol consultation (100), and
 > inutilização (102), all against SEFAZ BA. NFC-e 65 (authorize, consult, cancel
@@ -13,7 +17,7 @@ It does **not** calculate taxes. The ERP (or Nexus Pro) supplies every value; th
 > not be exercised in homologação; see the CHANGELOG.
 >
 > ```elixir
-> {:sefaz_nfe, "~> 0.3.0"}
+> {:sefaz_nfe, "~> 0.4.0"}
 > ```
 >
 > **Requires OTP 29.1 or later.** Earlier OTP 29 aborts the TLS handshake on
@@ -171,6 +175,32 @@ when the optional dependency is present, and is formatted but never rounded).
 The layout is data in `priv/layouts/nfe_4.00.etf`. To refresh it for a new
 Pacote de Liberação, run `mix sefaz.gen_layout` against the PL directory. Tests
 that read the PL XSDs use `SEFAZ_NFE_PL_PATH` and skip without it.
+
+## CT-e and MDF-e
+
+`SefazNfe.CTe` (models 57 and 67) and `SefazNfe.MDFe` (model 58) follow the same
+shape as the NF-e API: a map built by `Builder.build_cte/2`, `build_cte_os/2` or
+`build_mdfe/2` (or an XML), signed and sent in one call. Road modal only.
+
+```elixir
+{:ok, result} =
+  SefazNfe.CTe.authorize(%{cte: cte, cert: cert, uf: "BA", environment: :homologation})
+
+{:ok, result} =
+  SefazNfe.MDFe.authorize(%{mdfe: mdfe, cert: cert, uf: "BA", environment: :homologation})
+
+# Encerramento (110112); also cancel/1, include_driver/1, include_dfe/1, pending/1.
+{:ok, closed} =
+  SefazNfe.MDFe.close(%{
+    cert: cert, uf: "BA", environment: :homologation, tax_id: "00000000000191",
+    ch_mdfe: access_key, n_prot: result.n_prot, dt_enc: ~D[2026-11-22], c_uf: "29", c_mun: "2910800"
+  })
+```
+
+CT-e also has `consult/1`, `cancel/1`, `cce/1`, `delivery_proof/1`,
+`delivery_failure/1` and SVC-SP / SVC-RS contingency (`contingency:`).
+`SefazNfe.CTe.Proc` and `SefazNfe.Proc` assemble the processed documents. The
+tests that read the XSDs use `SEFAZ_NFE_CTE_PL_PATH` and `SEFAZ_NFE_MDFE_PL_PATH`.
 
 ## What this is
 
