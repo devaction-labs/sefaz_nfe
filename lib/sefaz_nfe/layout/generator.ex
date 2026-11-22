@@ -43,7 +43,18 @@ defmodule SefazNfe.Layout.Generator do
       walks): `xs:annotation` and the identity constraints `xs:unique`,
       `xs:key`, `xs:keyref`. The only ones in PL_010 are uniqueness checks on
       `gPgto/@nPag`, `gPgto/@idTransacao` and `@dia`.
-    * Not supported, raised: `xs:any`, `xs:group`, `xs:attributeGroup`,
+    * An `xs:element` with neither `type=` nor an inline type is `xs:anyType`
+      (CT-e `gCompraGov/refDFeAnt`, which only carries documentation). It is
+      compiled to a leaf with `base: :any_type` and no facets: free text.
+    * `xs:any` (the CT-e / MDF-e `infModal`, whose content is the modal XML)
+      becomes `%{kind: :any, namespace: "##any", process_contents: :skip,
+      min: n, max: n}` inside its sequence or choice. It has no key and no
+      children: the host supplies the foreign content and the modal's own
+      layout validates it. `namespace` defaults to `"##any"` and
+      `process_contents` to `:strict`, as in XSD; the value is read, not
+      interpreted. An `any` is not an element: `SefazNfe.Layout.elements/1`
+      skips it and it takes part in no key collision.
+    * Not supported, raised: `xs:group`, `xs:attributeGroup`,
       `xs:extension`, `xs:simpleContent`, `xs:complexContent`, `xs:list`,
       `xs:union`, `mixed`, and recursive types.
 
@@ -141,14 +152,25 @@ defmodule SefazNfe.Layout.Generator do
     "time" => :time
   }
 
-  @acronyms ~w(ISSQN COFINS NFE ICMS CNPJ CFOP CEST CSLL CIDE IRRF FCP IBS CBS IPI PIS CST CPF EAN NCM CRT MVA IOF ANP GLP BC ST UF IS SN NF IE NT PAA FG ZFM ALC DFE CTE)
+  @acronyms ~w(ISSQN COFINS NFE ICMS CNPJ CFOP CEST CSLL CIDE IRRF FCP IBS CBS IPI PIS CST CPF EAN NCM CRT MVA IOF ANP GLP BC ST UF IS SN NF IE NT PAA FG ZFM ALC DFE CTE MDFE IPEF)
             |> Enum.sort_by(&{-String.length(&1), &1})
 
   # ISUF is the Inscricao SUFRAMA (`dest/ISUF`, `ISUFEmit`), not IS + UF.
   # Checked against PL_010: CSOSN, IEST (IE + ST, "IE do substituto
   # tributario"), UFST (UF + ST) and every other tag starting with IS, IE or
   # UF split correctly and need no override.
-  @token_overrides %{"ISUF" => "Isuf"}
+  #
+  # CT-e / MDF-e (PL_CTe_400_RTC, PL_MDFe_300b): the dictionary would split
+  # `BPe` (`chBPe`), `GTVe` (`infGTVe`) and `DCe` (`infDCe`) letter by letter;
+  # `CTeOS` is CTe + OS, so it is written with a capital O and a lowercase s
+  # to become the two words `cte` and `os`.
+  @token_overrides %{
+    "ISUF" => "Isuf",
+    "BPe" => "Bpe",
+    "GTVe" => "Gtve",
+    "DCe" => "Dce",
+    "CTeOS" => "CteOs"
+  }
 
   @facet_ints %{
     "length" => :length,
@@ -173,8 +195,11 @@ defmodule SefazNfe.Layout.Generator do
   Compiles the package in `dir`.
 
   Options: `:entry` (the XSD that includes the rest, default
-  `#{@default_entry}`) and `:root` (the complex type to compile, default
-  `#{@default_root}`). Raises on any unsupported idiom.
+  `#{@default_entry}`), `:root` (the complex type to compile, default
+  `#{@default_root}`; the one global element of that type is the layout root)
+  and `:element` (the name of a global element to compile instead, for a
+  modal whose root has an anonymous type; the layout then records
+  `root_element` and a `nil` `root_type`). Raises on any unsupported idiom.
   """
   @spec generate(Path.t(), keyword()) :: map()
   def generate(dir, opts \\ []) do
@@ -185,7 +210,7 @@ defmodule SefazNfe.Layout.Generator do
     target_ns = files |> Map.fetch!(entry) |> then(& &1.tree.attrs["targetNamespace"])
     ctx = files |> adopt(target_ns) |> index(target_ns)
 
-    %{
+    base = %{
       generator: @version,
       pl: dir |> Path.expand() |> Path.basename(),
       namespace: target_ns,
@@ -193,9 +218,17 @@ defmodule SefazNfe.Layout.Generator do
       sources:
         files
         |> Enum.sort()
-        |> Enum.map(fn {file, %{sha256: sha}} -> %{file: file, sha256: sha} end),
-      root: ctx |> root_element(root_type) |> element(ctx, [])
+        |> Enum.map(fn {file, %{sha256: sha}} -> %{file: file, sha256: sha} end)
     }
+
+    case Keyword.fetch(opts, :element) do
+      {:ok, name} ->
+        root = Map.get(ctx.elements, name) || raise ArgumentError, "no global element #{name}"
+        Map.merge(base, %{root_type: nil, root_element: name, root: element(root, ctx, [])})
+
+      :error ->
+        Map.put(base, :root, ctx |> root_element(root_type) |> element(ctx, []))
+    end
   end
 
   @doc "Serializes a layout deterministically, so regeneration is byte-stable."
@@ -393,8 +426,11 @@ defmodule SefazNfe.Layout.Generator do
         {content, attrs} = complex(t, nil, ctx, trail, path)
         {nil, content, attrs}
 
-      _none_or_many ->
-        raise ArgumentError, "#{Enum.join(path, "/")}: element without a usable type"
+      [] ->
+        {nil, new_leaf(:any_type, nil), []}
+
+      _many ->
+        raise ArgumentError, "#{Enum.join(path, "/")}: element with several inline types"
     end
   end
 
@@ -431,12 +467,29 @@ defmodule SefazNfe.Layout.Generator do
         case child.tag do
           "element" -> element(child, ctx, trail, path)
           t when t in ["sequence", "choice"] -> particle(child, ctx, trail, path)
+          "any" -> any(child)
           t -> raise ArgumentError, "unsupported <#{t}> at #{Enum.join(path, "/")}"
         end
       end
 
     Map.merge(%{kind: String.to_existing_atom(tag), children: children}, occurs(node))
   end
+
+  defp any(%{attrs: attrs} = node) do
+    Map.merge(
+      %{
+        kind: :any,
+        namespace: Map.get(attrs, "namespace", "##any"),
+        process_contents: process_contents(attrs["processContents"])
+      },
+      occurs(node)
+    )
+  end
+
+  defp process_contents(nil), do: :strict
+
+  defp process_contents(value) when value in ~w(strict lax skip),
+    do: String.to_existing_atom(value)
 
   # ---- attributes -------------------------------------------------------
 
@@ -624,6 +677,7 @@ defmodule SefazNfe.Layout.Generator do
     do: Enum.flat_map(children, &direct/1)
 
   defp direct(%{kind: kind} = node) when kind in [:element, :foreign], do: [node]
+  defp direct(%{kind: :any}), do: []
 
   @doc """
   Detects sibling key collisions in `names` (XSD names under one element;
@@ -652,6 +706,7 @@ defmodule SefazNfe.Layout.Generator do
       |> String.replace("NFe", "NFE")
       |> String.replace("DFe", "DFE")
       |> String.replace("CTe", "CTE")
+      |> String.replace("MDFe", "MDFE")
     )
     |> List.flatten()
     |> words()

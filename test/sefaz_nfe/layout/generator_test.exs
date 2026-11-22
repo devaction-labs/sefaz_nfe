@@ -13,7 +13,30 @@ defmodule SefazNfe.Layout.GeneratorTest do
   @pl System.get_env("SEFAZ_NFE_PL_PATH")
   @have_pl is_binary(@pl) and File.exists?(Path.join(@pl, "leiauteNFe_v4.00.xsd"))
 
+  @cte_pl System.get_env("SEFAZ_NFE_CTE_PL_PATH")
+  @have_cte is_binary(@cte_pl) and File.exists?(Path.join(@cte_pl, "cte_v4.00.xsd"))
+  @mdfe_pl System.get_env("SEFAZ_NFE_MDFE_PL_PATH")
+  @have_mdfe is_binary(@mdfe_pl) and File.exists?(Path.join(@mdfe_pl, "mdfe_v3.00.xsd"))
+
   @keys [
+    {"CTeOS", "cte_os"},
+    {"rodoOS", "rodo_os"},
+    {"MDFe", "mdfe"},
+    {"chMDFe", "ch_mdfe"},
+    {"chCTe", "ch_cte"},
+    {"chBPe", "ch_bpe"},
+    {"infGTVe", "inf_gtve"},
+    {"infDCe", "inf_dce"},
+    {"CNPJIPEF", "cnpj_ipef"},
+    {"UFIni", "uf_ini"},
+    {"cMunCarrega", "c_mun_carrega"},
+    {"vTPrest", "v_t_prest"},
+    {"qCarga", "q_carga"},
+    {"vBCSTRet", "v_bc_st_ret"},
+    {"ICMSOutraUF", "icms_outra_uf"},
+    {"ICMSSN", "icms_sn"},
+    {"RNTRC", "rntrc"},
+    {"CIOT", "ciot"},
     {"vICMSUFDest", "v_icms_uf_dest"},
     {"CNPJ", "cnpj"},
     {"ICMS00", "icms00"},
@@ -109,16 +132,50 @@ defmodule SefazNfe.Layout.GeneratorTest do
     end
   end
 
+  describe "against the CT-e and MDF-e packages" do
+    @describetag :tmp_dir
+
+    # {env var is usable, PL path, output file, mix options}
+    @targets [
+      {@have_cte, @cte_pl, "cte_4.00", ~w(--entry cte_v4.00.xsd --root TCTe)},
+      {@have_cte, @cte_pl, "cte_os_4.00", ~w(--entry cteOS_v4.00.xsd --root TCTeOS)},
+      {@have_cte, @cte_pl, "cte_modal_rodoviario_4.00",
+       ~w(--entry cteModalRodoviario_v4.00.xsd --element rodo)},
+      {@have_cte, @cte_pl, "cte_os_modal_rodoviario_4.00",
+       ~w(--entry cteModalRodoviarioOS_v4.00.xsd --element rodoOS)},
+      {@have_mdfe, @mdfe_pl, "mdfe_3.00", ~w(--entry mdfe_v3.00.xsd --root TMDFe)},
+      {@have_mdfe, @mdfe_pl, "mdfe_modal_rodoviario_3.00",
+       ~w(--entry mdfeModalRodoviario_v3.00.xsd --element rodo)}
+    ]
+
+    for {have, pl, name, options} <- @targets do
+      @tag skip: not have && "SEFAZ_NFE_CTE_PL_PATH / SEFAZ_NFE_MDFE_PL_PATH not set"
+      test "#{name}: generation is byte-stable and equals the committed layout", %{tmp_dir: tmp} do
+        first = Path.join(tmp, "a.etf")
+        second = Path.join(tmp, "b.etf")
+
+        Mix.shell(Mix.Shell.Process)
+        on_exit(fn -> Mix.shell(Mix.Shell.IO) end)
+
+        GenLayout.run([unquote(pl)] ++ unquote(options) ++ ["--out", first])
+        GenLayout.run([unquote(pl)] ++ unquote(options) ++ ["--out", second])
+
+        assert File.read!(first) == File.read!(second)
+        assert File.read!(first) == File.read!("priv/layouts/#{unquote(name)}.etf")
+      end
+    end
+  end
+
   describe "generation errors" do
     @describetag :tmp_dir
 
     test "an unsupported idiom raises instead of being dropped", %{tmp_dir: tmp} do
       write_schema(tmp, """
       <xs:element name="NFe" type="TNFe"/>
-      <xs:complexType name="TNFe"><xs:sequence><xs:any/></xs:sequence></xs:complexType>
+      <xs:complexType name="TNFe"><xs:group ref="g"/></xs:complexType>
       """)
 
-      assert_raise ArgumentError, ~r/unsupported <any>/, fn -> Generator.generate(tmp) end
+      assert_raise ArgumentError, ~r/unsupported <group>/, fn -> Generator.generate(tmp) end
     end
 
     test "sibling key collisions abort generation", %{tmp_dir: tmp} do
@@ -162,6 +219,79 @@ defmodule SefazNfe.Layout.GeneratorTest do
       assert %{kind: :sequence, children: [a, choice]} = root.content
       assert %{tag: "a", max: :unbounded, content: %{name: "TNum", max_length: 3}} = a
       assert %{kind: :choice, min: 0, children: [%{key: :b_x}, %{kind: :sequence}]} = choice
+    end
+  end
+
+  describe "xs:any and untyped elements" do
+    @describetag :tmp_dir
+
+    test "xs:any becomes an :any node with its namespace and processContents", %{tmp_dir: tmp} do
+      write_schema(tmp, """
+      <xs:element name="NFe" type="TNFe"/>
+      <xs:complexType name="TNFe"><xs:sequence>
+        <xs:element name="pre" type="xs:string"/>
+        <xs:element name="infModal"><xs:complexType><xs:sequence>
+          <xs:any processContents="skip"/>
+        </xs:sequence><xs:attribute name="versaoModal" type="xs:string" use="required"/>
+        </xs:complexType></xs:element>
+        <xs:any namespace="##other" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence></xs:complexType>
+      """)
+
+      %{root: root} = Generator.generate(tmp)
+      assert %{kind: :sequence, children: [_pre, modal, any]} = root.content
+
+      assert %{content: %{kind: :sequence, children: [inner]}, attrs: [%{key: :versao_modal}]} =
+               modal
+
+      assert inner == %{
+               kind: :any,
+               namespace: "##any",
+               process_contents: :skip,
+               min: 1,
+               max: 1
+             }
+
+      assert %{
+               kind: :any,
+               namespace: "##other",
+               process_contents: :strict,
+               min: 0,
+               max: :unbounded
+             } = any
+
+      assert Enum.map(SefazNfe.Layout.elements(root), & &1.tag) == ["pre", "infModal"]
+    end
+
+    test "an element with no type at all is an any_type leaf", %{tmp_dir: tmp} do
+      write_schema(tmp, """
+      <xs:element name="NFe" type="TNFe"/>
+      <xs:complexType name="TNFe"><xs:sequence>
+        <xs:element name="ref" minOccurs="0" maxOccurs="unbounded">
+          <xs:annotation><xs:documentation>only docs</xs:documentation></xs:annotation>
+        </xs:element>
+      </xs:sequence></xs:complexType>
+      """)
+
+      assert %{root: %{content: %{children: [ref]}}} = Generator.generate(tmp)
+      assert %{tag: "ref", min: 0, max: :unbounded, content: %{base: :any_type, name: nil}} = ref
+    end
+
+    test "--element compiles a global element with an anonymous type", %{tmp_dir: tmp} do
+      write_schema(tmp, """
+      <xs:element name="rodo"><xs:complexType><xs:sequence>
+        <xs:element name="RNTRC" type="xs:string"/>
+      </xs:sequence></xs:complexType></xs:element>
+      """)
+
+      layout = Generator.generate(tmp, element: "rodo")
+
+      assert %{root_type: nil, root_element: "rodo", namespace: "urn:t"} = layout
+      assert %{tag: "rodo", content: %{children: [%{key: :rntrc}]}} = layout.root
+
+      assert_raise ArgumentError, ~r/no global element nope/, fn ->
+        Generator.generate(tmp, element: "nope")
+      end
     end
   end
 
