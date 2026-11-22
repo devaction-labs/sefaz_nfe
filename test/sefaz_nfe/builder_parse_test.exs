@@ -411,6 +411,16 @@ defmodule SefazNfe.BuilderParseTest do
       assert parsed.id =~ "NFe"
     end
 
+    test "a TDec text that is not a plain short decimal stays text, never parsed" do
+      xml = build!(simple())
+
+      for bad <- ["1E999999999", "-1", "inf", "NaN", String.duplicate("9", 41)] do
+        evil = String.replace(xml, "<vNF>100.00</vNF>", "<vNF>#{bad}</vNF>")
+        task = Task.async(fn -> parse!(evil, decimals: true).nfe.total.icms_tot.v_nf end)
+        assert {:ok, ^bad} = Task.yield(task, 1_000) || Task.shutdown(task, :brutal_kill)
+      end
+    end
+
     test "builds back a document with the same values" do
       xml = build!(simple())
       rebuilt = build!(parse!(xml, decimals: true).nfe)

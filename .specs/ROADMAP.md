@@ -8,12 +8,12 @@ The NFePHP map, and where each piece lands here:
 
 | NFePHP | Role | Here |
 |---|---|---|
-| `sped-common` | certificate, signer, SOAP, C14N | done, inside `sefaz_nfe` (AD-022) |
+| `sped-common` | certificate, signer, SOAP, C14N | done, inside `sefaz_nfe` (AD-026) |
 | `sped-nfe` `Tools` | every NF-e webservice and event | Phase 1 |
 | `sped-nfe` `Make` / `Complements` / `Standardize` | typed XML builder, `nfeProc`, XML → data | Phase 2 (AD-021) |
 | `sped-nfe` NFC-e bits | model 65 transport; QR code, CSC, offline contingency | Phases 1 and 3 |
 | `sped-da` | DANFE, DANFCE, DACCE, event PDFs | Phase 4, separate package |
-| `sped-cte`, `sped-mdfe` | CT-e 57/67, MDF-e 58 | Phase 5 |
+| `sped-cte`, `sped-mdfe` | CT-e 57/67, MDF-e 58 | Phase 5, done in 0.4.0 (`SefazNfe.CTe`, `SefazNfe.MDFe`) |
 | GNRE | state payment guides (not in NFePHP; the gateway's own client) | Phase 5b |
 | `sped-nfcom`, `sped-bpe`, NFS-e | other models | Phase 6 |
 | `sped-ibpt`, tax tables | tax arithmetic | **never** (AD-001) |
@@ -42,11 +42,13 @@ tax calculation.
 - ⬜ P4 Printing: DANFE portrait with 8–21 installments and multiple `rastro`
   lots, EPEC and cancelled stamps; DANFCE 80mm; DACTE; DACTE OS; DAMDFE.
   DACCE and event PDFs are not used by the gateway.
-- ⬜ P5 CT-e 57/67 road modal: sync send, consult, status, cancel, structured
-  CCe, comprovante de entrega 110180/110181, insucesso 110190/110191,
-  SVC-SP/SVC-RS, builder `MakeCTe`/`MakeCTeOS`.
-- ⬜ P5 MDF-e 58 road: sync send, consult, status, cancel, encerramento
-  110112, inclusão de condutor 110114, inclusão de DF-e 110115, builder.
+- ✅ P5 CT-e 57/67 road modal (0.4.0): sync send, consult, status, cancel,
+  structured CCe, comprovante de entrega 110180/110181, insucesso
+  110190/110191, SVC-SP/SVC-RS, builder `MakeCTe`/`MakeCTeOS`. Live 100 is
+  pending a credentialed emitter (reached 203 in homologação).
+- ✅ P5 MDF-e 58 road (0.4.0): sync send, consult, status, não encerrados,
+  cancel, encerramento 110112, inclusão de condutor 110114, inclusão de DF-e
+  110115, builder. Lifecycle verified live in homologação.
 - ⬜ P5b GNRE (see Phase 5b).
 - Host-side, never in the library: tax engine (its `computed` mode), IBPT,
   CNPJá, automatic contingency policy (the library offers routes and the EPEC
@@ -144,14 +146,15 @@ tests guard the layout.
 - ⬜ Pure Elixir, no external renderer (AD-023). Barcode (Code 128C for the
   key) and QR code generated in Elixir.
 
-## Phase 5 — CT-e and MDF-e
+## Phase 5 — CT-e and MDF-e (complete in 0.4.0)
 
 Unblocked by OTP 29.1 (AD-018). Research: `.specs/features/cte/research.md`.
-Issue #7.
+Design: `.specs/features/cte-mdfe/design.md`. Issue #7. One package (AD-026).
 
-- ⬜ CT-e 57 and CT-e OS 67: authorization, consultation, events
-  (cancelamento, CCe, EPEC, comprovante de entrega, insucesso).
-- ⬜ MDF-e 58: authorization, encerramento, cancelamento, inclusão de
+- ✅ CT-e 57 and CT-e OS 67: authorization, consultation, status, SVC-SP/SVC-RS,
+  events (cancelamento, CCe, comprovante de entrega, insucesso). EPEC is not
+  covered. Live 100 needs a credentialed emitter.
+- ✅ MDF-e 58: authorization, encerramento, cancelamento, inclusão de
   condutor / DF-e, consulta não encerrados.
 - ⬜ DistDFe for CT-e on the Ambiente Nacional.
 
@@ -164,7 +167,7 @@ SEFAZ-PE GNRE portal, the state payment guide.
 - ⬜ Guide values are supplied by the caller; nothing is calculated.
 - ⬜ Returns the linha digitável and barcode. Guide PDF is out of scope
   initially.
-- ⬜ Packaged as `sefaz_gnre` on `sefaz_core` (AD-022).
+- ⬜ Added to `sefaz_nfe` as another module, or its own package if it grows (AD-026 keeps one package).
 
 ## Phase 6 — other models
 
@@ -198,13 +201,26 @@ is the prototype mapping, 11 payloads equal to NFePHP's `infNFe`):
 - Number padding per field (decimal places differ per NFePHP field), done by
   the API before calling the builder.
 
+Requirements found by the CT-e / MDF-e golden tests (C6, 10 documents equal to
+NFePHP's `infCte` / `infMDFe`):
+
+- NFePHP computes `vIBS` when absent; the library never does, so the API must
+  sum it.
+- NFePHP computes MDF-e `qCTe` / `qNFe` by counting the documents; the API must
+  count them.
+- NFePHP's `number_format` rounds where the builder refuses a value with too
+  many places; the API rounds before calling the builder, or surfaces the
+  refusal.
+- The gateway's `veic.owner` must require the IE when the state is sent: NFePHP
+  emits an invalid `prop` otherwise and the builder refuses it.
+
 ## Open decisions
 
 All three resolved by the maintainer on 2026-11-22.
 
 - **D1** — resolved: AD-021. AD-001 amended; a structural builder is
   allowed, tax values and totals are still never computed.
-- **D2** — resolved: AD-022. One package until Phase 5, then extract
-  `sefaz_core` and publish `sefaz_nfe`, `sefaz_cte`, `sefaz_mdfe` on top.
+- **D2** — resolved: AD-022, superseded by AD-026. One package, with
+  `SefazNfe.CTe` and `SefazNfe.MDFe`; no `sefaz_core` extraction.
 - **D3** — resolved: AD-023. DANFE family in pure Elixir, separate package;
   no headless browser, wkhtmltopdf, NIF or shell-out.

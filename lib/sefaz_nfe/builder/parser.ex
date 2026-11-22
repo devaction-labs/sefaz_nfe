@@ -167,10 +167,17 @@ defmodule SefazNfe.Builder.Parser do
     end
   end
 
+  # `Decimal.parse/1` only sees text that is already a plain, short decimal
+  # (no exponent, no sign, no "inf"/"NaN"); anything else stays the string, the
+  # same as text that is not a decimal at all (the parser never rejects a leaf).
   defp leaf_value(%{name: "TDec" <> _}, text, %{decimals: true}) do
-    case Decimal.parse(text) do
-      {decimal, ""} -> decimal
-      _not_a_decimal -> text
+    case Regex.match?(~r/\A[0-9]{1,40}(\.[0-9]{1,40})?\z/, text) do
+      true ->
+        {decimal, ""} = Decimal.parse(text)
+        decimal
+
+      false ->
+        text
     end
   end
 

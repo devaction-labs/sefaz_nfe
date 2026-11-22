@@ -32,6 +32,7 @@ defmodule SefazNfe.Builder.Leaf do
           | :invalid_utf8
           | :invalid_xml_char
           | :invalid_base64
+          | :out_of_range
           | {:precision, pos_integer()}
           | {:enum, [String.t()]}
           | {:length, non_neg_integer()}
@@ -96,14 +97,39 @@ defmodule SefazNfe.Builder.Leaf do
     end
   end
 
-  defp coerce(leaf, %{__struct__: Decimal, coef: coef} = decimal) when is_integer(coef) do
+  # Bounds, checked on the struct fields alone, before any Decimal call: a
+  # `1e1000000000` would otherwise make `to_string(:normal)` allocate gigabytes
+  # (decimal 2.x advisory EEF-CVE-2026-32686). `:inf` and `:NaN` are not
+  # numbers a field can hold.
+  @max_decimal_digits 40
+  @max_decimal_exp 40
+
+  defp coerce(leaf, %{__struct__: Decimal, coef: coef, exp: exp} = decimal)
+       when is_integer(coef) and is_integer(exp) do
     case Map.get(@places, leaf.name) do
       nil -> {:error, :invalid_type}
-      places -> decimal_text(decimal, places)
+      _places when abs(exp) > @max_decimal_exp -> {:error, :out_of_range}
+      places -> bounded_decimal_text(decimal, coef, places)
+    end
+  end
+
+  defp coerce(leaf, %{__struct__: Decimal, coef: coef}) when coef in [:inf, :NaN] do
+    case Map.get(@places, leaf.name) do
+      nil -> {:error, :invalid_type}
+      _places -> {:error, :out_of_range}
     end
   end
 
   defp coerce(_leaf, _value), do: {:error, :invalid_type}
+
+  defp bounded_decimal_text(decimal, coef, places) do
+    if digits(coef, 0) > @max_decimal_digits,
+      do: {:error, :out_of_range},
+      else: decimal_text(decimal, places)
+  end
+
+  defp digits(coef, count) when coef < 10, do: count + 1
+  defp digits(coef, count), do: digits(div(coef, 10), count + 1)
 
   # The least places the type allows, more only when the value needs them.
   # `Decimal.normalize/1` drops trailing zeros, so the scale left is exactly
