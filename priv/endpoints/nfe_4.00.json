@@ -31,6 +31,35 @@
     "RS": "RS",
     "SP": "SP"
   },
+  "uf_contingency": {
+    "AC": "SVCAN",
+    "AL": "SVCAN",
+    "AM": "SVCRS",
+    "AP": "SVCAN",
+    "BA": "SVCRS",
+    "CE": "SVCAN",
+    "DF": "SVCAN",
+    "ES": "SVCAN",
+    "GO": "SVCRS",
+    "MA": "SVCRS",
+    "MG": "SVCAN",
+    "MS": "SVCRS",
+    "MT": "SVCRS",
+    "PA": "SVCAN",
+    "PB": "SVCAN",
+    "PE": "SVCRS",
+    "PI": "SVCAN",
+    "PR": "SVCRS",
+    "RJ": "SVCAN",
+    "RN": "SVCAN",
+    "RO": "SVCAN",
+    "RR": "SVCAN",
+    "RS": "SVCAN",
+    "SC": "SVCAN",
+    "SE": "SVCAN",
+    "SP": "SVCAN",
+    "TO": "SVCAN"
+  },
   "authorizers": {
     "AM": {
       "homologation": {

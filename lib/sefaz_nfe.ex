@@ -13,6 +13,7 @@ defmodule SefazNfe do
   alias SefazNfe.DistDFe
   alias SefazNfe.DistDFe.Poller
   alias SefazNfe.Endpoints
+  alias SefazNfe.EPEC
   alias SefazNfe.Events
   alias SefazNfe.NFCe
   alias SefazNfe.Result
@@ -53,6 +54,26 @@ defmodule SefazNfe do
   model 65 document `infNFeSupl` (with the on-line QR code 3.00) is added after
   signing unless the XML already has one; see `SefazNfe.NFCe`. `:uf` is the
   emitting UF, which selects the QR code address even where SVRS authorizes.
+
+  ## Contingency (model 55)
+
+  Contingency is the caller's choice (AD-005): this library never falls back to
+  it, and it builds no XML, so the ERP rebuilds the document with the new
+  `tpEmis` and this function routes on it:
+
+    * `1` goes to the emitting UF's own authorizer;
+    * `6` goes to SVC-AN and `7` to SVC-RS, but only when that SVC is the one
+      that serves `:uf` (`SefazNfe.Endpoints.contingency_for/1`); otherwise
+      `{:error, {:wrong_contingency, uf, svc}}`, where `svc` is the SVC that
+      does serve it;
+    * `4` is an NF-e under EPEC (`epec/1`) coming back: it goes to the ORIGIN
+      authorizer, keeping `tpEmis` 4;
+    * `2`, `3` and `5` (FS-IA, SCAN, FS-DA) are
+      `{:error, {:unsupported, {:tp_emis, n}}}`.
+
+  For `4`, `6` and `7` the MOC requires `dhCont` and `xJust` in `ide`; their
+  absence is `{:error, {:missing_contingency_fields, [:dh_cont, :x_just]}}`
+  (whichever is missing), before the network. NFC-e (model 65) has no SVC.
   """
   @spec authorize(map()) :: {:ok, Result.t()} | {:error, term()}
   def authorize(opts) when is_map(opts) do
@@ -60,9 +81,10 @@ defmodule SefazNfe do
          :ok <- validate_environment(opts.environment),
          :ok <- reject_an(opts.uf, :nfe_autorizacao),
          :ok <- environment_matches_xml(opts.environment, opts.xml),
-         {:ok, model} <- document_model(opts.xml),
+         {:ok, doc} <- SefazNfe.XML.parse(opts.xml),
+         {:ok, model} <- model_from_mod(SefazNfe.XML.text(doc, "mod")),
          :ok <- Schema.validate(opts.xml, Map.get(opts, :schema, "nfe_v4.00.xsd")),
-         {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_autorizacao, model),
+         {:ok, url} <- authorize_url(opts, model, doc),
          {:ok, signed} <- Signer.sign_nfe(opts.xml, opts.cert),
          {:ok, signed} <- put_supl(signed, model, opts),
          message = Envelope.send_nfe(signed, Map.get(opts, :id_lote, "1"), ind_sinc(opts)),
@@ -73,11 +95,86 @@ defmodule SefazNfe do
     end
   end
 
-  defp document_model(xml) do
-    with {:ok, doc} <- SefazNfe.XML.parse(xml) do
-      model_from_mod(SefazNfe.XML.text(doc, "mod"))
+  # Model 65 has no SVC and its off-line mode is handled by `SefazNfe.NFCe`, so
+  # `tpEmis` only routes a model 55 document.
+  defp authorize_url(opts, 65, _doc),
+    do: Endpoints.url(opts.uf, opts.environment, :nfe_autorizacao, 65)
+
+  defp authorize_url(opts, 55, doc) do
+    nfe_emission_url(SefazNfe.XML.text(doc, "tpEmis"), opts, doc)
+  end
+
+  # 1 is normal. 4 is an NF-e that went out under EPEC: it is transmitted to
+  # the ORIGIN authorizer keeping tpEmis 4, not to an SVC. 6 and 7 are SVC-AN
+  # and SVC-RS, and only the SVC that serves the emitter UF will take it.
+  # 2, 3 and 5 (FS-IA, SCAN, FS-DA) are not supported.
+  # An absent tpEmis is the XSD's to refuse (it is mandatory), not a routing
+  # decision: it keeps the origin routing it always had.
+  defp nfe_emission_url("1", opts, _doc), do: origin_url(opts)
+  defp nfe_emission_url(nil, opts, _doc), do: origin_url(opts)
+
+  defp nfe_emission_url("4", opts, doc) do
+    with :ok <- contingency_fields(doc), do: origin_url(opts)
+  end
+
+  defp nfe_emission_url("6", opts, doc), do: svc_authorize_url(:svc_an, opts, doc)
+  defp nfe_emission_url("7", opts, doc), do: svc_authorize_url(:svc_rs, opts, doc)
+  defp nfe_emission_url(tp_emis, _opts, _doc), do: {:error, {:unsupported, {:tp_emis, tp_emis}}}
+
+  defp origin_url(opts), do: Endpoints.url(opts.uf, opts.environment, :nfe_autorizacao, 55)
+
+  defp svc_authorize_url(svc, opts, doc) do
+    with {:ok, url} <- route(Map.put(opts, :contingency, svc), :nfe_autorizacao, 55),
+         :ok <- contingency_fields(doc) do
+      {:ok, url}
     end
   end
+
+  # The MOC requires dhCont and xJust in `ide` whenever tpEmis is 4, 6 or 7.
+  # The library does not build the XML, so it only checks they are there, before
+  # SEFAZ answers with a schema or business rejection that names neither.
+  defp contingency_fields(doc) do
+    missing =
+      for {name, field} <- [{"dhCont", :dh_cont}, {"xJust", :x_just}],
+          SefazNfe.XML.text(doc, name) in [nil, ""],
+          do: field
+
+    case missing do
+      [] -> :ok
+      fields -> {:error, {:missing_contingency_fields, fields}}
+    end
+  end
+
+  # Where `service` is called for `opts.uf`: its own authorizer, or the SVC the
+  # caller names in `:contingency` (AD-005: never inferred). Only a model 55
+  # document has an SVC, and only the one that serves the UF is accepted; the
+  # error names the SVC that does.
+  defp route(opts, service, model) do
+    case Map.get(opts, :contingency) do
+      nil -> Endpoints.url(opts.uf, opts.environment, service, model)
+      svc -> svc_route(svc, opts, service, model)
+    end
+  end
+
+  defp svc_route(svc, _opts, _service, _model) when svc not in [:svc_an, :svc_rs],
+    do: {:error, {:invalid_contingency, svc}}
+
+  defp svc_route(_svc, _opts, _service, 65), do: {:error, {:unsupported_for_model, 65}}
+
+  defp svc_route(svc, opts, service, 55) do
+    with {:ok, expected} <- Endpoints.contingency_for(opts.uf) do
+      case expected do
+        ^svc ->
+          Endpoints.contingency_url(svc, opts.environment, service)
+
+        other ->
+          {:error, {:wrong_contingency, opts.uf |> to_string() |> String.upcase(), other}}
+      end
+    end
+  end
+
+  # `:contingency` has no meaning on the Ambiente Nacional.
+  defp an_opts(opts), do: opts |> Map.delete(:contingency) |> Map.put(:uf, "AN")
 
   defp model_from_mod("55"), do: {:ok, 55}
   defp model_from_mod("65"), do: {:ok, 65}
@@ -140,13 +237,16 @@ defmodule SefazNfe do
   all arrive as `{:ok, result}` because SEFAZ answered. See `SefazNfe.CStat`.
 
   `:model` (55 by default, or 65) selects the NF-e or the NFC-e authorizer.
+
+  `:contingency` (`:svc_an` or `:svc_rs`) asks the SVC instead. See
+  `consult_protocol/1` for the rules, which are the same here.
   """
   @spec service_status(map()) :: {:ok, Result.t()} | {:error, term()}
   def service_status(opts) when is_map(opts) do
     with :ok <- require_keys(opts, [:cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
          {:ok, model} <- model(opts),
-         {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_status_servico, model),
+         {:ok, url} <- route(opts, :nfe_status_servico, model),
          {:ok, uf_code} <- Endpoints.uf_code(opts.uf),
          message = Envelope.status_service(uf_code, Envelope.tp_amb(opts.environment)),
          {:ok, envelope} <- Envelope.wrap(:nfe_status_servico, message),
@@ -252,6 +352,18 @@ defmodule SefazNfe do
   SEFAZ what it did with a document instead of sending the batch again.
 
   The model comes from the key, so an NFC-e is asked of the NFC-e authorizer.
+
+  ## `:contingency`
+
+  Optional, `:svc_an` or `:svc_rs`: ask that SVC instead of the origin. Absent
+  means the UF's own authorizer, exactly as before. It must be the SVC that
+  serves `:uf`, else `{:error, {:wrong_contingency, uf, svc}}` naming the one
+  that does; NFC-e has no SVC (`{:error, {:unsupported_for_model, 65}}`).
+
+  It is never inferred from the key's `tpEmis` digit (AD-005): once contingency
+  ends, documents issued under SVC are handled at the origin, so only the
+  caller knows which authorizer holds the document now. `cancel/1`, `cce/1` and
+  `service_status/1` take the same option with the same rules.
   """
   @spec consult_protocol(map()) :: {:ok, Result.t()} | {:error, term()}
   def consult_protocol(opts) when is_map(opts) do
@@ -259,8 +371,7 @@ defmodule SefazNfe do
          :ok <- validate_environment(opts.environment),
          :ok <- validate_ch_nfe(opts.ch_nfe),
          {:ok, model} <- key_model(opts.ch_nfe),
-         {:ok, url} <-
-           Endpoints.url(opts.uf, opts.environment, :nfe_consulta_protocolo, model),
+         {:ok, url} <- route(opts, :nfe_consulta_protocolo, model),
          message = Envelope.consult_protocol(opts.ch_nfe, Envelope.tp_amb(opts.environment)),
          {:ok, envelope} <- Envelope.wrap(:nfe_consulta_protocolo, message),
          {:ok, body} <- call(url, envelope, opts, :nfe_consulta_protocolo) do
@@ -273,7 +384,8 @@ defmodule SefazNfe do
 
   Needs the protocol the authorization returned, and a justification of at
   least 15 characters as the MOC requires. The model comes from the key, so an
-  NFC-e is cancelled at the NFC-e authorizer.
+  NFC-e is cancelled at the NFC-e authorizer. Takes the optional `:contingency`
+  described in `consult_protocol/1`.
   """
   @spec cancel(map()) :: {:ok, Result.t()} | {:error, term()}
   def cancel(opts) when is_map(opts) do
@@ -303,7 +415,8 @@ defmodule SefazNfe do
   rather than adding to it.
 
   NFC-e has no Carta de Correção: a model 65 key is
-  `{:error, {:unsupported_for_model, 65}}`.
+  `{:error, {:unsupported_for_model, 65}}`. Takes the optional `:contingency`
+  described in `consult_protocol/1`.
   """
   @spec cce(map()) :: {:ok, Result.t()} | {:error, term()}
   def cce(opts) when is_map(opts) do
@@ -335,8 +448,51 @@ defmodule SefazNfe do
          :ok <- validate_tax_id(opts.tax_id),
          :ok <- validate_manifestation(type, opts) do
       opts
-      |> Map.put(:uf, "AN")
+      |> an_opts()
       |> send_event(&Events.manifestation(type, &1), 55)
+    end
+  end
+
+  @doc """
+  Event 110140, the EPEC (Evento Prévio de Emissão em Contingência), for an
+  NF-e model 55.
+
+  `:xml` is the NF-e issued with `tpEmis` 4, signed or not. It is read and never
+  modified; every value the event carries (`chNFe`, `cUF`, `dhEmi`, `tpNF`, the
+  emitter's `IE`, the recipient's `UF`, document and `IE`, `vNF`, `vICMS`,
+  `vST`) is copied from it. `:verAplic` defaults to its `verProc`: pass
+  `:ver_aplic` to override. `:id_lote` is optional.
+
+  EPEC is processed by the Ambiente Nacional (`cOrgao` 91, no `:uf` needed),
+  sequence 1, authored by the emitter, and signed on `infEvento` like every
+  event. SEFAZ answers `cStat` 136 with the protocol (`:n_prot`) and the
+  registration time (`:dh_recbto`).
+
+  Refused before the network: a model other than 55
+  (`{:unsupported_for_model, 65}`), a document that is not `tpEmis` 4
+  (`{:not_epec_document, tp_emis}`), no recipient (`{:epec, :missing_dest}`) and
+  an access key whose UF is not `cUF`
+  (`{:epec, {:ch_nfe_uf_mismatch, key_uf, c_uf}}`).
+
+  ## What this does not do
+
+  Choosing contingency is the caller's (AD-005); nothing here switches to it. The
+  caller also owns the rest of the flow: the DANFE has to carry the EPEC notice,
+  and the NF-e itself has to be transmitted to its **origin** authorizer, keeping
+  `tpEmis` 4, within 168 hours (`authorize/1` routes a `tpEmis` 4 document there).
+  """
+  @spec epec(map()) :: {:ok, Result.t()} | {:error, term()}
+  def epec(opts) when is_map(opts) do
+    with :ok <- require_keys(opts, [:xml, :cert, :environment]),
+         :ok <- validate_environment(opts.environment),
+         :ok <- environment_matches_xml(opts.environment, opts.xml),
+         {:ok, facts} <- EPEC.extract(opts.xml, ver_aplic: Map.get(opts, :ver_aplic)),
+         :ok <- validate_ch_nfe(facts.ch_nfe),
+         :ok <- validate_tax_id(facts.tax_id) do
+      opts
+      |> an_opts()
+      |> Map.merge(%{ch_nfe: facts.ch_nfe, tax_id: facts.tax_id, epec: facts.epec})
+      |> send_event(&Events.epec/1, 55)
     end
   end
 
@@ -362,7 +518,7 @@ defmodule SefazNfe do
   end
 
   defp send_event(opts, build, model) do
-    with {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_recepcao_evento, model),
+    with {:ok, url} <- route(opts, :nfe_recepcao_evento, model),
          {:ok, uf_code} <- Endpoints.uf_code(opts.uf),
          event = build.(event_opts(opts, uf_code)),
          {:ok, signed} <- Signer.sign(event, opts.cert, "infEvento", "evento"),
