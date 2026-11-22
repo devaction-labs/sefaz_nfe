@@ -96,17 +96,7 @@ defmodule SefazNfe.NFeBuilder do
       ~s(<?xml version="1.0" encoding="UTF-8"?>) <>
         ~s(<NFe xmlns="http://www.portalfiscal.inf.br/nfe">) <>
         ~s(<infNFe Id="NFe#{key}" versao="4.00">) <>
-        ide(
-          uf_code,
-          c_nf,
-          serie,
-          number,
-          emitted_at,
-          tp_amb,
-          String.last(key),
-          municipality,
-          model
-        ) <>
+        ide(uf_code, {c_nf, serie, number}, {emitted_at, tp_amb}, key, municipality, model) <>
         emit(tax_id, ie, uf, municipality, city, crt) <>
         dest(model, tp_amb, uf, municipality, city, dest_tax_id(opts, model)) <>
         aut_xml(Keyword.get(opts, :auth_tax_id)) <>
@@ -191,7 +181,9 @@ defmodule SefazNfe.NFeBuilder do
     end
   end
 
-  defp ide(uf_code, c_nf, serie, number, emitted_at, tp_amb, c_dv, municipality, model) do
+  defp ide(uf_code, {c_nf, serie, number}, {emitted_at, tp_amb}, key, municipality, model) do
+    c_dv = String.last(key)
+
     ~s(<ide><cUF>#{uf_code}</cUF><cNF>#{c_nf}</cNF><natOp>VENDA DE MERCADORIA</natOp>) <>
       ~s(<mod>#{model}</mod><serie>#{serie}</serie><nNF>#{number}</nNF>) <>
       ~s(<dhEmi>#{emitted_at}</dhEmi><tpNF>1</tpNF><idDest>1</idDest>) <>
