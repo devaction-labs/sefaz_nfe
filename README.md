@@ -2,9 +2,9 @@
 
 Elixir library for **SEFAZ NF-e (modelo 55) and NFC-e (modelo 65) communication**: sign, authorize, consult, contingency, DistDFe.
 
-It does **not** calculate taxes. The ERP (or Nexus Pro) builds the XML; this library talks to SEFAZ.
+It does **not** calculate taxes. The ERP (or Nexus Pro) supplies every value; this library builds the XML from a map, signs it and talks to SEFAZ.
 
-> Status: 0.2.0. Transport live and the whole NF-e lifecycle verified in
+> Status: 0.3.0. Transport live and the whole NF-e lifecycle verified in
 > homologação with a real ICP-Brasil A1: authorization (`cStat` 100, `nfeProc`
 > assembled), CCe and cancellation (135), protocol consultation (100), and
 > inutilização (102), all against SEFAZ BA. NFC-e 65 (authorize, consult, cancel
@@ -13,7 +13,7 @@ It does **not** calculate taxes. The ERP (or Nexus Pro) builds the XML; this lib
 > not be exercised in homologação; see the CHANGELOG.
 >
 > ```elixir
-> {:sefaz_nfe, "~> 0.2.0"}
+> {:sefaz_nfe, "~> 0.3.0"}
 > ```
 >
 > **Requires OTP 29.1 or later.** Earlier OTP 29 aborts the TLS handshake on
@@ -99,11 +99,84 @@ SefazNfe.start_dist_dfe_poller(
 )
 ```
 
+## Building an NF-e
+
+`SefazNfe.Builder.build_nfe/2` takes the content of `infNFe` as a map and
+returns the unsigned XML and the access key. The layout is generated from the
+Pacote de Liberação, so keys are the snake_case of the XSD names (`v_nf`,
+`icms_sn102`, `det_pag`). Choices are picked by key, lists stand for repeated
+elements, and `id`, `ide.c_nf` and `ide.c_dv` are generated when absent.
+
+```elixir
+nfe = %{
+  ide: %{
+    c_uf: 35, nat_op: "VENDA DE MERCADORIA", mod: 55, serie: 1, n_nf: 1,
+    dh_emi: "2026-09-07T10:00:00-03:00", tp_nf: 1, id_dest: 1, c_mun_fg: 3_550_308,
+    tp_imp: 1, tp_emis: 1, tp_amb: 2, fin_nfe: 1, ind_final: 1, ind_pres: 1,
+    proc_emi: 0, ver_proc: "meu_erp 1.0"
+  },
+  emit: %{
+    cnpj: "00000000000191", x_nome: "EMPRESA TESTE LTDA",
+    ender_emit: %{
+      x_lgr: "RUA TESTE", nro: "100", x_bairro: "CENTRO", c_mun: 3_550_308,
+      x_mun: "SAO PAULO", uf: "SP", cep: "01001000", c_pais: 1058, x_pais: "BRASIL"
+    },
+    ie: "110042490114", crt: 1
+  },
+  det: [
+    %{
+      prod: %{
+        c_prod: "001", c_ean: "SEM GTIN", x_prod: "PRODUTO TESTE", ncm: "84713012",
+        cfop: 5102, u_com: "UN", q_com: "1.0000", v_un_com: "100.0000000000",
+        v_prod: "100.00", c_ean_trib: "SEM GTIN", u_trib: "UN", q_trib: "1.0000",
+        v_un_trib: "100.0000000000", ind_tot: 1
+      },
+      imposto: %{
+        icms: %{icms_sn102: %{orig: 0, csosn: "102"}},
+        pis: %{pis_nt: %{cst: "07"}},
+        cofins: %{cofins_nt: %{cst: "07"}}
+      }
+    }
+  ],
+  total: %{
+    icms_tot: %{
+      v_bc: "0.00", v_icms: "0.00", v_icms_deson: "0.00", v_fcp: "0.00",
+      v_bc_st: "0.00", v_st: "0.00", v_fcp_st: "0.00", v_fcp_st_ret: "0.00",
+      v_prod: "100.00", v_frete: "0.00", v_seg: "0.00", v_desc: "0.00",
+      v_ii: "0.00", v_ipi: "0.00", v_ipi_devol: "0.00", v_pis: "0.00",
+      v_cofins: "0.00", v_outro: "0.00", v_nf: "100.00"
+    }
+  },
+  transp: %{mod_frete: 9},
+  pag: %{det_pag: [%{ind_pag: 0, t_pag: "01", v_pag: "100.00"}]}
+}
+
+{:ok, %{xml: xml, access_key: key}} = SefazNfe.Builder.build_nfe(nfe)
+
+# Builds, signs (adding the QR code for model 65) and sends in one call:
+{:ok, result} =
+  SefazNfe.authorize(%{nfe: nfe, cert: cert, uf: "SP", environment: :homologation})
+
+# The inverse: an NFe or nfeProc back to the same map shape.
+{:ok, %{nfe: parsed, protocol: protocol}} = SefazNfe.Builder.parse_nfe(result.xml)
+```
+
+Errors are collected, not raised one at a time, each with its path:
+`{:error, [{[:emit, :x_nome], :required}, {[:total, :icms_tot, :v_nf], {:pattern, "..."}}]}`.
+From `authorize/1` they come as `{:error, {:invalid_nfe, errors}}`, before the
+network. **The library never computes totals or taxes**: `v_nf`, `v_icms` and
+every other value are passed through exactly as given (`Decimal` is accepted
+when the optional dependency is present, and is formatted but never rounded).
+
+The layout is data in `priv/layouts/nfe_4.00.etf`. To refresh it for a new
+Pacote de Liberação, run `mix sefaz.gen_layout` against the PL directory. Tests
+that read the PL XSDs use `SEFAZ_NFE_PL_PATH` and skip without it.
+
 ## What this is
 
 ```
-ERP / Nexus  →  XML (cálculo ICMS, IBS/CBS, totais)
-sefaz_nfe    →  A1, XMLDSig, SOAP 4.00, cStat, DistDFe
+ERP / Nexus  →  valores (cálculo ICMS, IBS/CBS, totais)
+sefaz_nfe    →  XML, A1, XMLDSig, SOAP 4.00, cStat, DistDFe
 SEFAZ        →  autorização / rejeição / documentos distribuídos
 ```
 

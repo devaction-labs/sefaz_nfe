@@ -211,9 +211,10 @@
 
 ## Handoff
 
-- **Feature**: Phase 1 of `.specs/ROADMAP.md` (`Tools` parity for NF-e 55 plus NFC-e transport)
-- **Phase / Task**: Phase 1 complete, release 0.2.0 prepared (PR `release/0.2.0`). Verified live in homologação on OTP 29.1.2 with a real A1: `service_status/1` 107 on 26/27 UFs (model 55) and 27/27 (model 65); `consult_taxpayer` on the 25 UFs that offer it; NFC-e on BA (authorize 100 with QR 3.00, consult 100, cancel 135); SVC-RS for BA (authorize 100, consult 100, cancel 135).
-- **Known gaps**: not verifiable live: SVC-AN, EPEC, DistDFe and manifestação in homologação (AN/SVAN answer HTTP 403 server-side; DistDFe works in production); QR 2.00 (available CSCs rejected as 462, not registered); NFC-e inutilização (SVRS and SP answer 998 Serviço Desativado). `authorization_result/1` still unexercised against a real receipt (AD-019).
-- **Next step**: Merge the release PR, tag and publish 0.2.0 (maintainer 2FA), then Phase 2 (builder, AD-021).
+- **Feature**: Phase 2 of `.specs/ROADMAP.md` (build and read documents: NF-e builder, access key, `Proc`, `parse_nfe`)
+- **Phase / Task**: Phase 2 complete, release 0.3.0 prepared (PR `release/0.3.0`). Verified live in SEFAZ-BA homologação with documents built from maps: NF-e 55 authorize 100 / cancel 135 and NFC-e 65 authorize 100 (generated QR 3.00) / cancel 135. Golden tests: the builder's canonical `infNFe` equals fiscal-gateway's NFePHP output for 11 payloads.
+- **Known gaps**: golden coverage missing ICMS 30/51/70/90, ISSQN and IBS/CBS regular/mono/seletivo. Carried over from 0.2.0: SVC-AN, EPEC, DistDFe and manifestação not verifiable in homologação (AN/SVAN answer 403); QR 2.00 (CSCs rejected as 462); NFC-e inutilização (998); `authorization_result/1` unexercised against a real receipt (AD-019).
+- **Next step**: Merge the release PR, tag and publish 0.3.0 (maintainer 2FA), then the fiscal-gateway-compatible Phoenix API (separate project) and/or Phase 3/4 per ROADMAP.
+- **Open question**: whether clients use the gateway's `computed` tax mode (sizes the API project).
 - **Blockers**: none
-- **Branch**: release/0.2.0
+- **Branch**: release/0.3.0
