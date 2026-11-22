@@ -11,10 +11,10 @@ defmodule SefazNfeTest do
   @body ~s(<total><ICMSTot><vICMS>10.00</vICMS></ICMSTot></total></infNFe></NFe>)
 
   @xml_homolog ~s(<NFe xmlns="#{@nfe_ns}"><infNFe Id="#{@id}" versao="4.00">) <>
-                 ~s(<ide><tpAmb>2</tpAmb></ide>) <> @body
+                 ~s(<ide><mod>55</mod><tpAmb>2</tpAmb></ide>) <> @body
 
   @xml_prod ~s(<NFe xmlns="#{@nfe_ns}"><infNFe Id="#{@id}" versao="4.00">) <>
-              ~s(<ide><tpAmb>1</tpAmb></ide>) <> @body
+              ~s(<ide><mod>55</mod><tpAmb>1</tpAmb></ide>) <> @body
 
   test "certificate load rejects empty pfx or password" do
     assert {:error, :invalid_certificate} = SefazNfe.Certificate.load("", "x")
@@ -82,7 +82,7 @@ defmodule SefazNfeTest do
   test "consult_protocol 44-digit chave reaches not_implemented" do
     assert {:error, :not_implemented} =
              SefazNfe.consult_protocol(%{
-               ch_nfe: @ch,
+               ch_nfe: String.duplicate("1", 20) <> "55" <> String.duplicate("1", 22),
                cert: @cert,
                uf: "SP",
                environment: :homologation
