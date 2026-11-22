@@ -1,0 +1,31 @@
+{
+  "environment": 1,
+  "model": 58,
+  "series": 1,
+  "number": 321,
+  "numeric_code": "55667788",
+  "emission_type": 1,
+  "issued_at": "2026-09-25 22:30:00-03:00",
+  "responsible_technical": {
+    "cnpj": "11444777000161",
+    "contact_name": "Suporte Tecnico",
+    "email": "suporte@example.com",
+    "phone": "1130000000"
+  },
+  "company": {
+    "name": "Mineira Cargas Ltda",
+    "trade_name": null,
+    "cnpj": "11222333000181",
+    "state_registration": "0623079040081",
+    "tax_regime": 3,
+    "street": "Avenida Afonso Pena",
+    "number": "3000",
+    "district": "Funcionarios",
+    "city_name": "Belo Horizonte",
+    "city_ibge_code": "3106200",
+    "state": "MG",
+    "zip_code": "30130009",
+    "phone": "3132001000",
+    "email": "contato@example.com"
+  }
+}

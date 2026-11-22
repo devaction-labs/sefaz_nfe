@@ -27,10 +27,15 @@ defmodule SefazNfe.BuilderGoldenTest do
   alias SefazNfe.XML.C14N
 
   @golden Path.expand("../golden", __DIR__)
+  # CT-e, CT-e OS and MDF-e payloads share the directories (`builder_cte_mdfe_golden_test.exs`).
   @names @golden
          |> Path.join("payloads/*.json")
          |> Path.wildcard()
          |> Enum.map(&Path.basename(&1, ".json"))
+         |> Enum.filter(fn name ->
+           ctx = @golden |> Path.join("contexts/#{name}.json") |> File.read!() |> JSON.decode!()
+           ctx["model"] in [55, 65]
+         end)
          |> Enum.sort()
 
   for name <- @names do
