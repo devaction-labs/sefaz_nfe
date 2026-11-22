@@ -18,9 +18,9 @@ defmodule SefazNfe do
   alias SefazNfe.Result
   alias SefazNfe.Schema
   alias SefazNfe.Signer
-  alias SefazNfe.TaxpayerLookup
   alias SefazNfe.SOAP
   alias SefazNfe.SOAP.Envelope
+  alias SefazNfe.TaxpayerLookup
 
   @justification_min 15
   @tp_amb ~r|<tpAmb>([12])</tpAmb>|
@@ -135,9 +135,9 @@ defmodule SefazNfe do
   `NFeStatusServico4` for one UF.
 
   The cheapest official call there is, and the one that proves the A1, the mTLS
-  handshake and the endpoint table in a single round trip. `cStat` 107 means the
-  authorizer is in operation; 108 and 109 mean it is not, and both arrive as
-  `{:ok, result}` because SEFAZ answered.
+  handshake and the endpoint table in a single round trip. `cStat` 107 is
+  `:in_operation`; 108 and 109 are `:retryable` (the authorizer is paused), and
+  all arrive as `{:ok, result}` because SEFAZ answered. See `SefazNfe.CStat`.
 
   `:model` (55 by default, or 65) selects the NF-e or the NFC-e authorizer.
   """

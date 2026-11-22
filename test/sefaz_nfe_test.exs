@@ -18,7 +18,7 @@ defmodule SefazNfeTest do
 
   test "certificate load rejects empty pfx or password" do
     assert {:error, :invalid_certificate} = SefazNfe.Certificate.load("", "x")
-    assert {:error, :invalid_certificate} = SefazNfe.Certificate.load("x", "")
+    assert {:error, :invalid_password} = SefazNfe.Certificate.load("x", "")
   end
 
   test "certificate inspect is redacted" do
