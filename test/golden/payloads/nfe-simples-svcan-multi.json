@@ -1,0 +1,148 @@
+{
+    "ref": "golden-svcan",
+    "identification": {
+        "operation_nature": "Venda de mercadoria",
+        "operation_type": 1,
+        "destination": 1,
+        "purpose": 1,
+        "final_consumer": 1,
+        "buyer_presence": 1
+    },
+    "recipient": {
+        "name": "Maria da Silva",
+        "cpf": "11144477735",
+        "state_registration_indicator": 9
+    },
+    "items": [
+        {
+            "code": "S-101",
+            "gtin": "SEM GTIN",
+            "description": "Item com credito SN",
+            "ncm": "96081000",
+            "cfop": "5102",
+            "commercial_unit": "UN",
+            "commercial_quantity": "1.0000",
+            "commercial_unit_price": "10.0000000000",
+            "gross_amount": "10.00",
+            "taxable_gtin": "SEM GTIN",
+            "taxable_unit": "UN",
+            "taxable_quantity": "1.0000",
+            "taxable_unit_price": "10.0000000000",
+            "counts_in_total": 1,
+            "icms": {
+                "origin": 2,
+                "csosn": "101",
+                "sn_credit_rate": "1.25",
+                "sn_credit_amount": "0.13"
+            },
+            "pis": {
+                "cst": "01",
+                "base": "10.00",
+                "rate": "1.65",
+                "amount": "0.00"
+            },
+            "cofins": {
+                "cst": "01",
+                "base": "10.00",
+                "rate": "7.60",
+                "amount": "0.00"
+            }
+        },
+        {
+            "code": "S-500",
+            "gtin": "SEM GTIN",
+            "description": "Item ST retida SN",
+            "ncm": "96081000",
+            "cfop": "5405",
+            "commercial_unit": "UN",
+            "commercial_quantity": "1.0000",
+            "commercial_unit_price": "20.0000000000",
+            "gross_amount": "20.00",
+            "taxable_gtin": "SEM GTIN",
+            "taxable_unit": "UN",
+            "taxable_quantity": "1.0000",
+            "taxable_unit_price": "20.0000000000",
+            "counts_in_total": 1,
+            "icms": {
+                "origin": 0,
+                "csosn": "500",
+                "retained_st_base": "20.00",
+                "retained_st_rate": "18.00",
+                "retained_st_amount": "3.60"
+            },
+            "pis": {
+                "cst": "01",
+                "base": "20.00",
+                "rate": "1.65",
+                "amount": "0.00"
+            },
+            "cofins": {
+                "cst": "01",
+                "base": "20.00",
+                "rate": "7.60",
+                "amount": "0.00"
+            }
+        },
+        {
+            "code": "S-202",
+            "gtin": "SEM GTIN",
+            "description": "Item ST SN",
+            "ncm": "96081000",
+            "cfop": "5403",
+            "commercial_unit": "UN",
+            "commercial_quantity": "1.0000",
+            "commercial_unit_price": "30.0000000000",
+            "gross_amount": "30.00",
+            "taxable_gtin": "SEM GTIN",
+            "taxable_unit": "UN",
+            "taxable_quantity": "1.0000",
+            "taxable_unit_price": "30.0000000000",
+            "counts_in_total": 1,
+            "icms": {
+                "origin": 0,
+                "csosn": "202",
+                "st_base_modality": 4,
+                "st_mva_rate": "40.00",
+                "st_base": "42.00",
+                "st_rate": "18.00",
+                "st_amount": "7.56"
+            },
+            "pis": {
+                "cst": "01",
+                "base": "30.00",
+                "rate": "1.65",
+                "amount": "0.00"
+            },
+            "cofins": {
+                "cst": "01",
+                "base": "30.00",
+                "rate": "7.60",
+                "amount": "0.00"
+            }
+        }
+    ],
+    "totals": {
+        "icms_base": "0.00",
+        "icms_amount": "0.00",
+        "products_amount": "60.00",
+        "freight_amount": "0.00",
+        "insurance_amount": "0.00",
+        "discount_amount": "0.00",
+        "ipi_amount": "0.00",
+        "pis_amount": "0.00",
+        "cofins_amount": "0.00",
+        "other_expenses_amount": "0.00",
+        "document_amount": "60.00",
+        "icms_st_base": "42.00",
+        "icms_st_amount": "7.56"
+    },
+    "payments": [
+        {
+            "method": "01",
+            "amount": "60.00"
+        }
+    ],
+    "transport": {
+        "freight_mode": 9
+    }
+}

@@ -1,0 +1,89 @@
+{
+    "ref": "pedido-1001",
+    "identification": {
+        "operation_nature": "Venda de mercadoria",
+        "operation_type": 1,
+        "destination": 1,
+        "purpose": 1,
+        "final_consumer": 1,
+        "buyer_presence": 1
+    },
+    "recipient": {
+        "name": "Maria da Silva",
+        "cpf": "11144477735",
+        "state_registration_indicator": 9,
+        "email": "maria@example.com",
+        "address": {
+            "street": "Rua Augusta",
+            "number": "1500",
+            "complement": "Apto 42",
+            "district": "Consolação",
+            "city_ibge_code": "3550308",
+            "city_name": "São Paulo",
+            "state": "SP",
+            "zip_code": "01304001",
+            "country_code": "1058",
+            "country_name": "Brasil",
+            "phone": "11999998888"
+        }
+    },
+    "items": [
+        {
+            "code": "CAN-AZ-001",
+            "gtin": "SEM GTIN",
+            "description": "Caneta esferográfica azul",
+            "ncm": "96081000",
+            "cfop": "5102",
+            "commercial_unit": "UN",
+            "commercial_quantity": "10.0000",
+            "commercial_unit_price": "2.5000000000",
+            "gross_amount": "25.00",
+            "taxable_gtin": "SEM GTIN",
+            "taxable_unit": "UN",
+            "taxable_quantity": "10.0000",
+            "taxable_unit_price": "2.5000000000",
+            "counts_in_total": 1,
+            "icms": {
+                "origin": 0,
+                "csosn": "102"
+            },
+            "pis": {
+                "cst": "49",
+                "base": "0.00",
+                "rate": "0.00",
+                "amount": "0.00"
+            },
+            "cofins": {
+                "cst": "49",
+                "base": "0.00",
+                "rate": "0.00",
+                "amount": "0.00"
+            }
+        }
+    ],
+    "totals": {
+        "icms_base": "0.00",
+        "icms_amount": "0.00",
+        "products_amount": "25.00",
+        "freight_amount": "0.00",
+        "insurance_amount": "0.00",
+        "discount_amount": "0.00",
+        "ipi_amount": "0.00",
+        "pis_amount": "0.00",
+        "cofins_amount": "0.00",
+        "other_expenses_amount": "0.00",
+        "document_amount": "25.00"
+    },
+    "payments": [
+        {
+            "method": "01",
+            "amount": "25.00"
+        }
+    ],
+    "transport": {
+        "freight_mode": 9
+    },
+    "additional_info": {
+        "for_tax_authority": "Documento emitido por ME ou EPP optante pelo Simples Nacional."
+    }
+}

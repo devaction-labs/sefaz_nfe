@@ -1,0 +1,159 @@
+{
+    "ref": "pedido-2001",
+    "identification": {
+        "operation_nature": "Venda de mercadoria com substituição tributária",
+        "operation_type": 1,
+        "destination": 2,
+        "purpose": 1,
+        "final_consumer": 0,
+        "buyer_presence": 9,
+        "intermediary": 0
+    },
+    "recipient": {
+        "name": "Cliente Exemplo Ltda",
+        "cnpj": "11222333000181",
+        "state_registration_indicator": 1,
+        "state_registration": "12345678",
+        "email": "fiscal@cliente.example.com",
+        "address": {
+            "street": "Avenida Rio Branco",
+            "number": "156",
+            "district": "Centro",
+            "city_ibge_code": "3304557",
+            "city_name": "Rio de Janeiro",
+            "state": "RJ",
+            "zip_code": "20040003",
+            "country_code": "1058",
+            "country_name": "Brasil"
+        }
+    },
+    "items": [
+        {
+            "code": "CAN-AZ-001",
+            "gtin": "SEM GTIN",
+            "description": "Caneta esferográfica azul",
+            "ncm": "96081000",
+            "cfop": "6101",
+            "commercial_unit": "CX",
+            "commercial_quantity": "10.0000",
+            "commercial_unit_price": "25.0000000000",
+            "gross_amount": "250.00",
+            "taxable_gtin": "SEM GTIN",
+            "taxable_unit": "CX",
+            "taxable_quantity": "10.0000",
+            "taxable_unit_price": "25.0000000000",
+            "discount": "10.00",
+            "counts_in_total": 1,
+            "total_tax_estimate": "75.00",
+            "icms": {
+                "origin": 0,
+                "cst": "10",
+                "base_modality": 3,
+                "base": "240.00",
+                "rate": "12.00",
+                "amount": "28.80",
+                "fcp_base": "240.00",
+                "fcp_rate": "2.00",
+                "fcp_amount": "4.80",
+                "st_base_modality": 4,
+                "st_mva_rate": "40.00",
+                "st_base": "336.00",
+                "st_rate": "18.00",
+                "st_amount": "31.68",
+                "st_fcp_base": "336.00",
+                "st_fcp_rate": "2.00",
+                "st_fcp_amount": "1.92"
+            },
+            "ipi": {
+                "legal_framework_code": "999",
+                "cst": "50",
+                "base": "240.00",
+                "rate": "5.00",
+                "amount": "12.00"
+            },
+            "pis": {
+                "cst": "01",
+                "base": "240.00",
+                "rate": "1.65",
+                "amount": "3.96"
+            },
+            "cofins": {
+                "cst": "01",
+                "base": "240.00",
+                "rate": "7.60",
+                "amount": "18.24"
+            },
+            "reform": {
+                "cst": "000",
+                "classification": "000001",
+                "ibs_cbs": {
+                    "base": "240.00",
+                    "state_rate": "0.1000",
+                    "state_amount": "0.24",
+                    "municipal_rate": "0.0000",
+                    "municipal_amount": "0.00",
+                    "ibs_amount": "0.24",
+                    "cbs_rate": "0.9000",
+                    "cbs_amount": "2.16"
+                }
+            },
+            "cest": "1902000"
+        }
+    ],
+    "totals": {
+        "icms_base": "240.00",
+        "icms_amount": "28.80",
+        "products_amount": "250.00",
+        "freight_amount": "0.00",
+        "insurance_amount": "0.00",
+        "discount_amount": "10.00",
+        "ipi_amount": "12.00",
+        "pis_amount": "3.96",
+        "cofins_amount": "18.24",
+        "other_expenses_amount": "0.00",
+        "document_amount": "285.60",
+        "tax_estimate": "75.00",
+        "reform": {
+            "base": "240.00",
+            "state_ibs_amount": "0.24",
+            "municipal_ibs_amount": "0.00",
+            "ibs_amount": "0.24",
+            "cbs_amount": "2.16"
+        },
+        "fcp_amount": "4.80",
+        "icms_st_base": "336.00",
+        "icms_st_amount": "31.68",
+        "fcp_st_amount": "1.92"
+    },
+    "payments": [
+        {
+            "indicator": 1,
+            "method": "15",
+            "amount": "285.60",
+            "date": "2026-10-13"
+        }
+    ],
+    "transport": {
+        "freight_mode": 0,
+        "carrier": {
+            "cnpj": "34028316000103",
+            "name": "Transportadora Exemplo Ltda",
+            "state_registration": "ISENTO",
+            "address": "Rodovia Presidente Dutra, km 225",
+            "city_name": "Guarulhos",
+            "state": "SP"
+        },
+        "volumes": [
+            {
+                "quantity": "10",
+                "species": "CAIXA",
+                "brand": "EXEMPLO",
+                "net_weight": "12.000",
+                "gross_weight": "12.500"
+            }
+        ]
+    },
+    "additional_info": {
+        "complementary": "Pedido de compra 4521; entrega em horário comercial."
+    }
+}

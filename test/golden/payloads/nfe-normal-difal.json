@@ -1,0 +1,110 @@
+{
+    "ref": "golden-difal",
+    "identification": {
+        "operation_nature": "Venda a consumidor final de outra UF",
+        "operation_type": 1,
+        "destination": 2,
+        "purpose": 1,
+        "final_consumer": 1,
+        "buyer_presence": 2
+    },
+    "recipient": {
+        "name": "Joao Consumidor",
+        "cpf": "11144477735",
+        "state_registration_indicator": 9,
+        "address": {
+            "street": "Rua das Flores",
+            "number": "S/N",
+            "district": "Centro",
+            "city_ibge_code": "3304557",
+            "city_name": "Rio de Janeiro",
+            "state": "RJ",
+            "zip_code": "20040003",
+            "country_code": "1058",
+            "country_name": "Brasil"
+        }
+    },
+    "items": [
+        {
+            "code": "P-DIFAL",
+            "gtin": "SEM GTIN",
+            "description": "Produto com DIFAL",
+            "ncm": "96081000",
+            "cfop": "6108",
+            "commercial_unit": "UN",
+            "commercial_quantity": "1.0000",
+            "commercial_unit_price": "100.0000000000",
+            "gross_amount": "100.00",
+            "taxable_gtin": "SEM GTIN",
+            "taxable_unit": "UN",
+            "taxable_quantity": "1.0000",
+            "taxable_unit_price": "100.0000000000",
+            "counts_in_total": 1,
+            "icms": {
+                "origin": 0,
+                "cst": "00",
+                "base_modality": 3,
+                "base": "100.00",
+                "rate": "12.00",
+                "amount": "12.00",
+                "fcp_base": "100.00",
+                "fcp_rate": "2.00",
+                "fcp_amount": "2.00"
+            },
+            "pis": {
+                "cst": "01",
+                "base": "100.00",
+                "rate": "1.65",
+                "amount": "0.00"
+            },
+            "cofins": {
+                "cst": "01",
+                "base": "100.00",
+                "rate": "7.60",
+                "amount": "0.00"
+            },
+            "difal": {
+                "base": "100.00",
+                "fcp_rate": "2.0000",
+                "destination_rate": "20.0000",
+                "interstate_rate": "12.0000",
+                "destination_share": "100.0000",
+                "fcp_amount": "2.00",
+                "destination_amount": "8.00",
+                "origin_amount": "0.00"
+            },
+            "ipi": {
+                "legal_framework_code": "999",
+                "cst": "53"
+            },
+            "total_tax_estimate": "30.00"
+        }
+    ],
+    "totals": {
+        "icms_base": "100.00",
+        "icms_amount": "12.00",
+        "products_amount": "100.00",
+        "freight_amount": "0.00",
+        "insurance_amount": "0.00",
+        "discount_amount": "0.00",
+        "ipi_amount": "0.00",
+        "pis_amount": "0.00",
+        "cofins_amount": "0.00",
+        "other_expenses_amount": "0.00",
+        "document_amount": "100.00",
+        "fcp_amount": "2.00",
+        "difal_fcp_amount": "2.00",
+        "difal_destination_amount": "8.00",
+        "difal_origin_amount": "0.00",
+        "tax_estimate": "30.00"
+    },
+    "payments": [
+        {
+            "method": "17",
+            "amount": "100.00"
+        }
+    ],
+    "transport": {
+        "freight_mode": 9
+    }
+}
