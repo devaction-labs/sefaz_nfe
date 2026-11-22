@@ -19,10 +19,10 @@ defmodule SefazNfe do
   alias SefazNfe.Result
   alias SefazNfe.Schema
   alias SefazNfe.Signer
-  alias SefazNfe.TaxpayerLookup
-  alias SefazNfe.Telemetry
   alias SefazNfe.SOAP
   alias SefazNfe.SOAP.Envelope
+  alias SefazNfe.TaxpayerLookup
+  alias SefazNfe.Telemetry
 
   @justification_min 15
   @tp_amb ~r|<tpAmb>([12])</tpAmb>|
@@ -245,9 +245,9 @@ defmodule SefazNfe do
   `NFeStatusServico4` for one UF.
 
   The cheapest official call there is, and the one that proves the A1, the mTLS
-  handshake and the endpoint table in a single round trip. `cStat` 107 means the
-  authorizer is in operation; 108 and 109 mean it is not, and both arrive as
-  `{:ok, result}` because SEFAZ answered.
+  handshake and the endpoint table in a single round trip. `cStat` 107 is
+  `:in_operation`; 108 and 109 are `:retryable` (the authorizer is paused), and
+  all arrive as `{:ok, result}` because SEFAZ answered. See `SefazNfe.CStat`.
 
   `:model` (55 by default, or 65) selects the NF-e or the NFC-e authorizer.
 
@@ -497,7 +497,7 @@ defmodule SefazNfe do
   EPEC is processed by the Ambiente Nacional (`cOrgao` 91, no `:uf` needed),
   sequence 1, authored by the emitter, and signed on `infEvento` like every
   event. SEFAZ answers `cStat` 136 with the protocol (`:n_prot`) and the
-  registration time (`:dh_reg_evento`).
+  registration time (`:dh_recbto`).
 
   Refused before the network: a model other than 55
   (`{:unsupported_for_model, 65}`), a document that is not `tpEmis` 4

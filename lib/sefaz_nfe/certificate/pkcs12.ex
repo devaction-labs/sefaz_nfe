@@ -63,7 +63,9 @@ defmodule SefazNfe.Certificate.PKCS12 do
 
   A structurally broken PFX fails pattern matching deep in the DER walk; that is
   bad input rather than a caller bug, so it is rescued into
-  `{:error, :invalid_certificate}` like a wrong password.
+  `{:error, :invalid_certificate}`. A MAC that does not verify is
+  `{:error, :invalid_password}`: indistinguishable from a tampered file, but a
+  wrong password is by far the common cause.
   """
   @spec parse(binary(), String.t()) :: {:ok, parsed()} | {:error, term()}
   def parse(pfx, password) when is_binary(pfx) and is_binary(password) do
@@ -111,7 +113,7 @@ defmodule SefazNfe.Certificate.PKCS12 do
 
     case :crypto.mac(:hmac, digest, key, safe_der) do
       ^expected -> :ok
-      _mismatch -> {:error, :invalid_certificate}
+      _mismatch -> {:error, :invalid_password}
     end
   end
 

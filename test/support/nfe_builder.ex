@@ -104,16 +104,12 @@ defmodule SefazNfe.NFeBuilder do
         ~s(<infNFe Id="NFe#{key}" versao="4.00">) <>
         ide(
           uf_code,
-          c_nf,
-          serie,
-          number,
-          emitted_at,
-          tp_amb,
-          String.last(key),
+          {c_nf, serie, number},
+          {emitted_at, tp_amb},
+          key,
           municipality,
           model,
-          tp_emis,
-          contingency(tp_emis, opts)
+          {tp_emis, contingency(tp_emis, opts)}
         ) <>
         emit(tax_id, ie, uf, municipality, city, crt) <>
         dest(model, tp_amb, uf, municipality, city, dest_tax_id(opts, model)) <>
@@ -202,17 +198,15 @@ defmodule SefazNfe.NFeBuilder do
 
   defp ide(
          uf_code,
-         c_nf,
-         serie,
-         number,
-         emitted_at,
-         tp_amb,
-         c_dv,
+         {c_nf, serie, number},
+         {emitted_at, tp_amb},
+         key,
          municipality,
          model,
-         tp_emis,
-         cont
+         {tp_emis, cont}
        ) do
+    c_dv = String.last(key)
+
     ~s(<ide><cUF>#{uf_code}</cUF><cNF>#{c_nf}</cNF><natOp>VENDA DE MERCADORIA</natOp>) <>
       ~s(<mod>#{model}</mod><serie>#{serie}</serie><nNF>#{number}</nNF>) <>
       ~s(<dhEmi>#{emitted_at}</dhEmi><tpNF>1</tpNF><idDest>1</idDest>) <>

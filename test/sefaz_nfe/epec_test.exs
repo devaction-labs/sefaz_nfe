@@ -137,7 +137,7 @@ defmodule SefazNfe.EPECTest do
       assert result.c_stat == 136
       assert result.status == :authorized
       assert result.n_prot == "891260000000001"
-      assert result.dh_reg_evento == "2026-09-07T10:05:00-03:00"
+      assert result.dh_recbto == "2026-09-07T10:05:00-03:00"
     end
 
     test "a natural-person emitter is the event's CPF author" do
