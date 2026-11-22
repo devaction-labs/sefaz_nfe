@@ -1,6 +1,6 @@
 defmodule SefazNfe do
   @moduledoc """
-  SEFAZ NF-e **transport** (modelo 55).
+  SEFAZ NF-e and NFC-e **transport** (modelos 55 and 65).
 
   Does not calculate taxes. The ERP builds the XML; this library signs and
   talks to the official 4.00 webservices (and DistDFe 1.00 on the AN).
@@ -14,6 +14,7 @@ defmodule SefazNfe do
   alias SefazNfe.DistDFe.Poller
   alias SefazNfe.Endpoints
   alias SefazNfe.Events
+  alias SefazNfe.NFCe
   alias SefazNfe.Result
   alias SefazNfe.Schema
   alias SefazNfe.Signer
@@ -46,6 +47,12 @@ defmodule SefazNfe do
 
   `tpAmb` is MOC data rather than a boolean — 1 is produção, 2 is homologação —
   so a mismatch against `:environment` is refused before anything is sent.
+
+  The model is read from `<mod>`: 55 goes to the NF-e endpoints and 65 to the
+  NFC-e ones; anything else is `{:error, {:unsupported_model, mod}}`. For a
+  model 65 document `infNFeSupl` (with the on-line QR code 3.00) is added after
+  signing unless the XML already has one; see `SefazNfe.NFCe`. `:uf` is the
+  emitting UF, which selects the QR code address even where SVRS authorizes.
   """
   @spec authorize(map()) :: {:ok, Result.t()} | {:error, term()}
   def authorize(opts) when is_map(opts) do
@@ -53,14 +60,46 @@ defmodule SefazNfe do
          :ok <- validate_environment(opts.environment),
          :ok <- reject_an(opts.uf, :nfe_autorizacao),
          :ok <- environment_matches_xml(opts.environment, opts.xml),
+         {:ok, model} <- document_model(opts.xml),
          :ok <- Schema.validate(opts.xml, Map.get(opts, :schema, "nfe_v4.00.xsd")),
-         {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_autorizacao),
+         {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_autorizacao, model),
          {:ok, signed} <- Signer.sign_nfe(opts.xml, opts.cert),
+         {:ok, signed} <- put_supl(signed, model, opts),
          message = Envelope.send_nfe(signed, Map.get(opts, :id_lote, "1"), ind_sinc(opts)),
          {:ok, envelope} <- Envelope.wrap(:nfe_autorizacao, message),
          {:ok, body} <- call(url, envelope, opts, :nfe_autorizacao),
          {:ok, result} <- Result.parse(body) do
       {:ok, %{result | signed_xml: signed, xml: Result.proc(signed, body)}}
+    end
+  end
+
+  defp document_model(xml) do
+    with {:ok, doc} <- SefazNfe.XML.parse(xml) do
+      model_from_mod(SefazNfe.XML.text(doc, "mod"))
+    end
+  end
+
+  defp model_from_mod("55"), do: {:ok, 55}
+  defp model_from_mod("65"), do: {:ok, 65}
+  defp model_from_mod(mod), do: {:error, {:unsupported_model, mod}}
+
+  defp put_supl(signed, 65, opts), do: NFCe.put_supl(signed, opts.uf, opts.environment)
+  defp put_supl(signed, 55, _opts), do: {:ok, signed}
+
+  # The model an access key carries: positions 21 and 22 (0-based 20).
+  defp key_model(ch_nfe) do
+    case binary_part(ch_nfe, 20, 2) do
+      "55" -> {:ok, 55}
+      "65" -> {:ok, 65}
+      mod -> {:error, {:unsupported_model, mod}}
+    end
+  end
+
+  # `:model` selects the endpoints of the services that take no document.
+  defp model(opts) do
+    case Map.get(opts, :model, 55) do
+      model when model in [55, 65] -> {:ok, model}
+      other -> {:error, {:unsupported_model, other}}
     end
   end
 
@@ -76,12 +115,15 @@ defmodule SefazNfe do
   What an asynchronous `authorize/1` leaves to be collected. `cStat` 105 means
   the batch is still processing and the caller should ask again; 104 means it
   finished, and the document's own outcome is read from the nested protocol.
+
+  `:model` (55 by default, or 65) selects the endpoints.
   """
   @spec authorization_result(map()) :: {:ok, Result.t()} | {:error, term()}
   def authorization_result(opts) when is_map(opts) do
     with :ok <- require_keys(opts, [:n_rec, :cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
-         {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_ret_autorizacao),
+         {:ok, model} <- model(opts),
+         {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_ret_autorizacao, model),
          message = Envelope.authorization_result(opts.n_rec, Envelope.tp_amb(opts.environment)),
          {:ok, envelope} <- Envelope.wrap(:nfe_ret_autorizacao, message),
          {:ok, body} <- call(url, envelope, opts, :nfe_ret_autorizacao) do
@@ -96,12 +138,15 @@ defmodule SefazNfe do
   handshake and the endpoint table in a single round trip. `cStat` 107 is
   `:in_operation`; 108 and 109 are `:retryable` (the authorizer is paused), and
   all arrive as `{:ok, result}` because SEFAZ answered. See `SefazNfe.CStat`.
+
+  `:model` (55 by default, or 65) selects the NF-e or the NFC-e authorizer.
   """
   @spec service_status(map()) :: {:ok, Result.t()} | {:error, term()}
   def service_status(opts) when is_map(opts) do
     with :ok <- require_keys(opts, [:cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
-         {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_status_servico),
+         {:ok, model} <- model(opts),
+         {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_status_servico, model),
          {:ok, uf_code} <- Endpoints.uf_code(opts.uf),
          message = Envelope.status_service(uf_code, Envelope.tp_amb(opts.environment)),
          {:ok, envelope} <- Envelope.wrap(:nfe_status_servico, message),
@@ -205,13 +250,17 @@ defmodule SefazNfe do
 
   The idempotent way back after a crash between a receipt and a protocol: ask
   SEFAZ what it did with a document instead of sending the batch again.
+
+  The model comes from the key, so an NFC-e is asked of the NFC-e authorizer.
   """
   @spec consult_protocol(map()) :: {:ok, Result.t()} | {:error, term()}
   def consult_protocol(opts) when is_map(opts) do
     with :ok <- require_keys(opts, [:ch_nfe, :cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
          :ok <- validate_ch_nfe(opts.ch_nfe),
-         {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_consulta_protocolo),
+         {:ok, model} <- key_model(opts.ch_nfe),
+         {:ok, url} <-
+           Endpoints.url(opts.uf, opts.environment, :nfe_consulta_protocolo, model),
          message = Envelope.consult_protocol(opts.ch_nfe, Envelope.tp_amb(opts.environment)),
          {:ok, envelope} <- Envelope.wrap(:nfe_consulta_protocolo, message),
          {:ok, body} <- call(url, envelope, opts, :nfe_consulta_protocolo) do
@@ -223,7 +272,8 @@ defmodule SefazNfe do
   Event 110111, cancelling an authorized NF-e via `NFeRecepcaoEvento4`.
 
   Needs the protocol the authorization returned, and a justification of at
-  least 15 characters as the MOC requires.
+  least 15 characters as the MOC requires. The model comes from the key, so an
+  NFC-e is cancelled at the NFC-e authorizer.
   """
   @spec cancel(map()) :: {:ok, Result.t()} | {:error, term()}
   def cancel(opts) when is_map(opts) do
@@ -240,8 +290,9 @@ defmodule SefazNfe do
          :ok <- validate_environment(opts.environment),
          :ok <- validate_ch_nfe(opts.ch_nfe),
          :ok <- validate_tax_id(opts.tax_id),
-         :ok <- validate_justification(opts.justification) do
-      send_event(opts, &Events.cancel/1)
+         :ok <- validate_justification(opts.justification),
+         {:ok, model} <- key_model(opts.ch_nfe) do
+      send_event(opts, &Events.cancel/1, model)
     end
   end
 
@@ -250,6 +301,9 @@ defmodule SefazNfe do
 
   `:sequence` numbers the correction; each one replaces the previous text
   rather than adding to it.
+
+  NFC-e has no Carta de Correção: a model 65 key is
+  `{:error, {:unsupported_for_model, 65}}`.
   """
   @spec cce(map()) :: {:ok, Result.t()} | {:error, term()}
   def cce(opts) when is_map(opts) do
@@ -257,8 +311,9 @@ defmodule SefazNfe do
          :ok <- validate_environment(opts.environment),
          :ok <- validate_ch_nfe(opts.ch_nfe),
          :ok <- validate_tax_id(opts.tax_id),
-         :ok <- validate_justification(opts.correction) do
-      send_event(opts, &Events.correction/1)
+         :ok <- validate_justification(opts.correction),
+         {:ok, 55} <- cce_model(opts.ch_nfe) do
+      send_event(opts, &Events.correction/1, 55)
     end
   end
 
@@ -281,7 +336,14 @@ defmodule SefazNfe do
          :ok <- validate_manifestation(type, opts) do
       opts
       |> Map.put(:uf, "AN")
-      |> send_event(&Events.manifestation(type, &1))
+      |> send_event(&Events.manifestation(type, &1), 55)
+    end
+  end
+
+  defp cce_model(ch_nfe) do
+    case key_model(ch_nfe) do
+      {:ok, 65} -> {:error, {:unsupported_for_model, 65}}
+      other -> other
     end
   end
 
@@ -299,8 +361,8 @@ defmodule SefazNfe do
     end
   end
 
-  defp send_event(opts, build) do
-    with {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_recepcao_evento),
+  defp send_event(opts, build, model) do
+    with {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_recepcao_evento, model),
          {:ok, uf_code} <- Endpoints.uf_code(opts.uf),
          event = build.(event_opts(opts, uf_code)),
          {:ok, signed} <- Signer.sign(event, opts.cert, "infEvento", "evento"),
@@ -332,7 +394,9 @@ defmodule SefazNfe do
   `NFeInutilizacao4`, closing a range of NF-e numbers that was never used.
 
   A broken sequence still has to be accounted for, and this is how. `:model`
-  defaults to 55 and `:year` to the current one.
+  defaults to 55 and `:year` to the current one; it is the `mod` of the voided
+  range and also selects the endpoints, so 65 voids NFC-e numbers at the NFC-e
+  authorizer.
   """
   @spec void_numbers(map()) :: {:ok, Result.t()} | {:error, term()}
   def void_numbers(opts) when is_map(opts) do
@@ -350,7 +414,8 @@ defmodule SefazNfe do
          :ok <- validate_environment(opts.environment),
          :ok <- validate_tax_id(opts.tax_id),
          :ok <- validate_justification(opts.justification),
-         {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_inutilizacao),
+         {:ok, model} <- model(opts),
+         {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_inutilizacao, model),
          {:ok, uf_code} <- Endpoints.uf_code(opts.uf),
          message = Events.void_numbers(void_opts(opts, uf_code)),
          {:ok, signed} <- Signer.sign(message, opts.cert, "infInut", "inutNFe"),

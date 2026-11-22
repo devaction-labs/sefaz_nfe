@@ -118,4 +118,72 @@ defmodule SefazNfe.NFeBuilderTest do
   test "it carries no comments,which schema validation would refuse" do
     refute NFeBuilder.build().xml =~ "<!--"
   end
+
+  test "the default model 55 output is byte-identical to what it always was" do
+    sha = fn opts ->
+      :crypto.hash(:sha256, NFeBuilder.build(opts).xml) |> Base.encode16(case: :lower)
+    end
+
+    assert sha.(c_nf: 12_345_678) ==
+             "6413971798a52456151dd0cdb835edbaf5ffa73ff6869a73641162393e1d183c"
+
+    assert sha.(
+             c_nf: 12_345_678,
+             crt: 1,
+             dest_tax_id: "12345678901",
+             auth_tax_id: "00000000000191",
+             tp_amb: 1
+           ) == "a2bf2003316077c800e6e5b331ca35927c09456934564d3331ec4433414563f8"
+  end
+
+  describe "model: 65" do
+    test "builds an NFC-e: mod 65, DANFE NFC-e, consumer final, in person" do
+      %{xml: xml, access_key: key} = NFeBuilder.build(model: 65)
+      {:ok, doc} = XML.parse(xml)
+
+      assert binary_part(key, 20, 2) == "65"
+      assert XML.text(doc, "mod") == "65"
+      assert XML.text(doc, "tpImp") == "4"
+      assert XML.text(doc, "indFinal") == "1"
+      assert XML.text(doc, "indPres") == "1"
+      assert XML.text(doc, "idDest") == "1"
+      assert XML.text(doc, "modFrete") == "9"
+      assert XML.text(doc, "tPag") == "01"
+      assert XML.text(doc, "vPag") == XML.text(doc, "vNF")
+    end
+
+    test "has no recipient unless asked, and carries no infNFeSupl" do
+      %{xml: xml} = NFeBuilder.build(model: 65)
+
+      refute xml =~ "<dest>"
+      refute xml =~ "infNFeSupl"
+      refute xml =~ "indPag"
+    end
+
+    test "an optional recipient is just the CPF" do
+      %{xml: xml} = NFeBuilder.build(model: 65, dest_tax_id: "12345678909", tp_amb: 1)
+
+      assert xml =~ "<dest><CPF>12345678909</CPF><xNome>CLIENTE TESTE</xNome>"
+      refute xml =~ "enderDest"
+    end
+
+    test "the Simples Nacional branch works with it" do
+      %{xml: xml} = NFeBuilder.build(model: 65, crt: 1)
+
+      assert xml =~ "<ICMSSN102>"
+      assert xml =~ "<CRT>1</CRT>"
+    end
+
+    test "the access key check digit still closes and matches cDV" do
+      %{xml: xml, access_key: key} = NFeBuilder.build(model: 65)
+      {:ok, doc} = XML.parse(xml)
+
+      assert String.length(key) == 44
+      assert XML.text(doc, "cDV") == String.last(key)
+    end
+
+    test "any other model is refused" do
+      assert_raise ArgumentError, fn -> NFeBuilder.build(model: 57) end
+    end
+  end
 end

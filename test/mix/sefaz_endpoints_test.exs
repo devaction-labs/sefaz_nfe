@@ -87,4 +87,68 @@ defmodule Mix.Tasks.Sefaz.EndpointsTest do
 
     assert ["snapshot_date is missing or not ISO 8601"] = Endpoints.audit(undated)
   end
+
+  describe "the model 65 table" do
+    defp nfce, do: JSON.decode!(File.read!("priv/endpoints/nfce_4.00.json"))
+
+    test "the vendored NFC-e snapshot is clean" do
+      assert [] = Endpoints.audit(nfce())
+    end
+
+    test "a UF missing its production qr_code is reported" do
+      {_removed, broken} = pop_in(nfce(), ["qr_code", "production", "BA"])
+
+      assert ["BA has no production qr_code"] = Endpoints.audit(broken)
+    end
+
+    test "a UF missing its homologation url_chave is reported" do
+      {_removed, broken} = pop_in(nfce(), ["url_chave", "homologation", "SP"])
+
+      assert ["SP has no homologation url_chave"] = Endpoints.audit(broken)
+    end
+
+    test "a qr_code pointing off .gov.br is caught, but plain http is allowed" do
+      broken = put_in(nfce(), ["qr_code", "production", "BA"], "http://evil.test/qr")
+
+      assert [problem] = Endpoints.audit(broken)
+      assert problem =~ "host is not a government address"
+
+      http = put_in(nfce(), ["qr_code", "production", "BA"], "http://nfe.sefaz.ba.gov.br/qr")
+      assert [] = Endpoints.audit(http)
+    end
+
+    test "url_chave is not held to https or a scheme, only to the XSD length" do
+      schemeless =
+        put_in(nfce(), ["url_chave", "production", "BA"], "www.sefaz.ba.gov.br/nfce/consulta")
+
+      assert [] = Endpoints.audit(schemeless)
+
+      short = put_in(nfce(), ["url_chave", "production", "BA"], "a.gov.br")
+      assert [problem] = Endpoints.audit(short)
+      assert problem =~ "url_chave: not 21 to 85 characters"
+    end
+
+    test "webservice URLs keep the https and .gov.br rule" do
+      path = ["authorizers", "SP", "production", "nfe_autorizacao"]
+
+      assert [problem] = Endpoints.audit(put_in(nfce(), path, "http://nfce.fazenda.sp.gov.br/x"))
+      assert problem =~ "not https"
+
+      assert [problem] = Endpoints.audit(put_in(nfce(), path, "https://evil.test/x"))
+      assert problem =~ "host is not a government address"
+    end
+
+    test "a UF pointing at a missing authorizer is reported" do
+      broken = put_in(nfce(), ["uf_authorizer", "BA"], "NOPE")
+
+      problems = Endpoints.audit(broken)
+      assert length(problems) == 12
+      assert Enum.all?(problems, &String.contains?(&1, "BA (NOPE)"))
+    end
+
+    test "no IBGE uf_code is demanded of it, those live in the model 55 table" do
+      refute Map.has_key?(nfce(), "uf_code")
+      assert [] = Endpoints.audit(nfce())
+    end
+  end
 end

@@ -11,6 +11,10 @@ defmodule SefazNfe.NFeBuilder do
   written, not derived. With the default `crt: 3` (Regime Normal) the item
   carries ICMS 18%, PIS and COFINS; with `crt: 1` (Simples Nacional) it carries
   ICMSSN102 and PIS/COFINS not taxed, and the ICMS, PIS and COFINS totals are zero.
+
+  `model: 65` builds an NFC-e: `mod` 65, `tpImp` 4, consumer final, in person,
+  no `dest` unless `:dest_tax_id` is given, and `pag` without `indPag`. It
+  carries no `infNFeSupl` — `SefazNfe.authorize/1` adds it.
   """
 
   @homologation_name "NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
@@ -62,6 +66,10 @@ defmodule SefazNfe.NFeBuilder do
     number = Keyword.get(opts, :number, 1)
     tp_amb = Keyword.get(opts, :tp_amb, 2)
     crt = Keyword.get(opts, :crt, 3)
+    model = Keyword.get(opts, :model, 55)
+
+    unless model in [55, 65],
+      do: raise(ArgumentError, "model must be 55 or 65, got: #{inspect(model)}")
 
     unless crt in [1, 3], do: raise(ArgumentError, "crt must be 1 or 3, got: #{inspect(crt)}")
 
@@ -80,7 +88,7 @@ defmodule SefazNfe.NFeBuilder do
       |> to_string()
       |> String.pad_leading(8, "0")
 
-    key = access_key(uf_code, emitted_at, tax_id, serie, number, c_nf)
+    key = access_key(uf_code, emitted_at, tax_id, serie, number, c_nf, model)
 
     {municipality, city} = Map.fetch!(@capitals, uf)
 
@@ -88,18 +96,28 @@ defmodule SefazNfe.NFeBuilder do
       ~s(<?xml version="1.0" encoding="UTF-8"?>) <>
         ~s(<NFe xmlns="http://www.portalfiscal.inf.br/nfe">) <>
         ~s(<infNFe Id="NFe#{key}" versao="4.00">) <>
-        ide(uf_code, c_nf, serie, number, emitted_at, tp_amb, String.last(key), municipality) <>
+        ide(uf_code, {c_nf, serie, number}, {emitted_at, tp_amb}, key, municipality, model) <>
         emit(tax_id, ie, uf, municipality, city, crt) <>
-        dest(tp_amb, uf, municipality, city, Keyword.get(opts, :dest_tax_id, "99999999000191")) <>
+        dest(model, tp_amb, uf, municipality, city, dest_tax_id(opts, model)) <>
         aut_xml(Keyword.get(opts, :auth_tax_id)) <>
-        det(crt) <>
+        det(crt, product_name(model, tp_amb)) <>
         total(crt) <>
         ~s(<transp><modFrete>9</modFrete></transp>) <>
-        ~s(<pag><detPag><indPag>0</indPag><tPag>01</tPag><vPag>100.00</vPag></detPag></pag>) <>
+        pag(model) <>
         ~s(</infNFe></NFe>)
 
     %{xml: xml, access_key: key}
   end
+
+  # The recipient is optional on an NFC-e, so only an explicit :dest_tax_id
+  # produces one; model 55 keeps its fixed default.
+  defp dest_tax_id(opts, 55), do: Keyword.get(opts, :dest_tax_id, "99999999000191")
+  defp dest_tax_id(opts, 65), do: Keyword.get(opts, :dest_tax_id)
+
+  defp pag(55),
+    do: ~s(<pag><detPag><indPag>0</indPag><tPag>01</tPag><vPag>100.00</vPag></detPag></pag>)
+
+  defp pag(65), do: ~s(<pag><detPag><tPag>01</tPag><vPag>100.00</vPag></detPag></pag>)
 
   defp trim_precision(<<stamp::binary-size(19), rest::binary>>) do
     stamp <> String.replace(rest, ~r/^\.\d+/, "")
@@ -129,15 +147,16 @@ defmodule SefazNfe.NFeBuilder do
           String.t(),
           pos_integer(),
           pos_integer(),
-          String.t()
+          String.t(),
+          55 | 65
         ) ::
           String.t()
-  def access_key(uf_code, emitted_at, tax_id, serie, number, c_nf) do
+  def access_key(uf_code, emitted_at, tax_id, serie, number, c_nf, model \\ 55) do
     <<_::binary-size(2), year::binary-size(2), "-", month::binary-size(2), _rest::binary>> =
       emitted_at
 
     body =
-      "#{uf_code}#{year}#{month}#{tax_id}55" <>
+      "#{uf_code}#{year}#{month}#{tax_id}#{model}" <>
         String.pad_leading(to_string(serie), 3, "0") <>
         String.pad_leading(to_string(number), 9, "0") <> "1" <> c_nf
 
@@ -162,14 +181,21 @@ defmodule SefazNfe.NFeBuilder do
     end
   end
 
-  defp ide(uf_code, c_nf, serie, number, emitted_at, tp_amb, c_dv, municipality) do
+  defp ide(uf_code, {c_nf, serie, number}, {emitted_at, tp_amb}, key, municipality, model) do
+    c_dv = String.last(key)
+
     ~s(<ide><cUF>#{uf_code}</cUF><cNF>#{c_nf}</cNF><natOp>VENDA DE MERCADORIA</natOp>) <>
-      ~s(<mod>55</mod><serie>#{serie}</serie><nNF>#{number}</nNF>) <>
+      ~s(<mod>#{model}</mod><serie>#{serie}</serie><nNF>#{number}</nNF>) <>
       ~s(<dhEmi>#{emitted_at}</dhEmi><tpNF>1</tpNF><idDest>1</idDest>) <>
-      ~s(<cMunFG>#{municipality}</cMunFG><tpImp>1</tpImp><tpEmis>1</tpEmis><cDV>#{c_dv}</cDV>) <>
+      ~s(<cMunFG>#{municipality}</cMunFG><tpImp>#{tp_imp(model)}</tpImp><tpEmis>1</tpEmis>) <>
+      ~s(<cDV>#{c_dv}</cDV>) <>
       ~s(<tpAmb>#{tp_amb}</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal>) <>
       ~s(<indPres>1</indPres><procEmi>0</procEmi><verProc>sefaz_nfe</verProc></ide>)
   end
+
+  # DANFE portrait for 55, DANFE NFC-e for 65.
+  defp tp_imp(55), do: 1
+  defp tp_imp(65), do: 4
 
   defp emit(tax_id, ie, uf, municipality, city, crt) do
     ~s(<emit><CNPJ>#{tax_id}</CNPJ><xNome>EMPRESA TESTE LTDA</xNome>) <>
@@ -182,7 +208,16 @@ defmodule SefazNfe.NFeBuilder do
 
   # A CPF recipient is a natural person, so the document goes out as CPF and
   # never as a short CNPJ. In homologação the name is fixed by the MOC.
-  defp dest(tp_amb, uf, municipality, city, dest_tax_id) do
+  defp dest(_model, _tp_amb, _uf, _municipality, _city, nil), do: ""
+
+  # An NFC-e recipient is just the CPF/CNPJ and an optional name.
+  defp dest(65, tp_amb, _uf, _municipality, _city, dest_tax_id) do
+    name = if tp_amb == 2, do: @homologation_name, else: "CLIENTE TESTE"
+
+    ~s(<dest>#{tax_id_element(dest_tax_id)}<xNome>#{name}</xNome><indIEDest>9</indIEDest></dest>)
+  end
+
+  defp dest(55, tp_amb, uf, municipality, city, dest_tax_id) do
     name = if tp_amb == 2, do: @homologation_name, else: "CLIENTE TESTE"
 
     ~s(<dest>#{tax_id_element(dest_tax_id)}<xNome>#{name}</xNome>) <>
@@ -192,9 +227,16 @@ defmodule SefazNfe.NFeBuilder do
       ~s(<indIEDest>9</indIEDest></dest>)
   end
 
-  defp det(crt) do
+  # In homologação, SEFAZ requires this exact text as the first item of an
+  # NFC-e (cStat 373); an NF-e carries the equivalent in dest/xNome instead.
+  defp product_name(65, 2),
+    do: "NOTA FISCAL EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
+
+  defp product_name(_model, _tp_amb), do: "PRODUTO TESTE"
+
+  defp det(crt, product_name) do
     ~s(<det nItem="1"><prod><cProd>001</cProd><cEAN>SEM GTIN</cEAN>) <>
-      ~s(<xProd>PRODUTO TESTE</xProd><NCM>84713012</NCM><CFOP>5102</CFOP>) <>
+      ~s(<xProd>#{product_name}</xProd><NCM>84713012</NCM><CFOP>5102</CFOP>) <>
       ~s(<uCom>UN</uCom><qCom>1.0000</qCom><vUnCom>100.0000000000</vUnCom>) <>
       ~s(<vProd>100.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib>) <>
       ~s(<qTrib>1.0000</qTrib><vUnTrib>100.0000000000</vUnTrib><indTot>1</indTot></prod>) <>
