@@ -49,8 +49,11 @@ defmodule SefazNfe.SOAP do
   reason would drag a whole `{:soap_crash, stacktrace}` into every metrics
   label.
 
-  Calls are gated by `SefazNfe.CircuitBreaker` on `:uf`, so a UF that stops
-  answering fails fast instead of costing every caller a full timeout.
+  Calls are gated by `SefazNfe.CircuitBreaker` keyed by the endpoint's host
+  (`https://host:port`, lower case), the server actually called: a server that
+  stops answering fails fast instead of costing every caller a full timeout,
+  without touching other models of the same UF or other UFs on other servers.
+  The key is also the `:host` metadata of the span.
   """
   @spec isolated_call(String.t(), iodata(), cert(), keyword()) ::
           {:ok, String.t()} | {:error, term()}
@@ -60,38 +63,51 @@ defmodule SefazNfe.SOAP do
     task_opts = Keyword.take(meta, [:service]) ++ rest ++ [timeout: timeout]
     deadline = max(timeout, Keyword.get(rest, :connect_timeout, 0))
 
+    host = host_key(endpoint)
+
     metadata =
       %{environment: nil, model: nil, contingency: nil}
       |> Map.merge(Map.new(meta))
       |> Map.put(:endpoint, endpoint)
+      |> Map.put(:host, host)
 
-    uf = Keyword.get(meta, :uf, "")
-
-    with :ok <- CircuitBreaker.check(uf) do
+    with :ok <- CircuitBreaker.check(host) do
       :telemetry.span([:sefaz_nfe, :soap], metadata, fn ->
         result = run(endpoint, body, cert, task_opts, deadline)
-        record(uf, result)
+        record(host, result)
         {result, Map.put(metadata, :outcome, outcome(result))}
       end)
     end
   end
 
-  # A reply that reached us — even a SOAP fault or an HTTP 4xx — proves the UF
+  # Scheme + host + port, lower-cased: one key per server, whatever the path.
+  # An endpoint that does not parse into a host keeps its whole lower-cased text.
+  defp host_key(endpoint) do
+    case URI.parse(endpoint) do
+      %URI{scheme: scheme, host: host, port: port} when is_binary(scheme) and is_binary(host) ->
+        String.downcase("#{scheme}://#{host}:#{port}")
+
+      _no_host ->
+        String.downcase(endpoint)
+    end
+  end
+
+  # A reply that reached us — even a SOAP fault or an HTTP 4xx — proves the server
   # is answering. Only the transport failures below say otherwise.
-  defp record(uf, {:error, reason}) when reason in [:timeout, :unreachable] do
-    CircuitBreaker.record_failure(uf)
+  defp record(host, {:error, reason}) when reason in [:timeout, :unreachable] do
+    CircuitBreaker.record_failure(host)
   end
 
-  defp record(uf, {:error, {:tls, _alert}}), do: CircuitBreaker.record_failure(uf)
-  defp record(uf, {:error, {:tls, _alert, _detail}}), do: CircuitBreaker.record_failure(uf)
-  defp record(uf, {:error, {:dns, _reason}}), do: CircuitBreaker.record_failure(uf)
-  defp record(uf, {:error, {:soap_crash, _reason}}), do: CircuitBreaker.record_failure(uf)
+  defp record(host, {:error, {:tls, _alert}}), do: CircuitBreaker.record_failure(host)
+  defp record(host, {:error, {:tls, _alert, _detail}}), do: CircuitBreaker.record_failure(host)
+  defp record(host, {:error, {:dns, _reason}}), do: CircuitBreaker.record_failure(host)
+  defp record(host, {:error, {:soap_crash, _reason}}), do: CircuitBreaker.record_failure(host)
 
-  defp record(uf, {:error, {:http, status, _body}}) when status >= 500 do
-    CircuitBreaker.record_failure(uf)
+  defp record(host, {:error, {:http, status, _body}}) when status >= 500 do
+    CircuitBreaker.record_failure(host)
   end
 
-  defp record(uf, _reached_sefaz), do: CircuitBreaker.record_success(uf)
+  defp record(host, _reached_sefaz), do: CircuitBreaker.record_success(host)
 
   # The window is the longer of the two client deadlines plus a grace, so the
   # client reports its own timeout instead of the supervisor killing it first.

@@ -11,6 +11,7 @@ defmodule SefazNfe.TelemetryTest do
   alias SefazNfe.NFeBuilder
 
   @cnpj "00000000000191"
+  @sp_host "https://homologacao.nfe.fazenda.sp.gov.br:443"
 
   defmodule Stub do
     @moduledoc false
@@ -198,39 +199,50 @@ defmodule SefazNfe.TelemetryTest do
 
   describe "circuit breaker events" do
     test "open, rejected and close" do
-      for _each <- 1..4, do: CircuitBreaker.record_failure("SP")
+      for _each <- 1..4, do: CircuitBreaker.record_failure(@sp_host)
       refute_received {:telemetry, [:sefaz_nfe, :circuit_breaker, :open], _, _}
 
-      CircuitBreaker.record_failure("SP")
-      assert_receive {:telemetry, [:sefaz_nfe, :circuit_breaker, :open], %{count: 1}, %{uf: "SP"}}
+      CircuitBreaker.record_failure(@sp_host)
 
-      assert {:error, {:circuit_open, "SP"}} = CircuitBreaker.check("SP")
+      assert_receive {:telemetry, [:sefaz_nfe, :circuit_breaker, :open], %{count: 1},
+                      %{host: @sp_host}}
+
+      assert {:error, {:circuit_open, @sp_host}} = CircuitBreaker.check(@sp_host)
 
       assert_receive {:telemetry, [:sefaz_nfe, :circuit_breaker, :rejected], %{count: 1},
-                      %{uf: "SP"}}
+                      %{host: @sp_host}}
 
-      CircuitBreaker.record_success("SP")
+      CircuitBreaker.record_success(@sp_host)
 
       assert_receive {:telemetry, [:sefaz_nfe, :circuit_breaker, :close], %{count: 1},
-                      %{uf: "SP"}}
+                      %{host: @sp_host}}
     end
 
     test "a success on a breaker that never opened emits no close" do
-      CircuitBreaker.record_failure("SP")
-      CircuitBreaker.record_success("SP")
+      CircuitBreaker.record_failure(@sp_host)
+      CircuitBreaker.record_success(@sp_host)
 
       refute_received {:telemetry, [:sefaz_nfe, :circuit_breaker, :close], _, _}
     end
 
     test "an open breaker refuses an operation with the :circuit_open outcome", %{cert: cert} do
-      for _each <- 1..5, do: CircuitBreaker.record_failure("SP")
+      for _each <- 1..5, do: CircuitBreaker.record_failure(@sp_host)
 
-      assert {:error, {:circuit_open, "SP"}} =
+      assert {:error, {:circuit_open, @sp_host}} =
                SefazNfe.service_status(status_opts(cert, %{uf: "SP"}))
 
       assert_receive {:telemetry, [:sefaz_nfe, :operation, :stop], _, %{outcome: :circuit_open}}
 
-      assert_receive {:telemetry, [:sefaz_nfe, :circuit_breaker, :rejected], _, %{uf: "SP"}}
+      assert_receive {:telemetry, [:sefaz_nfe, :circuit_breaker, :rejected], _, %{host: @sp_host}}
+    end
+
+    test "the SOAP span carries the host of the endpoint", %{cert: cert} do
+      Application.put_env(:sefaz_nfe, :telemetry_test_reply, {:status, 107})
+
+      assert {:ok, _status} = SefazNfe.service_status(status_opts(cert))
+
+      assert_receive {:telemetry, [:sefaz_nfe, :soap, :start], _, %{host: @sp_host, uf: "SP"}}
+      assert_receive {:telemetry, [:sefaz_nfe, :soap, :stop], _, %{host: @sp_host, uf: "SP"}}
     end
   end
 end
