@@ -1,11 +1,13 @@
 defmodule SefazNfe.Builder.Parser do
   @moduledoc false
-  # The reading half of `SefazNfe.Builder` (`Builder.parse_nfe/2`). It walks the
+  # The reading half of `SefazNfe.Builder` (`Builder.parse_nfe/2` and its CT-e,
+  # CT-e OS and MDF-e siblings, one `SefazNfe.Builder.Document` each). It walks the
   # same layout tree the builder writes from, over the `:xmerl` tree of
   # `SefazNfe.XML` (DTD refused, namespace aware), so the keys it returns are
   # the builder's keys and nothing is invented: every key comes from the layout,
   # never from the document, and no atom is created.
 
+  alias SefazNfe.Builder.Document
   alias SefazNfe.Layout
   alias SefazNfe.XML
 
@@ -17,6 +19,8 @@ defmodule SefazNfe.Builder.Parser do
     "tpAmb" => :tp_amb,
     "verAplic" => :ver_aplic,
     "chNFe" => :ch_nfe,
+    "chCTe" => :ch_cte,
+    "chMDFe" => :ch_mdfe,
     "dhRecbto" => :dh_recbto,
     "nProt" => :n_prot,
     "digVal" => :dig_val,
@@ -26,10 +30,14 @@ defmodule SefazNfe.Builder.Parser do
     "xMsg" => :x_msg
   }
 
-  @spec parse(binary(), keyword()) :: {:ok, map()} | {:error, term()}
-  def parse(xml, opts) when is_binary(xml) do
+  @spec parse(Document.kind(), binary(), keyword()) :: {:ok, map()} | {:error, term()}
+  def parse(kind, xml, opts) when is_binary(xml) do
+    document = Document.get(kind)
+
     ctx = %{
-      layout: Layout.nfe(),
+      document: document,
+      layout: document.layout,
+      modals: Document.modals_by_tag(document),
       strict: Keyword.get(opts, :strict, true),
       decimals: Keyword.get(opts, :decimals, false)
     }
@@ -50,12 +58,13 @@ defmodule SefazNfe.Builder.Parser do
 
   defp document(doc, ctx) do
     namespace = ctx.layout.namespace
+    %{root: root, proc: proc} = ctx.document
 
     case XML.qname(doc) do
-      {^namespace, "NFe"} ->
+      {^namespace, ^root} ->
         with {:ok, result} <- nfe(doc, ctx), do: {:ok, Map.put(result, :protocol, nil)}
 
-      {^namespace, "nfeProc"} ->
+      {^namespace, ^proc} ->
         nfe_proc(doc, ctx)
 
       {_namespace, name} ->
@@ -67,9 +76,9 @@ defmodule SefazNfe.Builder.Parser do
     namespace = ctx.layout.namespace
     children = XML.children(doc)
 
-    with {:ok, nfe_doc} <- single(children, namespace, "NFe"),
+    with {:ok, nfe_doc} <- single(children, namespace, ctx.document.root),
          {:ok, result} <- nfe(nfe_doc, ctx),
-         {:ok, protocol} <- protocol(children, namespace) do
+         {:ok, protocol} <- protocol(children, namespace, ctx.document.prot) do
       {:ok, %{result | protocol: protocol}}
     end
   end
@@ -82,11 +91,11 @@ defmodule SefazNfe.Builder.Parser do
     end
   end
 
-  defp protocol(children, namespace) do
-    case Enum.filter(children, &(XML.qname(&1) == {namespace, "protNFe"})) do
+  defp protocol(children, namespace, name) do
+    case Enum.filter(children, &(XML.qname(&1) == {namespace, name})) do
       [] -> {:ok, nil}
       [prot] -> {:ok, protocol_map(prot)}
-      _several -> {:error, {:duplicate_element, "protNFe"}}
+      _several -> {:error, {:duplicate_element, name}}
     end
   end
 
@@ -118,9 +127,11 @@ defmodule SefazNfe.Builder.Parser do
     with {:ok, map} <- element(ctx.layout.root, doc, [], ctx) do
       {unknown, map} = Map.pop(map, :__unknown__)
 
+      %{result: result_key, inf: inf, supl: supl} = ctx.document
+
       result = %{
-        nfe: Map.get(map, :inf_nfe),
-        supl: Map.get(map, :inf_nfe_supl),
+        result_key => Map.get(map, inf),
+        supl: Map.get(map, supl),
         protocol: nil,
         signed?: Enum.any?(XML.children(doc), &(XML.qname(&1) == {@dsig, "Signature"}))
       }
@@ -190,6 +201,7 @@ defmodule SefazNfe.Builder.Parser do
   # in a path) and what the layout did not know.
   defp children(layout, xml, path, ctx) do
     known = Map.new(Layout.elements(layout), &{&1.tag, &1})
+    known = if any?(layout), do: Map.merge(known, modal_elements(ctx)), else: known
     initial = {:ok, {[], %{}, %{}}}
 
     result =
@@ -206,6 +218,23 @@ defmodule SefazNfe.Builder.Parser do
     end
   end
 
+  # The modal elements an `infModal` may hold, found by tag like any child. The
+  # `:modal_parent` mark tells `child/5` that a tag it does not know here is a
+  # modal this library has no layout for.
+  defp modal_elements(ctx) do
+    modals =
+      Map.new(ctx.modals, fn {tag, {_key, layout}} ->
+        {tag, %{kind: :modal, root: layout.root, namespace: layout.namespace}}
+      end)
+
+    Map.put(modals, :modal_parent, true)
+  end
+
+  defp any?(%{content: %{kind: kind, children: children}}) when kind in [:sequence, :choice],
+    do: Enum.any?(children, &(&1.kind == :any))
+
+  defp any?(_layout), do: false
+
   defp child(xml, known, {pairs, counts, unknown} = state, path, ctx) do
     {namespace, tag} = XML.qname(xml)
 
@@ -220,6 +249,14 @@ defmodule SefazNfe.Builder.Parser do
 
       %{kind: :foreign, ns: ^namespace} ->
         {:ok, state}
+
+      %{kind: :modal, root: root, namespace: ^namespace} ->
+        with {:ok, value} <- element(root, xml, [root.key | path], ctx) do
+          {:ok, {[{root, value} | pairs], counts, unknown}}
+        end
+
+      _other when ctx.strict and is_map_key(known, :modal_parent) ->
+        {:error, {:unsupported_modal, tag}}
 
       _other when ctx.strict ->
         {:error, {:unknown_element, Enum.reverse([tag | path])}}

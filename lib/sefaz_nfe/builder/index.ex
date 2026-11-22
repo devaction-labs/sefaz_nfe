@@ -6,10 +6,17 @@ defmodule SefazNfe.Builder.Index do
   alias SefazNfe.Builder.Pattern
   alias SefazNfe.Layout
 
-  @doc "Every leaf type in the layout (elements and attributes), unique."
+  @doc """
+  Every leaf type of every layout the builder walks (the NF-e, CT-e, CT-e OS and
+  MDF-e documents and the road modals; elements and attributes), unique.
+  """
   @spec leaves() :: [map()]
   def leaves do
-    Layout.nfe().root |> collect([]) |> Enum.uniq()
+    layouts =
+      [Layout.nfe(), Layout.cte(), Layout.cte_os(), Layout.mdfe()] ++
+        Enum.map([:cte_rodo, :cte_os_rodo, :mdfe_rodo], &Layout.modal/1)
+
+    layouts |> Enum.flat_map(&collect(&1.root, [])) |> Enum.uniq()
   end
 
   @doc "Every XSD pattern string in the layout, own and inherited."
@@ -22,7 +29,8 @@ defmodule SefazNfe.Builder.Index do
   end
 
   @doc """
-  Decimal places per `TDec*` type name, as `{minimum, maximum}` with at least
+  Decimal places per `TDec*` type name (the same name has the same places in
+  every layout), as `{minimum, maximum}` with at least
   one place. They are not in the facets (the NF-e decimals are patterned
   strings), so they are probed: `1.1`, `1.11`, ... is run through the type's
   own patterns and the first and last length that match are kept.

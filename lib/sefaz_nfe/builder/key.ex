@@ -1,18 +1,19 @@
 defmodule SefazNfe.Builder.Key do
   @moduledoc false
-  # The access key part of the builder: generates `cNF`, `cDV` and `Id` when
-  # they are absent and checks the ones the caller gave. It only reads the
+  # The access key part of the builder: generates `cNF` (`cCT`, `cMDF`), `cDV`
+  # and `Id` when they are absent and checks the ones the caller gave. It only reads the
   # inputs the key needs; whatever is missing or malformed is reported by the
   # layout walk, so it is never reported here as well.
 
   alias SefazNfe.AccessKey
+  alias SefazNfe.Builder.Document
 
   @doc """
   Returns `{input, errors, key}`. `key` is `nil` when the inputs do not allow
   one, and then `errors` has only what is certain without it.
   """
-  @spec prepare(map()) :: {map(), [SefazNfe.Builder.error()], String.t() | nil}
-  def prepare(input) do
+  @spec prepare(map(), Document.t()) :: {map(), [SefazNfe.Builder.error()], String.t() | nil}
+  def prepare(input, document) do
     ide = get(input, :ide)
     emit = get(input, :emit)
 
@@ -24,14 +25,14 @@ defmodule SefazNfe.Builder.Key do
         cpf: get(emit, :cpf),
         mod: get(ide, :mod),
         serie: get(ide, :serie),
-        n_nf: get(ide, :n_nf),
+        n_nf: get(ide, document.number),
         tp_emis: get(ide, :tp_emis),
-        c_nf: get(ide, :c_nf)
+        c_nf: get(ide, document.code)
       }
 
       case AccessKey.build(fields) do
-        {:ok, key} -> with_key(input, ide, key)
-        {:error, {:c_nf, :equals_n_nf}} -> {input, [{[:ide, :c_nf], :equals_n_nf}], nil}
+        {:ok, key} -> with_key(input, ide, key, document)
+        {:error, {:c_nf, :equals_n_nf}} -> {input, [{[:ide, document.code], :equals_n_nf}], nil}
         {:error, _field} -> {input, [], nil}
       end
     else
@@ -40,23 +41,23 @@ defmodule SefazNfe.Builder.Key do
   end
 
   @doc """
-  The paths `prepare/1` would generate, among `id`, `ide.c_nf` and `ide.c_dv`:
-  the ones the caller left out.
+  The paths `prepare/2` would generate, among `id`, the random code of `ide` and
+  `ide.c_dv`: the ones the caller left out.
   """
-  @spec absent(map()) :: [[atom()]]
-  def absent(input) do
+  @spec absent(map(), Document.t()) :: [[atom()]]
+  def absent(input, document) do
     ide = get(input, :ide)
     ide = if plain_map?(ide), do: ide, else: %{}
 
-    Enum.filter([[:id], [:ide, :c_nf], [:ide, :c_dv]], fn
+    Enum.filter([[:id], [:ide, document.code], [:ide, :c_dv]], fn
       [:id] -> get(input, :id) == nil
       [:ide, key] -> get(ide, key) == nil
     end)
   end
 
-  defp with_key(input, ide, key) do
+  defp with_key(input, ide, key, document) do
     dv = String.last(key)
-    id = "NFe" <> key
+    id = document.prefix <> key
 
     errors =
       Enum.reject(
@@ -67,7 +68,7 @@ defmodule SefazNfe.Builder.Key do
         &is_nil/1
       )
 
-    ide = ide |> put_absent(:c_nf, String.slice(key, 35, 8)) |> put_absent(:c_dv, dv)
+    ide = ide |> put_absent(document.code, String.slice(key, 35, 8)) |> put_absent(:c_dv, dv)
 
     {input |> put_absent(:id, id) |> put(:ide, ide), errors, key}
   end
