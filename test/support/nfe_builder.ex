@@ -110,7 +110,7 @@ defmodule SefazNfe.NFeBuilder do
         emit(tax_id, ie, uf, municipality, city, crt) <>
         dest(model, tp_amb, uf, municipality, city, dest_tax_id(opts, model)) <>
         aut_xml(Keyword.get(opts, :auth_tax_id)) <>
-        det(crt) <>
+        det(crt, product_name(model, tp_amb)) <>
         total(crt) <>
         ~s(<transp><modFrete>9</modFrete></transp>) <>
         pag(model) <>
@@ -235,9 +235,16 @@ defmodule SefazNfe.NFeBuilder do
       ~s(<indIEDest>9</indIEDest></dest>)
   end
 
-  defp det(crt) do
+  # In homologação, SEFAZ requires this exact text as the first item of an
+  # NFC-e (cStat 373); an NF-e carries the equivalent in dest/xNome instead.
+  defp product_name(65, 2),
+    do: "NOTA FISCAL EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
+
+  defp product_name(_model, _tp_amb), do: "PRODUTO TESTE"
+
+  defp det(crt, product_name) do
     ~s(<det nItem="1"><prod><cProd>001</cProd><cEAN>SEM GTIN</cEAN>) <>
-      ~s(<xProd>PRODUTO TESTE</xProd><NCM>84713012</NCM><CFOP>5102</CFOP>) <>
+      ~s(<xProd>#{product_name}</xProd><NCM>84713012</NCM><CFOP>5102</CFOP>) <>
       ~s(<uCom>UN</uCom><qCom>1.0000</qCom><vUnCom>100.0000000000</vUnCom>) <>
       ~s(<vProd>100.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib>) <>
       ~s(<qTrib>1.0000</qTrib><vUnTrib>100.0000000000</vUnTrib><indTot>1</indTot></prod>) <>
