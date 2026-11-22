@@ -92,9 +92,9 @@ defmodule SefazNfe do
   `NFeStatusServico4` for one UF.
 
   The cheapest official call there is, and the one that proves the A1, the mTLS
-  handshake and the endpoint table in a single round trip. `cStat` 107 means the
-  authorizer is in operation; 108 and 109 mean it is not, and both arrive as
-  `{:ok, result}` because SEFAZ answered.
+  handshake and the endpoint table in a single round trip. `cStat` 107 is
+  `:in_operation`; 108 and 109 are `:retryable` (the authorizer is paused), and
+  all arrive as `{:ok, result}` because SEFAZ answered. See `SefazNfe.CStat`.
   """
   @spec service_status(map()) :: {:ok, Result.t()} | {:error, term()}
   def service_status(opts) when is_map(opts) do

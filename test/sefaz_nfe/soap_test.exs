@@ -69,8 +69,72 @@ defmodule SefazNfe.SOAPTest do
 
       assert {:ok, result} = Result.parse(body)
       assert result.c_stat == 107
-      assert result.status == :rejected
+      assert result.status == :in_operation
       assert result.x_motivo == "Servico em Operacao"
+    end
+
+    test "dh_recbto comes from protNFe/infProt" do
+      body =
+        soap("""
+        <retConsReciNFe xmlns="http://www.portalfiscal.inf.br/nfe">
+          <cStat>104</cStat><dhRecbto>2024-01-01T00:00:00-03:00</dhRecbto>
+          <protNFe><infProt>
+            <cStat>100</cStat><xMotivo>Autorizado</xMotivo>
+            <dhRecbto>2024-01-01T10:20:30-03:00</dhRecbto><nProt>135240000000001</nProt>
+          </infProt></protNFe>
+        </retConsReciNFe>
+        """)
+
+      assert {:ok, %{dh_recbto: "2024-01-01T10:20:30-03:00", status: :authorized}} =
+               Result.parse(body)
+    end
+
+    test "dh_recbto comes from infEvento's dhRegEvento" do
+      body =
+        soap("""
+        <retEnvEvento xmlns="http://www.portalfiscal.inf.br/nfe">
+          <cStat>128</cStat><xMotivo>Lote</xMotivo>
+          <retEvento><infEvento>
+            <cStat>135</cStat><xMotivo>Registrado</xMotivo>
+            <dhRegEvento>2024-02-02T08:00:00-03:00</dhRegEvento>
+          </infEvento></retEvento>
+        </retEnvEvento>
+        """)
+
+      assert {:ok, %{dh_recbto: "2024-02-02T08:00:00-03:00"}} = Result.parse(body)
+    end
+
+    test "dh_recbto falls back to the envelope" do
+      body =
+        soap("""
+        <retConsStatServ xmlns="http://www.portalfiscal.inf.br/nfe">
+          <cStat>107</cStat><xMotivo>ok</xMotivo>
+          <dhRecbto>2024-03-03T09:00:00-03:00</dhRecbto>
+        </retConsStatServ>
+        """)
+
+      assert {:ok, %{dh_recbto: "2024-03-03T09:00:00-03:00"}} = Result.parse(body)
+    end
+
+    test "dh_recbto is nil when SEFAZ sends none" do
+      body = soap("<retX><cStat>204</cStat><xMotivo>Duplicidade</xMotivo></retX>")
+      assert {:ok, %{dh_recbto: nil}} = Result.parse(body)
+    end
+
+    test "cStat 110 is a denial, with its protocol" do
+      body =
+        soap("""
+        <retConsReciNFe xmlns="http://www.portalfiscal.inf.br/nfe">
+          <cStat>104</cStat><xMotivo>Lote processado</xMotivo>
+          <protNFe><infProt>
+            <cStat>110</cStat><xMotivo>Uso Denegado</xMotivo><nProt>135240000000002</nProt>
+          </infProt></protNFe>
+        </retConsReciNFe>
+        """)
+
+      assert {:ok, result} = Result.parse(body)
+      assert result.status == :denied
+      assert result.n_prot == "135240000000002"
     end
 
     test "cStat 100 is authorized, with chave and protocol" do
