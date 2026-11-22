@@ -188,15 +188,18 @@ Same split as Focus/ACBr: they guarantee **transport**, not fiscal arithmetic.
   refresh procedure (AD-004). Wire it into CI: it fails on a snapshot older than
   180 days, on a UF missing an authorizer or IBGE code, and on any URL that is
   not an https `.gov.br` address.
-- A UF that stops answering trips a circuit breaker after five consecutive
-  transport failures and fails fast for 30 seconds, so a down SP cannot stall
-  callers working with MG. A SEFAZ rejection is an answer and never trips it.
+- An authorizer host that stops answering trips a circuit breaker after five
+  consecutive transport failures and fails fast for 30 seconds, so a down SP
+  cannot stall callers working with MG. The breaker follows the server actually
+  called, not the UF: BA's NF-e and BA's CT-e (via SVRS) are separate, and every
+  UF routed to a down SVRS host fails fast together. A SEFAZ rejection is an
+  answer and never trips it.
 
 ## Telemetry
 
 Every public operation emits `[:sefaz_nfe, :operation, :start | :stop | :exception]`
 with the operation, UF, environment, model, contingency and (on stop) the
-outcome, `status` and `cStat`; the SOAP request and the per-UF circuit breaker
+outcome, `status` and `cStat`; the SOAP request and the per-host circuit breaker
 emit their own events. Metadata never carries the certificate, CSC, XML, access
 key or tax ids. `SefazNfe.Telemetry` documents every event and key; with
 `Telemetry.Metrics` (or a PromEx plugin):
@@ -217,7 +220,7 @@ import Telemetry.Metrics
   ),
   counter("sefaz_nfe.circuit_breaker.open.count",
     event_name: [:sefaz_nfe, :circuit_breaker, :open],
-    tags: [:uf]
+    tags: [:host]
   )
 ]
 ```
