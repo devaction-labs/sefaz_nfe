@@ -183,7 +183,7 @@
 - **Trade-off**: One later breaking reorganisation of module names for core pieces (plan: keep `SefazNfe.*` aliases/delegates for one minor version).
 - **Scope**: packaging
 - **Date**: 2026-11-22
-- **Status**: active
+- **Status**: superseded by AD-026
 
 ### AD-023
 - **Decision**: The DANFE family (DANFE, DANFE simplificado, DANFCE, DACCE, event/inutilização printouts) is generated in pure Elixir, in a separate package (Phase 4). No headless browser, no wkhtmltopdf, no NIF, no shell-out.
@@ -206,6 +206,14 @@
 - **Reason**: The builder must be debuggable against the MOC and must not embed business rules; inferring an ICMS variant from a CST, or rounding a value, would be both. The HTTP contract of `fiscal-gateway` is the job of the API built on top, not of the library.
 - **Trade-off**: Hosts map their own payload to the layout shape once. `Decimal` becomes an optional dependency.
 - **Scope**: `SefazNfe.Builder`
+- **Date**: 2026-11-22
+- **Status**: active
+
+### AD-026
+- **Decision**: Stay one package. CT-e (57/67) lives in `SefazNfe.CTe`, MDF-e (58) in `SefazNfe.MDFe`, on the same core (certificate, signer, C14N, SOAP, breaker, telemetry, layout generator, builder). Supersedes AD-022.
+- **Reason**: The NFePHP split (`sped-common` + one package per document) buys little on the BEAM: the extra modules carry no dependency and cost nothing unloaded, the core changes together with every document so independent versions would be lockstep anyway, and four packages mean four CIs, four releases and cross-version compatibility for one maintainer.
+- **Trade-off**: The Hex name `sefaz_nfe` undersells the scope. If that matters, the same code can be published under a broader name later without splitting.
+- **Scope**: packaging, Phase 5
 - **Date**: 2026-11-22
 - **Status**: active
 
