@@ -135,8 +135,8 @@ defmodule SefazNfe.EndpointsTest do
     end
 
     test "an unsupported model is named" do
-      assert {:error, {:unsupported_model, 57}} =
-               Endpoints.url("SP", :production, :nfe_autorizacao, 57)
+      assert {:error, {:unsupported_model, 99}} =
+               Endpoints.url("SP", :production, :nfe_autorizacao, 99)
     end
 
     test "qr_code_url is the emitting UF's, also for an SVRS UF" do

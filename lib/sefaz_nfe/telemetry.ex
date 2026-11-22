@@ -10,7 +10,9 @@ defmodule SefazNfe.Telemetry do
   One span around every public operation of `SefazNfe`: `:authorize`,
   `:authorization_result`, `:service_status`, `:consult_protocol`, `:cancel`,
   `:cce`, `:manifest`, `:void_numbers`, `:dist_dfe`, `:consult_taxpayer` and
-  `:epec`. It covers the whole call, so an answer refused before the network
+  `:epec`; `SefazNfe.CTe` and `SefazNfe.MDFe` add `:cte_service_status` (model
+  57, or 67) and `:mdfe_service_status` (model 58). It covers the whole call,
+  so an answer refused before the network
   (a missing key, a bad CNPJ, `tpAmb` against `:environment`) still emits
   `:start` and `:stop`, with the failure as `:outcome`: callers can count
   validation errors the same way they count SEFAZ ones. Building the metadata
@@ -27,7 +29,7 @@ defmodule SefazNfe.Telemetry do
       for what the Ambiente Nacional serves (`:dist_dfe`, `:manifest`, `:epec`).
       `nil` when the caller gave none, or gave something that is not a UF;
     * `:environment` - `:production | :homologation | nil`;
-    * `:model` - `55 | 65 | nil`: read from `<mod>` for `:authorize`, from the
+    * `:model` - `55 | 65 | 57 | 67 | 58 | nil`: read from `<mod>` for `:authorize`, from the
       access key for `:consult_protocol`, `:cancel` and `:cce`, from `:model`
       (default 55) for the services that take no document. `nil` where it does
       not apply (`:dist_dfe`, `:consult_taxpayer`);
@@ -215,6 +217,15 @@ defmodule SefazNfe.Telemetry do
   end
 
   defp model(:manifest, _opts), do: 55
+  defp model(:mdfe_service_status, _opts), do: 58
+
+  defp model(:cte_service_status, opts) do
+    case Map.get(opts, :model, 57) do
+      model when model in [57, 67] -> model
+      _ -> nil
+    end
+  end
+
   defp model(operation, _opts) when operation in [:dist_dfe, :consult_taxpayer], do: nil
 
   defp model(_operation, opts) do

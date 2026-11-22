@@ -1,0 +1,54 @@
+{
+  "source": "MDF-e portal https://dfe-portal.svrs.rs.gov.br/Mdfe/Servicos (SVRS, listed there as Ambiente Nacional: one authorizer for every UF), fetched 2026-11-22; cross-checked against nfephp-org/sped-mdfe storage/wsmdfe_3.00.xml. MDFeRecepcao (asynchronous lot), MDFeRetRecepcao and MDFeDistribuicaoDFe are not carried. MDF-e has no SVC: contingency is off-line (tpEmis 2).",
+  "snapshot_date": "2026-11-22",
+  "layout": "3.00",
+  "family": "mdfe",
+  "model": 58,
+  "uf_authorizer": {
+    "AC": "SVRS",
+    "AL": "SVRS",
+    "AM": "SVRS",
+    "AP": "SVRS",
+    "BA": "SVRS",
+    "CE": "SVRS",
+    "DF": "SVRS",
+    "ES": "SVRS",
+    "GO": "SVRS",
+    "MA": "SVRS",
+    "MG": "SVRS",
+    "MS": "SVRS",
+    "MT": "SVRS",
+    "PA": "SVRS",
+    "PB": "SVRS",
+    "PE": "SVRS",
+    "PI": "SVRS",
+    "PR": "SVRS",
+    "RJ": "SVRS",
+    "RN": "SVRS",
+    "RO": "SVRS",
+    "RR": "SVRS",
+    "RS": "SVRS",
+    "SC": "SVRS",
+    "SE": "SVRS",
+    "SP": "SVRS",
+    "TO": "SVRS"
+  },
+  "authorizers": {
+    "SVRS": {
+      "homologation": {
+        "mdfe_recepcao_sinc": "https://mdfe-homologacao.svrs.rs.gov.br/ws/MDFeRecepcaoSinc/MDFeRecepcaoSinc.asmx",
+        "mdfe_consulta": "https://mdfe-homologacao.svrs.rs.gov.br/ws/MDFeConsulta/MDFeConsulta.asmx",
+        "mdfe_status_servico": "https://mdfe-homologacao.svrs.rs.gov.br/ws/MDFeStatusServico/MDFeStatusServico.asmx",
+        "mdfe_recepcao_evento": "https://mdfe-homologacao.svrs.rs.gov.br/ws/MDFeRecepcaoEvento/MDFeRecepcaoEvento.asmx",
+        "mdfe_consulta_nao_enc": "https://mdfe-homologacao.svrs.rs.gov.br/ws/MDFeConsNaoEnc/MDFeConsNaoEnc.asmx"
+      },
+      "production": {
+        "mdfe_recepcao_sinc": "https://mdfe.svrs.rs.gov.br/ws/MDFeRecepcaoSinc/MDFeRecepcaoSinc.asmx",
+        "mdfe_consulta": "https://mdfe.svrs.rs.gov.br/ws/MDFeConsulta/MDFeConsulta.asmx",
+        "mdfe_status_servico": "https://mdfe.svrs.rs.gov.br/ws/MDFeStatusServico/MDFeStatusServico.asmx",
+        "mdfe_recepcao_evento": "https://mdfe.svrs.rs.gov.br/ws/MDFeRecepcaoEvento/MDFeRecepcaoEvento.asmx",
+        "mdfe_consulta_nao_enc": "https://mdfe.svrs.rs.gov.br/ws/MDFeConsNaoEnc/MDFeConsNaoEnc.asmx"
+      }
+    }
+  }
+}
