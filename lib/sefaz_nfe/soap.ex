@@ -4,6 +4,15 @@ defmodule SefazNfe.SOAP do
 
   A behaviour, so a host can substitute its own transport and so `mix test`
   never opens a socket. `SefazNfe.SOAP.HTTPC` is the default implementation.
+
+  ## Telemetry timing
+
+  The `[:sefaz_nfe, :soap]` span measures the total duration of the request
+  only. `:httpc` exposes no per-phase timing (connect, transmit, response), and
+  measuring them separately would mean opening the TLS connection outside
+  `:httpc`, which changes behaviour; the default transport therefore does not
+  split them. A custom `SefazNfe.SOAP` client that can see the phases may emit
+  finer events of its own.
   """
 
   alias SefazNfe.CircuitBreaker
@@ -31,7 +40,8 @@ defmodule SefazNfe.SOAP do
   does not take down the caller (Jurić: I/O failure domain).
 
   Emits `[:sefaz_nfe, :soap, :start | :stop | :exception]` (SEFAZ-14). The
-  `:uf` option is consumed here as telemetry metadata; every other option,
+  `:uf`, `:environment`, `:model` and `:contingency` options are consumed here
+  as telemetry metadata, with `:service` (see `SefazNfe.Telemetry`); every other option,
   `:timeout` and `:connect_timeout` included, is forwarded to `c:call/4`: they
   govern the request, and the task window follows them rather than the other way
   round. Metadata never carries the certificate, the password or the XML body —
@@ -46,10 +56,15 @@ defmodule SefazNfe.SOAP do
           {:ok, String.t()} | {:error, term()}
   def isolated_call(endpoint, body, cert, opts \\ []) do
     {timeout, opts} = Keyword.pop_lazy(opts, :timeout, fn -> to_timeout(second: 30) end)
-    {meta, rest} = Keyword.split(opts, [:uf, :service])
+    {meta, rest} = Keyword.split(opts, [:uf, :service, :environment, :model, :contingency])
     task_opts = Keyword.take(meta, [:service]) ++ rest ++ [timeout: timeout]
     deadline = max(timeout, Keyword.get(rest, :connect_timeout, 0))
-    metadata = meta |> Map.new() |> Map.put(:endpoint, endpoint)
+
+    metadata =
+      %{environment: nil, model: nil, contingency: nil}
+      |> Map.merge(Map.new(meta))
+      |> Map.put(:endpoint, endpoint)
+
     uf = Keyword.get(meta, :uf, "")
 
     with :ok <- CircuitBreaker.check(uf) do
@@ -95,11 +110,7 @@ defmodule SefazNfe.SOAP do
     end
   end
 
-  defp outcome({:ok, _body}), do: :ok
-  defp outcome({:error, reason}) when is_atom(reason), do: reason
-  defp outcome({:error, {tag, _detail}}) when is_atom(tag), do: tag
-  defp outcome({:error, {tag, _detail, _more}}) when is_atom(tag), do: tag
-  defp outcome({:error, _reason}), do: :error
+  defp outcome(result), do: SefazNfe.Telemetry.outcome(result)
 
   defmodule NotImplemented do
     @moduledoc false

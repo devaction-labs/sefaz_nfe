@@ -22,6 +22,7 @@ defmodule SefazNfe do
   alias SefazNfe.SOAP
   alias SefazNfe.SOAP.Envelope
   alias SefazNfe.TaxpayerLookup
+  alias SefazNfe.Telemetry
 
   @justification_min 15
   @tp_amb ~r|<tpAmb>([12])</tpAmb>|
@@ -79,7 +80,9 @@ defmodule SefazNfe do
   (whichever is missing), before the network. NFC-e (model 65) has no SVC.
   """
   @spec authorize(map()) :: {:ok, Result.t()} | {:error, term()}
-  def authorize(opts) when is_map(opts) do
+  def authorize(opts) when is_map(opts), do: Telemetry.span(:authorize, opts, &do_authorize/1)
+
+  defp do_authorize(opts) do
     with :ok <- require_keys(opts, [:xml, :cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
          :ok <- reject_an(opts.uf, :nfe_autorizacao),
@@ -223,7 +226,10 @@ defmodule SefazNfe do
   `:model` (55 by default, or 65) selects the endpoints.
   """
   @spec authorization_result(map()) :: {:ok, Result.t()} | {:error, term()}
-  def authorization_result(opts) when is_map(opts) do
+  def authorization_result(opts) when is_map(opts),
+    do: Telemetry.span(:authorization_result, opts, &do_authorization_result/1)
+
+  defp do_authorization_result(opts) do
     with :ok <- require_keys(opts, [:n_rec, :cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
          {:ok, model} <- model(opts),
@@ -249,7 +255,10 @@ defmodule SefazNfe do
   `consult_protocol/1` for the rules, which are the same here.
   """
   @spec service_status(map()) :: {:ok, Result.t()} | {:error, term()}
-  def service_status(opts) when is_map(opts) do
+  def service_status(opts) when is_map(opts),
+    do: Telemetry.span(:service_status, opts, &do_service_status/1)
+
+  defp do_service_status(opts) do
     with :ok <- require_keys(opts, [:cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
          {:ok, model} <- model(opts),
@@ -277,7 +286,9 @@ defmodule SefazNfe do
   validate.
   """
   @spec dist_dfe(map()) :: {:ok, SefazNfe.DistDFe.t()} | {:error, term()}
-  def dist_dfe(opts) when is_map(opts) do
+  def dist_dfe(opts) when is_map(opts), do: Telemetry.span(:dist_dfe, opts, &do_dist_dfe/1)
+
+  defp do_dist_dfe(opts) do
     with :ok <- require_keys(opts, [:tax_id, :uf, :cert, :environment]),
          :ok <- validate_environment(opts.environment),
          :ok <- validate_tax_id(opts.tax_id),
@@ -315,7 +326,10 @@ defmodule SefazNfe do
   `SefazNfe.TaxpayerLookup`.
   """
   @spec consult_taxpayer(map()) :: {:ok, SefazNfe.TaxpayerLookup.t()} | {:error, term()}
-  def consult_taxpayer(opts) when is_map(opts) do
+  def consult_taxpayer(opts) when is_map(opts),
+    do: Telemetry.span(:consult_taxpayer, opts, &do_consult_taxpayer/1)
+
+  defp do_consult_taxpayer(opts) do
     with :ok <- require_keys(opts, [:cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
          {:ok, filter} <- taxpayer_filter(opts),
@@ -373,7 +387,10 @@ defmodule SefazNfe do
   `service_status/1` take the same option with the same rules.
   """
   @spec consult_protocol(map()) :: {:ok, Result.t()} | {:error, term()}
-  def consult_protocol(opts) when is_map(opts) do
+  def consult_protocol(opts) when is_map(opts),
+    do: Telemetry.span(:consult_protocol, opts, &do_consult_protocol/1)
+
+  defp do_consult_protocol(opts) do
     with :ok <- require_keys(opts, [:ch_nfe, :cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
          :ok <- validate_ch_nfe(opts.ch_nfe),
@@ -395,7 +412,9 @@ defmodule SefazNfe do
   described in `consult_protocol/1`.
   """
   @spec cancel(map()) :: {:ok, Result.t()} | {:error, term()}
-  def cancel(opts) when is_map(opts) do
+  def cancel(opts) when is_map(opts), do: Telemetry.span(:cancel, opts, &do_cancel/1)
+
+  defp do_cancel(opts) do
     with :ok <-
            require_keys(opts, [
              :ch_nfe,
@@ -426,7 +445,9 @@ defmodule SefazNfe do
   described in `consult_protocol/1`.
   """
   @spec cce(map()) :: {:ok, Result.t()} | {:error, term()}
-  def cce(opts) when is_map(opts) do
+  def cce(opts) when is_map(opts), do: Telemetry.span(:cce, opts, &do_cce/1)
+
+  defp do_cce(opts) do
     with :ok <- require_keys(opts, [:ch_nfe, :correction, :tax_id, :cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
          :ok <- validate_ch_nfe(opts.ch_nfe),
@@ -448,7 +469,10 @@ defmodule SefazNfe do
   These events are processed by the Ambiente Nacional, so no `:uf` is needed.
   """
   @spec manifest(atom(), map()) :: {:ok, Result.t()} | {:error, term()}
-  def manifest(type, opts) when is_atom(type) and is_map(opts) do
+  def manifest(type, opts) when is_atom(type) and is_map(opts),
+    do: Telemetry.span(:manifest, opts, &do_manifest(type, &1))
+
+  defp do_manifest(type, opts) do
     with :ok <- require_keys(opts, [:ch_nfe, :tax_id, :cert, :environment]),
          :ok <- validate_environment(opts.environment),
          :ok <- validate_ch_nfe(opts.ch_nfe),
@@ -489,7 +513,9 @@ defmodule SefazNfe do
   `tpEmis` 4, within 168 hours (`authorize/1` routes a `tpEmis` 4 document there).
   """
   @spec epec(map()) :: {:ok, Result.t()} | {:error, term()}
-  def epec(opts) when is_map(opts) do
+  def epec(opts) when is_map(opts), do: Telemetry.span(:epec, opts, &do_epec/1)
+
+  defp do_epec(opts) do
     with :ok <- require_keys(opts, [:xml, :cert, :environment]),
          :ok <- validate_environment(opts.environment),
          :ok <- environment_matches_xml(opts.environment, opts.xml),
@@ -562,7 +588,10 @@ defmodule SefazNfe do
   authorizer.
   """
   @spec void_numbers(map()) :: {:ok, Result.t()} | {:error, term()}
-  def void_numbers(opts) when is_map(opts) do
+  def void_numbers(opts) when is_map(opts),
+    do: Telemetry.span(:void_numbers, opts, &do_void_numbers/1)
+
+  defp do_void_numbers(opts) do
     with :ok <-
            require_keys(opts, [
              :serie,
@@ -599,13 +628,18 @@ defmodule SefazNfe do
   # `extra` carries per-call transport options; `operation:` is the one that
   # makes the SOAP action differ per authorizer (NFeConsultaCadastro only).
   defp call(url, envelope, opts, service, extra \\ []) do
+    telemetry = Map.get(opts, :telemetry_context, %{})
+
     SOAP.isolated_call(
       url,
       envelope,
       opts.cert,
       [
-        uf: to_string(opts.uf),
+        uf: opts.uf |> to_string() |> String.upcase(),
         service: service,
+        environment: telemetry[:environment],
+        model: telemetry[:model],
+        contingency: telemetry[:contingency],
         timeout: Map.get(opts, :timeout, to_timeout(second: 30)),
         connect_timeout: Map.get(opts, :connect_timeout, to_timeout(second: 10)),
         tls_options: Map.get(opts, :tls_options, [])
