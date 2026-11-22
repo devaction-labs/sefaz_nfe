@@ -30,9 +30,12 @@ tax calculation.
 - NF-e 55 parity gaps closed: ✅ cadastro consult · ✅ EPEC 110140 · ✅ SVC-AN /
   SVC-RS routing · ✅ certificate validity + tax id (issue #3) ·
   ✅ `cStat` classification incl. retryable/denied (issue #4).
-- ⬜ P2 Builder: `Make` with ~35 tags, incl. IBS/CBS TribRegular/Mono, IS,
-  med, rastro, ICMSUFDest, DFeReferenciado, autXML, pag/detPag, fat/dup,
-  transp/vol. ⬜ P2 `Complements` toAuthorize / cancelRegister.
+- ✅ P2 Builder (0.3.0): `Make` coverage, data-driven from the PL, incl.
+  IBS/CBS, IS, med, rastro, ICMSUFDest, DFeReferenciado, autXML, pag/detPag,
+  fat/dup, transp/vol. ✅ P2 `Complements` toAuthorize / cancelRegister
+  (`SefazNfe.Proc`) and `Standardize` (`Builder.parse_nfe/2`). Golden
+  coverage still missing for ICMS 30/51/70/90, ISSQN and IBS/CBS
+  regular/mono/seletivo.
 - NFC-e 65: ✅ P1 endpoint routing + inutilização (moved earlier) ·
   ✅ P3 QR code version 3.00 (no CSC) · ✅ QR code 2.00 with CSC. Not used by the gateway: offline
   contingency (`tpEmis` 9), cancelamento por substituição.
@@ -101,22 +104,24 @@ Lower priority (not used by fiscal-gateway):
 - ⬜ Asynchronous multi-document lote, so `authorization_result/1` is
   exercised against a real receipt (AD-019 known gap).
 
-## Phase 2 — build and read documents
+## Phase 2 — build and read documents (complete in 0.3.0)
 
 NFePHP's `Make` does not calculate taxes either: the caller passes every
 value and `Make` puts it in schema order. AD-001 was amended for this
 (AD-021).
 
-- ⬜ Typed builder for `infNFe` groups (ide, emit, dest, det/prod/imposto,
+- ✅ Typed builder for `infNFe` groups (ide, emit, dest, det/prod/imposto,
   total, transp, cobr, pag, infAdic, autXML, IBS/CBS groups), emitted in
   schema order, values passed through untouched. No totals are summed.
-- ⬜ Access key: `cNF` generation (NT 2019.001 rules), `cDV`, `Id`.
-- ⬜ `Complements`: `nfeProc` / `procEventoNFe` / `procInutNFe` assembly as
+- ✅ Access key: `cNF` generation (NT 2019.001 rules), `cDV`, `Id`.
+- ✅ `Complements`: `nfeProc` / `procEventoNFe` / `procInutNFe` assembly as
   public functions (today `authorize/1` does it internally).
-- ⬜ `Standardize`: parse any SEFAZ response or authorized document into
+- ✅ `Standardize`: parse any SEFAZ response or authorized document into
   plain maps/structs — the inverse of the builder.
-- ⬜ XSD validation shipped as a documented workflow per Pacote de
-  Liberação (AD-015 stays: no vendored schemas).
+- ✅ XSD validation shipped as a documented workflow per Pacote de
+  Liberação (AD-015 stays: no vendored schemas). The builder validates
+  XSD-equivalently from the generated layout (`mix sefaz.gen_layout`); tests
+  that need the PL XSDs read `SEFAZ_NFE_PL_PATH` and skip without it.
 
 ## Phase 3 — NFC-e 65
 
@@ -178,6 +183,20 @@ idempotency, webhooks (same HMAC and event names), tenancy, queues, storage,
 e-mail, contingency policy. Open question: whether clients use the gateway's
 `computed` tax mode — a tax engine is allowed in the app (AD-001 binds the
 library only) but sizes the project.
+
+Requirements found by the golden tests (T5, `test/support/gateway_payload.ex`
+is the prototype mapping, 11 payloads equal to NFePHP's `infNFe`):
+
+- Context outside the payload: company, series, number, cNF, `tpEmis` and the
+  emission time come from the host, not from the request body.
+- ICMS / PIS / COFINS / IPI branch selection by CST / CSOSN: the API maps the
+  flat payload to the builder's branch key (`icms00`, `icms_sn102`, `pis_aliq`,
+  ...).
+- `vItem` and `vNFTot` are computed by NFePHP when IBS/CBS is present (the
+  formula changes in 2027). The library never computes them, so the API must.
+- NFePHP's free-text sanitisation of strings (not reproduced yet).
+- Number padding per field (decimal places differ per NFePHP field), done by
+  the API before calling the builder.
 
 ## Open decisions
 
