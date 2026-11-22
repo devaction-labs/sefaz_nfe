@@ -17,9 +17,9 @@ defmodule SefazNfe do
   alias SefazNfe.Result
   alias SefazNfe.Schema
   alias SefazNfe.Signer
-  alias SefazNfe.TaxpayerLookup
   alias SefazNfe.SOAP
   alias SefazNfe.SOAP.Envelope
+  alias SefazNfe.TaxpayerLookup
 
   @justification_min 15
   @tp_amb ~r|<tpAmb>([12])</tpAmb>|
