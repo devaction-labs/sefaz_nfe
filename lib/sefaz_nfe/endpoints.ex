@@ -244,6 +244,22 @@ defmodule SefazNfe.Endpoints do
   def qr_code_url(uf, environment), do: nfce_address("qr_code", :qr_code, uf, environment)
 
   @doc """
+  The QR code base URL of an MDF-e (model 58).
+
+  One SVRS portal address for every UF; the query string the QR code carries
+  (`chMDFe`, `tpAmb`, and `sign` in contingency) is `SefazNfe.MDFe.QRCode`'s.
+  """
+  @spec mdfe_qr_code_url(environment()) :: {:ok, String.t()} | {:error, term()}
+  def mdfe_qr_code_url(environment) when environment in [:homologation, :production] do
+    case get_in(@mdfe_snapshot, ["qr_code", environment_key(environment)]) do
+      url when is_binary(url) and url != "" -> {:ok, url}
+      _ -> {:error, {:unknown_endpoint, "SVRS", :mdfe_qr_code}}
+    end
+  end
+
+  def mdfe_qr_code_url(environment), do: {:error, {:invalid_environment, environment}}
+
+  @doc """
   The "consulta pela chave" address of `uf` for model 65, which `urlChave` and
   the DANFCE carry.
 
