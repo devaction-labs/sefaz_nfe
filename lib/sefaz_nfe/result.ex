@@ -10,8 +10,11 @@ defmodule SefazNfe.Result do
   ## The two XML fields
 
   `:signed_xml` is what was actually sent to SEFAZ, always present after an
-  authorization attempt. `:xml` is the `nfeProc` — the signed document plus its
-  protocol — and is only set once a protocol exists. The `nfeProc` is the
+  authorization attempt, an event or a voiding. `:xml` is the processed
+  document, built by `SefazNfe.Proc`, and is only set once SEFAZ accepted it:
+  the `nfeProc` (signed document plus its protocol) for an authorization, the
+  `procEventoNFe` for an event (cancellation, CCe, EPEC, manifestação) and the
+  `procInutNFe` for a voiding. The `nfeProc` is the
   document that has to be archived and delivered to the recipient, so losing
   either of them loses something legally required: without the protocol there
   is nothing to prove, and without the signed bytes the protocol cannot be
@@ -113,29 +116,18 @@ defmodule SefazNfe.Result do
       XML.text(doc, "dhRecbto")
   end
 
-  @nfe_ns "http://www.portalfiscal.inf.br/nfe"
-  @protocol ~r{<protNFe.*?</protNFe>}s
-  @declaration ~r/^\s*<\?xml[^>]*\?>/
-
   @doc """
-  Assembles the `nfeProc` from a signed document and the SEFAZ response.
+  The `nfeProc` of a signed document and the SEFAZ response, or `nil`.
 
-  Both halves are spliced verbatim: the signature covers the document exactly
-  as it was sent, and the protocol is SEFAZ's own bytes. Returns `nil` when the
-  answer carries no protocol, which is the normal case for a receipt or a
-  rejection.
+  `SefazNfe.Proc.nfe_proc/2` with the reason dropped: `nil` is the normal case
+  for a receipt, a rejection, or an answer about another document. Kept for
+  compatibility; prefer `SefazNfe.Proc`.
   """
   @spec proc(String.t(), String.t()) :: String.t() | nil
   def proc(signed_xml, body) when is_binary(signed_xml) and is_binary(body) do
-    case Regex.run(@protocol, body) do
-      [protocol] ->
-        ~s(<?xml version="1.0" encoding="UTF-8"?><nfeProc xmlns="#{@nfe_ns}" versao="4.00">) <>
-          String.replace(signed_xml, @declaration, "") <>
-          protocol <>
-          ~s(</nfeProc>)
-
-      nil ->
-        nil
+    case SefazNfe.Proc.nfe_proc(signed_xml, body) do
+      {:ok, xml} -> xml
+      {:error, _reason} -> nil
     end
   end
 
