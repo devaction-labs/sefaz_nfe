@@ -5,6 +5,13 @@ defmodule SefazNfe.AccessKey do
   Layout, fixed by the MOC: `cUF`(2) `AAMM`(4) emitter CNPJ(14) `mod`(2)
   `serie`(3) `nNF`(9) `tpEmis`(1) `cNF`(8) `cDV`(1).
 
+  The CT-e (model 57), CT-e OS (67) and MDF-e (58) keys have the same 44
+  characters and the same check digit (`CTe` / `MDFe` `Id` prefix aside):
+  `nNF` is then `nCT` or `nMDF` and `cNF` is `cCT` or `cMDF`, so the fields
+  keep the names `:n_nf` and `:c_nf`. NFePHP's `MakeCTe`, `MakeCTeOS` and
+  `Make` (MDF-e) take the code from the caller and rebuild the key with the
+  same `Keys::build`, so the random code follows the same `cNF` rules.
+
   The rules mirror NFePHP `sped-common` `NFePHP\\Common\\Keys`:
 
     * **Emitter**: a CNPJ is 14 characters, alphanumeric in the first 12

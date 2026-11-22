@@ -78,15 +78,41 @@ defmodule SefazNfe.Builder do
 
   Paths are keys and list indexes from the `infNFe` content, sorted.
 
+  ## CT-e, CT-e OS and MDF-e
+
+  `build_cte/2`, `build_cte_os/2` and `build_mdfe/2` are this same walk over
+  `SefazNfe.Layout.cte/0`, `cte_os/0` and `mdfe/0` (AD-026); the rules above
+  (keys, lists, choices, leaves, errors) apply unchanged. What differs:
+
+    * The input is the content of `infCte` / `infMDFe`; the root is `CTe`
+      (`http://www.portalfiscal.inf.br/cte`), `CTeOS` (same namespace, with its
+      own `versao="4.00"`) or `MDFe` (`http://www.portalfiscal.inf.br/mdfe`).
+      `infCte/@versao` is `4.00`, `infMDFe/@versao` `3.00`.
+    * The key is the same 44 digits (`SefazNfe.AccessKey`), from `ide` and
+      `emit` (`cnpj` or `cpf`). The number is `n_ct` / `n_mdf`, the random code
+      `c_ct` / `c_mdf`, written with `c_dv` and `id` (`"CTe" <> key` for CT-e
+      and CT-e OS, `"MDFe" <> key`).
+    * **Modal**. `inf_modal` is `%{versao_modal: "4.00", rodo: %{...}}` (CT-e),
+      `%{versao_modal: "4.00", rodo_os: %{...}}` (CT-e OS) or
+      `%{versao_modal: "3.00", rodo: %{...}}` (MDF-e). The modal key picks its
+      layout (`SefazNfe.Layout.modal/1`), which is walked like the rest and
+      written inside `infModal`, in the document's own namespace. Only the road
+      modals are supported: another modal of the family (`aereo`, `aquav`,
+      `ferrov`, `duto`, `multimodal`, or the road modal of the other document)
+      is `{[:inf_modal, key], {:unsupported_modal, key}}`; none is
+      `{[:inf_modal], :choice_none}` and two are `{:choice_many, keys}`. Errors
+      inside it have paths like `[:inf_modal, :rodo, :rntrc]`.
+
   ## Options
 
     * `:declaration` - prepend `<?xml version="1.0" encoding="UTF-8"?>`
       (default `false`; the SOAP envelope and `SefazNfe.Result` strip it anyway).
   """
 
+  alias SefazNfe.Builder.Document
   alias SefazNfe.Builder.Key
-  alias SefazNfe.Builder.Leaf
   alias SefazNfe.Builder.Parser
+  alias SefazNfe.Builder.Walker
   alias SefazNfe.Layout
 
   @declaration ~s(<?xml version="1.0" encoding="UTF-8"?>)
@@ -103,33 +129,73 @@ defmodule SefazNfe.Builder do
   """
   @spec build_nfe(map(), keyword()) ::
           {:ok, %{xml: String.t(), access_key: String.t()}} | {:error, [error()]}
-  def build_nfe(input, opts \\ [])
+  def build_nfe(input, opts \\ []), do: build(:nfe, input, opts)
 
-  def build_nfe(input, opts) when is_map(input) and not is_struct(input) do
-    layout = Layout.nfe()
-    inf_nfe = Layout.find(layout, [:inf_nfe])
-    absent = Key.absent(input)
-    {input, key_errors, key} = Key.prepare(input)
+  @doc """
+  Builds the unsigned CT-e (model 57) XML from `input`, the content of `infCte`
+  (`SefazNfe.Layout.cte/0`).
 
-    case emit(inf_nfe, input, [], 1, key_errors) do
-      {body, []} ->
+  Same rules as `build_nfe/2`, see "CT-e, CT-e OS and MDF-e". Returns
+  `{:ok, %{xml: xml, access_key: key}}`; `Id` is `"CTe" <> key`, `ide.c_ct` and
+  `ide.c_dv` are generated when absent, `infCte/@versao` is `4.00`.
+  """
+  @spec build_cte(map(), keyword()) ::
+          {:ok, %{xml: String.t(), access_key: String.t()}} | {:error, [error()]}
+  def build_cte(input, opts \\ []), do: build(:cte, input, opts)
+
+  @doc """
+  Builds the unsigned CT-e OS (model 67) XML from `input`, the content of
+  `infCte` (`SefazNfe.Layout.cte_os/0`). The root `CTeOS` carries `versao="4.00"`
+  as well, and the modal key is `rodo_os`.
+  """
+  @spec build_cte_os(map(), keyword()) ::
+          {:ok, %{xml: String.t(), access_key: String.t()}} | {:error, [error()]}
+  def build_cte_os(input, opts \\ []), do: build(:cte_os, input, opts)
+
+  @doc """
+  Builds the unsigned MDF-e (model 58) XML from `input`, the content of `infMDFe`
+  (`SefazNfe.Layout.mdfe/0`). `Id` is `"MDFe" <> key`, `ide.c_mdf` and
+  `ide.c_dv` are generated when absent, `infMDFe/@versao` is `3.00`.
+  """
+  @spec build_mdfe(map(), keyword()) ::
+          {:ok, %{xml: String.t(), access_key: String.t()}} | {:error, [error()]}
+  def build_mdfe(input, opts \\ []), do: build(:mdfe, input, opts)
+
+  defp build(kind, input, opts) when is_map(input) and not is_struct(input) do
+    document = Document.get(kind)
+    inf = Layout.find(document.layout, [document.inf])
+    absent = Key.absent(input, document)
+    {input, key_errors, key} = Key.prepare(input, document)
+
+    case Walker.run(document, inf, input) do
+      {body, []} when key_errors == [] ->
         xml = [
           if(Keyword.get(opts, :declaration, false), do: @declaration, else: []),
-          ~s(<NFe xmlns="),
-          layout.namespace,
-          ~s(">),
+          "<",
+          document.root,
+          ~s( xmlns="),
+          document.layout.namespace,
+          ~s("),
+          root_versao(document),
+          ">",
           body,
-          "</NFe>"
+          "</",
+          document.root,
+          ">"
         ]
 
         {:ok, %{xml: IO.iodata_to_binary(xml), access_key: key}}
 
       {_body, errors} ->
-        {:error, errors |> drop_ungenerated(key, absent) |> Enum.uniq() |> Enum.sort()}
+        all = key_errors ++ errors
+        {:error, all |> drop_ungenerated(key, absent) |> Enum.uniq() |> Enum.sort()}
     end
   end
 
-  def build_nfe(_input, _opts), do: {:error, [{[], :invalid_type}]}
+  defp build(_kind, _input, _opts), do: {:error, [{[], :invalid_type}]}
+
+  defp root_versao(%{root_versao: nil}), do: []
+  defp root_versao(%{root_versao: versao}), do: [~s( versao="), versao, ~s(")]
 
   @doc """
   Reads an `NFe` or an `nfeProc` back into the map `build_nfe/2` takes
@@ -181,7 +247,33 @@ defmodule SefazNfe.Builder do
       types in the XSD and stay strings. Default `false`.
   """
   @spec parse_nfe(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
-  def parse_nfe(xml, opts \\ []) when is_binary(xml), do: Parser.parse(xml, opts)
+  def parse_nfe(xml, opts \\ []) when is_binary(xml), do: Parser.parse(:nfe, xml, opts)
+
+  @doc """
+  Reads a `CTe` or a `cteProc` back into the map `build_cte/2` takes.
+
+  Same as `parse_nfe/2` (see "CT-e, CT-e OS and MDF-e" for what changes): the
+  result is `%{cte: map, supl: map | nil, protocol: map | nil, signed?: boolean}`,
+  with `supl` the `infCTeSupl` and `protocol` the `protCTe` (its `chCTe` is
+  `:ch_cte`).
+  """
+  @spec parse_cte(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def parse_cte(xml, opts \\ []) when is_binary(xml), do: Parser.parse(:cte, xml, opts)
+
+  @doc """
+  Reads a `CTeOS` or a `cteOSProc` back into the map `build_cte_os/2` takes:
+  `%{cte_os: map, supl: ..., protocol: ..., signed?: ...}`.
+  """
+  @spec parse_cte_os(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def parse_cte_os(xml, opts \\ []) when is_binary(xml), do: Parser.parse(:cte_os, xml, opts)
+
+  @doc """
+  Reads an `MDFe` or an `mdfeProc` back into the map `build_mdfe/2` takes:
+  `%{mdfe: map, supl: ..., protocol: ..., signed?: ...}`, `protocol` being the
+  `protMDFe` (its `chMDFe` is `:ch_mdfe`).
+  """
+  @spec parse_mdfe(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def parse_mdfe(xml, opts \\ []) when is_binary(xml), do: Parser.parse(:mdfe, xml, opts)
 
   # Without a key nothing can be generated, and the field that stopped it is
   # already an error of its own; a bare `:required` for what would have been
@@ -192,209 +284,4 @@ defmodule SefazNfe.Builder do
   end
 
   defp drop_ungenerated(errors, _key, _absent), do: errors
-
-  # An element ---------------------------------------------------------------
-  #
-  # `rpath` is the path to the element, reversed. `pos` is its 1-based position
-  # in its list (nItem). Every clause returns `{iodata, errors}`.
-
-  defp emit(%{content: %{base: _} = leaf} = element, value, rpath, _pos, errors) do
-    case Leaf.text(leaf, value) do
-      {:ok, text} -> {[open(element, []), Leaf.escape(text), close(element)], errors}
-      {:error, reason} -> {[], [error(rpath, reason) | errors]}
-    end
-  end
-
-  defp emit(%{content: nil} = element, true, _rpath, _pos, errors),
-    do: {["<", element.tag, "/>"], errors}
-
-  defp emit(%{content: content} = element, value, rpath, pos, errors)
-       when content != nil and is_map(value) and not is_struct(value) do
-    {input, errors} = normalize(value, element, rpath, errors)
-    {attributes, errors} = attributes(element, input, rpath, pos, errors)
-    {children, errors} = group(content, input, rpath, errors)
-
-    {[open(element, attributes), children, close(element)], errors}
-  end
-
-  defp emit(_element, _value, rpath, _pos, errors),
-    do: {[], [error(rpath, :invalid_type) | errors]}
-
-  defp open(element, attributes), do: ["<", element.tag, attributes, ">"]
-  defp close(element), do: ["</", element.tag, ">"]
-
-  # Keys ---------------------------------------------------------------------
-
-  # Resolves the keys of `value` against the layout's own, so a string key never
-  # creates an atom. The result has atom keys only.
-  defp normalize(value, element, rpath, errors) do
-    known = known_keys(element)
-
-    Enum.reduce(value, {%{}, errors}, fn {given, content}, {acc, errors} ->
-      case resolve(given, known) do
-        nil ->
-          {acc, [error([given | rpath], :unknown_key) | errors]}
-
-        key when is_map_key(acc, key) ->
-          {acc, [error([key | rpath], :duplicate_key) | errors]}
-
-        key ->
-          {Map.put(acc, key, content), errors}
-      end
-    end)
-  end
-
-  defp resolve(key, known) when is_atom(key), do: if(key in known, do: key)
-
-  defp resolve(key, known) when is_binary(key),
-    do: Enum.find(known, &(Atom.to_string(&1) == key))
-
-  defp resolve(_key, _known), do: nil
-
-  defp known_keys(%{attrs: attrs} = element),
-    do: keys(element) ++ Enum.map(attrs, & &1.key)
-
-  # The element keys directly inside a node, looking through groups.
-  defp keys(node) do
-    for %{kind: :element, key: key} <- Layout.elements(node), do: key
-  end
-
-  defp present?(input, key), do: Map.get(input, key) != nil
-
-  # Attributes ---------------------------------------------------------------
-
-  defp attributes(%{attrs: attrs} = element, input, rpath, pos, errors) do
-    attrs
-    |> Enum.sort_by(& &1.name)
-    |> Enum.map_reduce(errors, fn attribute, errors ->
-      given = Map.get(input, attribute.key)
-      attribute(element, attribute, given, [attribute.key | rpath], pos, errors)
-    end)
-  end
-
-  # versao is fixed; nItem is the position, not something the caller computes.
-  defp attribute(%{key: :inf_nfe}, %{key: :versao} = attribute, nil, rpath, _pos, errors),
-    do: attribute_text(attribute, "4.00", rpath, errors)
-
-  defp attribute(%{key: :det}, %{key: :n_item} = attribute, given, rpath, pos, errors) do
-    expected = Integer.to_string(pos)
-
-    case given do
-      nil -> attribute_text(attribute, expected, rpath, errors)
-      ^pos -> attribute_text(attribute, expected, rpath, errors)
-      ^expected -> attribute_text(attribute, expected, rpath, errors)
-      _other -> {[], [error(rpath, {:invalid_n_item, pos}) | errors]}
-    end
-  end
-
-  defp attribute(_element, %{fixed: fixed} = attribute, nil, rpath, _pos, errors)
-       when is_binary(fixed),
-       do: attribute_text(attribute, fixed, rpath, errors)
-
-  defp attribute(_element, %{use: :required}, nil, rpath, _pos, errors),
-    do: {[], [error(rpath, :required) | errors]}
-
-  defp attribute(_element, _attribute, nil, _rpath, _pos, errors), do: {[], errors}
-
-  defp attribute(_element, attribute, given, rpath, _pos, errors),
-    do: attribute_text(attribute, given, rpath, errors)
-
-  defp attribute_text(attribute, value, rpath, errors) do
-    case Leaf.text(attribute.type, value) do
-      {:ok, text} ->
-        {[" ", attribute.name, ~s(="), Leaf.escape(text), ~s(")], errors}
-
-      {:error, reason} ->
-        {[], [error(rpath, reason) | errors]}
-    end
-  end
-
-  # Groups: sequences and choices -------------------------------------------
-
-  # An optional sequence stands in the schema as a group with no element of its
-  # own, so it is present when any of its keys is.
-  defp group(%{kind: :sequence, min: 0} = sequence, input, rpath, errors) do
-    if Enum.any?(keys(sequence), &present?(input, &1)),
-      do: members(sequence, input, rpath, errors),
-      else: {[], errors}
-  end
-
-  defp group(%{kind: :sequence} = sequence, input, rpath, errors),
-    do: members(sequence, input, rpath, errors)
-
-  defp group(%{kind: :choice} = choice, input, rpath, errors) do
-    given = choice |> keys() |> Enum.uniq() |> Enum.filter(&present?(input, &1))
-
-    case given do
-      [] -> choice_none(choice, rpath, errors)
-      _ -> choice_branch(choice, given, input, rpath, errors)
-    end
-  end
-
-  defp members(%{children: children}, input, rpath, errors) do
-    Enum.map_reduce(children, errors, fn
-      %{kind: :element} = element, errors -> child(element, input, rpath, errors)
-      %{kind: :foreign}, errors -> {[], errors}
-      group, errors -> group(group, input, rpath, errors)
-    end)
-  end
-
-  defp choice_none(choice, rpath, errors) do
-    if choice.min == 0 or Enum.any?(choice.children, &nullable?/1),
-      do: {[], errors},
-      else: {[], [error(rpath, :choice_none) | errors]}
-  end
-
-  defp choice_branch(choice, given, input, rpath, errors) do
-    branches = Enum.filter(choice.children, &(&1.kind != :foreign and given -- keys_of(&1) == []))
-
-    case branches do
-      [%{kind: :element} = element] -> child(element, input, rpath, errors)
-      [branch] -> group(branch, input, rpath, errors)
-      [] -> {[], [error(rpath, {:choice_many, given}) | errors]}
-      _several -> {[], [error(rpath, {:choice_ambiguous, given}) | errors]}
-    end
-  end
-
-  defp keys_of(%{kind: :element, key: key}), do: [key]
-  defp keys_of(group), do: keys(group)
-
-  defp nullable?(%{kind: :element, min: min}), do: min == 0
-  defp nullable?(%{kind: :sequence, min: 0}), do: true
-  defp nullable?(%{kind: :sequence, children: children}), do: Enum.all?(children, &nullable?/1)
-  defp nullable?(%{kind: :choice, min: 0}), do: true
-  defp nullable?(%{kind: :choice, children: children}), do: Enum.any?(children, &nullable?/1)
-  defp nullable?(%{kind: :foreign, min: min}), do: min == 0
-
-  # Occurrence ---------------------------------------------------------------
-
-  defp child(%{key: key, min: min} = element, input, rpath, errors) do
-    case Map.get(input, key) do
-      nil when min == 0 -> {[], errors}
-      nil -> {[], [error([key | rpath], :required) | errors]}
-      value -> occurs(element, value, [key | rpath], errors)
-    end
-  end
-
-  defp occurs(%{max: 1} = element, value, rpath, errors),
-    do: emit(element, value, rpath, 1, errors)
-
-  defp occurs(element, items, rpath, errors) when is_list(items) do
-    count = length(items)
-
-    errors =
-      if count < element.min or (element.max != :unbounded and count > element.max),
-        do: [error(rpath, {:occurs, element.min, element.max, count}) | errors],
-        else: errors
-
-    items
-    |> Enum.with_index()
-    |> Enum.map_reduce(errors, fn {item, index}, errors ->
-      emit(element, item, [index | rpath], index + 1, errors)
-    end)
-  end
-
-  defp occurs(_element, _value, rpath, errors), do: {[], [error(rpath, :not_a_list) | errors]}
-
-  defp error(rpath, reason), do: {Enum.reverse(rpath), reason}
 end
