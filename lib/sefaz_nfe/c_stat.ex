@@ -15,6 +15,7 @@ defmodule SefazNfe.CStat do
   | | 124 | EPEC authorized |
   | `:denied` | 110, 301, 302, 303 | uso denegado: the document exists and must be stored; the number is consumed, never retry with it and never reuse it |
   | `:cancelled` | 101, 151 | a consultation found the NF-e cancelled |
+  | `:closed` | 132 | a consultation found the MDF-e encerrado (closed): terminal, like `:cancelled` |
   | `:in_operation` | 107 | service status answer: the service is up (not a rejection) |
   | `:batch_received` | 103 | lote received, collect with the recibo |
   | `:batch_processed` | 104, 128 | lote (128: event lote) processed, the outcome is per item |
@@ -45,6 +46,7 @@ defmodule SefazNfe.CStat do
           :authorized
           | :denied
           | :cancelled
+          | :closed
           | :in_operation
           | :batch_received
           | :batch_processed
@@ -65,6 +67,7 @@ defmodule SefazNfe.CStat do
   def classify(c_stat) when c_stat in @authorized, do: :authorized
   def classify(c_stat) when c_stat in @denied, do: :denied
   def classify(c_stat) when c_stat in @cancelled, do: :cancelled
+  def classify(132), do: :closed
   def classify(107), do: :in_operation
   def classify(103), do: :batch_received
   def classify(c_stat) when c_stat in @batch_processed, do: :batch_processed

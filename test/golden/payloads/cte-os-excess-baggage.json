@@ -1,0 +1,56 @@
+{
+    "ref": "os-bagagem-1001",
+    "identification": {
+        "cfop": "5352",
+        "operation_nature": "Prestacao de servico de transporte de excesso de bagagem",
+        "service_type": 8,
+        "start_city_ibge_code": "3550308",
+        "start_city_name": "Sao Paulo",
+        "start_state": "SP",
+        "end_city_ibge_code": "3550308",
+        "end_city_name": "Sao Paulo",
+        "end_state": "SP",
+        "taker_state_registration_indicator": 9
+    },
+    "taker": {
+        "cpf": "11122233396",
+        "name": "Maria Passageira Santos",
+        "phone": "11988882222",
+        "email": "maria.santos@example.com",
+        "address": {
+            "street": "Rua das Bagagens",
+            "number": "50",
+            "district": "Aeroporto",
+            "city_ibge_code": "3550308",
+            "city_name": "Sao Paulo",
+            "state": "SP",
+            "zip_code": "04626000",
+            "country_code": "1058",
+            "country_name": "Brasil"
+        }
+    },
+    "service_amount": {
+        "total": "180.00",
+        "receivable": "180.00"
+    },
+    "taxes": {
+        "icms": {
+            "cst": "20",
+            "base_reduction": "10.00",
+            "base": "162.00",
+            "rate": "12.00",
+            "amount": "19.44"
+        }
+    },
+    "service": {
+        "description": "Transporte de excesso bagagem",
+        "quantity": "2.0000"
+    },
+    "referenced_documents": [
+        {"bpe_access_key": "35260911222333000181630010000001231123456789"},
+        {"number": "1234", "series": "1", "subseries": "0", "issue_date": "2026-09-10", "amount": "500.00"}
+    ],
+    "road": {
+        "state_registration_number": "1234567890123456789012345"
+    }
+}

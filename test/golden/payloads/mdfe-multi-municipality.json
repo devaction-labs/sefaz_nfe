@@ -1,0 +1,62 @@
+{
+    "ref": "mdfe-multi",
+    "identification": {
+        "emitter_type": 1,
+        "start_state": "MG",
+        "end_state": "SP",
+        "loading_municipalities": [
+            {"city_ibge_code": "3106200", "city_name": "Belo Horizonte"},
+            {"city_ibge_code": "3118601", "city_name": "Contagem"},
+            {"city_ibge_code": "3170206", "city_name": "Uberlandia"}
+        ]
+    },
+    "vehicle": {
+        "plate": "QWE4R56",
+        "tare_weight": "9500",
+        "axle_type": "03",
+        "body_type": "00"
+    },
+    "drivers": [
+        {"name": "Joao da Silva", "cpf": "11144477735"},
+        {"name": "Maria Souza", "cpf": "11122233396"},
+        {"name": "Pedro Alves", "cpf": "11144477735"}
+    ],
+    "documents": [
+        {
+            "city_ibge_code": "3550308",
+            "city_name": "Sao Paulo",
+            "nfe_keys": [
+                "35260911222333000181550010000020011111111120",
+                "35260911222333000181550010000020021222222237"
+            ],
+            "cte_keys": [
+                "35260911222333000181570010000050011555555560"
+            ]
+        },
+        {
+            "city_ibge_code": "3509502",
+            "city_name": "Campinas",
+            "cte_keys": [
+                "35260911444777000161570010000050021666666678",
+                "35260911222333000181570010000050031777777785"
+            ]
+        },
+        {
+            "city_ibge_code": "3548708",
+            "city_name": "Sao Bernardo do Campo",
+            "nfe_keys": [
+                "35260911444777000161550020000030011333333340"
+            ]
+        }
+    ],
+    "cargo": {
+        "type": "01",
+        "predominant_product": "Graos a granel",
+        "total_value": "250000.50",
+        "unit": "02",
+        "quantity": "32.5"
+    },
+    "road": {
+        "rntrc": "00123456"
+    }
+}

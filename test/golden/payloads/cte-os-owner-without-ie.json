@@ -1,0 +1,60 @@
+{
+    "ref": "cte-os-owner-without-ie",
+    "identification": {
+        "cfop": "6352",
+        "operation_nature": "Prestacao de servico de transporte de pessoas",
+        "service_type": 7,
+        "start_city_ibge_code": "3550308",
+        "start_city_name": "Sao Paulo",
+        "start_state": "SP",
+        "end_city_ibge_code": "4106902",
+        "end_city_name": "Curitiba",
+        "end_state": "PR",
+        "taker_state_registration_indicator": 1,
+        "route_states": ["PR", "SC"]
+    },
+    "taker": {
+        "cnpj": "11555888000145",
+        "state_registration": "110042490317",
+        "name": "Turismo Sul Ltda",
+        "address": {
+            "street": "Rua das Viagens",
+            "number": "10",
+            "district": "Centro",
+            "city_ibge_code": "4106902",
+            "city_name": "Curitiba",
+            "state": "PR",
+            "zip_code": "80020000"
+        }
+    },
+    "service_amount": {
+        "total": "640.00",
+        "receivable": "640.00"
+    },
+    "taxes": {
+        "icms": {
+            "simples_nacional": true
+        }
+    },
+    "service": {
+        "description": "Transporte de passageiros"
+    },
+    "insurance": [
+        {"responsible": 4, "insurer_name": "Seguradora Rodoviaria SA", "policy_number": "AP-1"},
+        {"responsible": 5}
+    ],
+    "road": {
+        "state_registration_number": "9876543210987654321098765",
+        "vehicle": {
+            "plate": "XYZ9K88",
+            "state": "SP",
+            "owner": {
+                "cpf": "11122233396",
+                "state_registration_number": "1234567890123456789012345",
+                "name": "Carlos Proprietario",
+                "state": "SP",
+                "ownership_type": 1
+            }
+        }
+    }
+}

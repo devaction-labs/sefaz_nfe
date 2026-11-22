@@ -14,7 +14,9 @@ defmodule SefazNfe.Telemetry do
   `:cte_service_status`, `:cte_cancel`, `:cte_cce`, `:cte_delivery_proof`,
   `:cte_cancel_delivery_proof`, `:cte_delivery_failure` and
   `:cte_cancel_delivery_failure` (model 57, or 67), and `SefazNfe.MDFe` adds
-  `:mdfe_service_status` (model 58). It covers the whole call,
+  `:mdfe_service_status`, `:mdfe_authorize`, `:mdfe_consult`, `:mdfe_pending`,
+  `:mdfe_cancel`, `:mdfe_close`, `:mdfe_include_driver` and `:mdfe_include_dfe`
+  (model 58). It covers the whole call,
   so an answer refused before the network
   (a missing key, a bad CNPJ, `tpAmb` against `:environment`) still emits
   `:start` and `:stop`, with the failure as `:outcome`: callers can count
@@ -142,6 +144,16 @@ defmodule SefazNfe.Telemetry do
   ]
 
   @an_operations [:dist_dfe, :manifest, :epec]
+  @mdfe_operations [
+    :mdfe_service_status,
+    :mdfe_authorize,
+    :mdfe_consult,
+    :mdfe_pending,
+    :mdfe_cancel,
+    :mdfe_close,
+    :mdfe_include_driver,
+    :mdfe_include_dfe
+  ]
   @environments [:production, :homologation]
   @contingencies [:svc_an, :svc_rs, :svc_sp]
   @cte_key_operations [
@@ -250,7 +262,7 @@ defmodule SefazNfe.Telemetry do
     end
   end
 
-  defp model(:mdfe_service_status, _opts), do: 58
+  defp model(operation, _opts) when operation in @mdfe_operations, do: 58
 
   defp model(:cte_service_status, opts) do
     case Map.get(opts, :model, 57) do

@@ -1,0 +1,25 @@
+{
+  "environment": 1,
+  "model": 67,
+  "series": 3,
+  "number": 55,
+  "numeric_code": "99887766",
+  "emission_type": 1,
+  "issued_at": "2026-09-30 08:00:00-03:00",
+  "company": {
+    "name": "Viagens Paulistas ME",
+    "trade_name": "Viagens Paulistas",
+    "cnpj": "11222333000181",
+    "state_registration": "123456789012",
+    "tax_regime": 1,
+    "street": "Rua da Consolação",
+    "number": "100",
+    "district": "Consolação",
+    "city_name": "São Paulo",
+    "city_ibge_code": "3550308",
+    "state": "SP",
+    "zip_code": "01302000",
+    "phone": "1133334444",
+    "email": "contato@example.com"
+  }
+}

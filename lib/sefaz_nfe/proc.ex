@@ -274,6 +274,24 @@ defmodule SefazNfe.Proc do
     end
   end
 
+  # MDF-e --------------------------------------------------------------------
+
+  @doc "`mdfeProc` (MDF-e 58). See `SefazNfe.MDFe.Proc.mdfe_proc/2`."
+  @spec mdfe_proc(String.t(), String.t()) :: {:ok, String.t()} | {:error, reason()}
+  defdelegate mdfe_proc(signed_mdfe_xml, response), to: SefazNfe.MDFe.Proc
+
+  @doc "`procEventoMDFe`. See `SefazNfe.MDFe.Proc.mdfe_event_proc/2`."
+  @spec mdfe_event_proc(String.t(), String.t()) :: {:ok, String.t()} | {:error, reason()}
+  defdelegate mdfe_event_proc(signed_event_xml, response), to: SefazNfe.MDFe.Proc
+
+  @doc "Marks an `mdfeProc` cancelled. See `SefazNfe.MDFe.Proc.mdfe_cancel_register/2`."
+  @spec mdfe_cancel_register(String.t(), String.t()) :: {:ok, String.t()} | {:error, reason()}
+  defdelegate mdfe_cancel_register(mdfe_proc_xml, event_xml), to: SefazNfe.MDFe.Proc
+
+  @doc "Marks an `mdfeProc` closed (NFePHP `closeRegister`). See `SefazNfe.MDFe.Proc.mdfe_close_register/2`."
+  @spec mdfe_close_register(String.t(), String.t()) :: {:ok, String.t()} | {:error, reason()}
+  defdelegate mdfe_close_register(mdfe_proc_xml, event_xml), to: SefazNfe.MDFe.Proc
+
   # Pieces -------------------------------------------------------------------
 
   # The first element named `name` of `xml`, as the bytes it was written with.

@@ -1,0 +1,106 @@
+{
+    "ref": "os-passageiro-1001",
+    "identification": {
+        "cfop": "5352",
+        "operation_nature": "Prestacao de servico de transporte de passageiros",
+        "service_type": 6,
+        "start_city_ibge_code": "3550308",
+        "start_city_name": "Sao Paulo",
+        "start_state": "SP",
+        "end_city_ibge_code": "3304557",
+        "end_city_name": "Rio de Janeiro",
+        "end_state": "RJ",
+        "taker_state_registration_indicator": 9,
+        "route_states": ["MG"]
+    },
+    "taker": {
+        "cnpj": "11222333000181",
+        "state_registration": "110042490114",
+        "name": "Fretamento Turismo Ltda",
+        "trade_name": "Fretamento Turismo",
+        "phone": "1130001111",
+        "email": "financeiro@example.com",
+        "address": {
+            "street": "Rua dos Passageiros",
+            "number": "200",
+            "complement": "Sala 4",
+            "district": "Centro",
+            "city_ibge_code": "3550308",
+            "city_name": "Sao Paulo",
+            "state": "SP",
+            "zip_code": "01311000",
+            "country_code": "1058",
+            "country_name": "Brasil"
+        }
+    },
+    "service_amount": {
+        "total": "3500.00",
+        "receivable": "3500.00",
+        "components": [
+            {"name": "FRETE FRETAM", "amount": "3500.00"}
+        ]
+    },
+    "taxes": {
+        "icms": {
+            "cst": "00",
+            "base": "3500.00",
+            "rate": "12.00",
+            "amount": "420.00"
+        },
+        "reform": {
+            "cst": "000",
+            "classification": "000001",
+            "ibs_cbs": {
+                "base": "3500.00",
+                "state_rate": "0.10",
+                "state_amount": "3.50",
+                "municipal_rate": "0.00",
+                "municipal_amount": "0.00",
+                "ibs_amount": "3.50",
+                "cbs_rate": "0.90",
+                "cbs_amount": "31.50"
+            },
+            "total_document_amount": "3500.00"
+        },
+        "federal": {
+            "pis_amount": "22.75",
+            "cofins_amount": "105.00",
+            "income_tax_amount": "52.50",
+            "inss_amount": "0.00",
+            "csll_amount": "31.50"
+        }
+    },
+    "service": {
+        "description": "Fretamento de onibus turistico",
+        "quantity": "45.0000"
+    },
+    "insurance": [
+        {"responsible": 4, "insurer_name": "Seguradora Rodoviaria SA", "policy_number": "AP-2026-000123"}
+    ],
+    "road": {
+        "charter_authorization": "123456789012",
+        "vehicle": {
+            "plate": "ABC1D23",
+            "renavam": "12345678901",
+            "state": "SP",
+            "owner": {
+                "cnpj": "11444777000161",
+                "charter_authorization": "987654321098",
+                "name": "Locadora de Onibus Ltda",
+                "state_registration": "110042490211",
+                "state": "SP",
+                "ownership_type": 2
+            }
+        },
+        "charter": {
+            "type": 1,
+            "trip_at": "2026-09-20T08:00:00-03:00"
+        }
+    },
+    "additional_info": {
+        "observations": "Embarque as 7h na garagem",
+        "contributor_fields": [
+            {"field": "Motorista", "text": "Carlos Souza"}
+        ]
+    }
+}

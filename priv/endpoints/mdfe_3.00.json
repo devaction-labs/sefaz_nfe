@@ -1,9 +1,13 @@
 {
-  "source": "MDF-e portal https://dfe-portal.svrs.rs.gov.br/Mdfe/Servicos (SVRS, listed there as Ambiente Nacional: one authorizer for every UF), fetched 2026-11-22; cross-checked against nfephp-org/sped-mdfe storage/wsmdfe_3.00.xml. MDFeRecepcao (asynchronous lot), MDFeRetRecepcao and MDFeDistribuicaoDFe are not carried. MDF-e has no SVC: contingency is off-line (tpEmis 2).",
+  "source": "MDF-e portal https://dfe-portal.svrs.rs.gov.br/Mdfe/Servicos (SVRS, listed there as Ambiente Nacional: one authorizer for every UF), fetched 2026-11-22; cross-checked against nfephp-org/sped-mdfe storage/wsmdfe_3.00.xml. MDFeRecepcao (asynchronous lot), MDFeRetRecepcao and MDFeDistribuicaoDFe are not carried. MDF-e has no SVC: contingency is off-line (tpEmis 2). qr_code is the SVRS portal address the MDF-e QR code carries (infMDFeSupl/qrCodMDFe), one for both environments as in nfephp-org/sped-mdfe Factories/QRCode.php; tpAmb in the query tells them apart.",
   "snapshot_date": "2026-11-22",
   "layout": "3.00",
   "family": "mdfe",
   "model": 58,
+  "qr_code": {
+    "homologation": "https://dfe-portal.svrs.rs.gov.br/mdfe/qrCode",
+    "production": "https://dfe-portal.svrs.rs.gov.br/mdfe/qrCode"
+  },
   "uf_authorizer": {
     "AC": "SVRS",
     "AL": "SVRS",
