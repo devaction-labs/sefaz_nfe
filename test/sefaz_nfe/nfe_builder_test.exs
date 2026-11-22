@@ -76,7 +76,46 @@ defmodule SefazNfe.NFeBuilderTest do
     assert Signer.signed?(signed)
   end
 
-  test "it carries no comments, which schema validation would refuse" do
+  test "the default is Regime Normal, with the ICMS00 groups and totals" do
+    %{xml: xml} = NFeBuilder.build(c_nf: 12_345_678)
+
+    assert xml == NFeBuilder.build(c_nf: 12_345_678, crt: 3).xml
+    assert xml =~ "<CRT>3</CRT>"
+    assert xml =~ "<ICMS00>"
+    assert xml =~ "<PISAliq>"
+    assert xml =~ "<COFINSAliq>"
+    assert xml =~ "<vBC>100.00</vBC><vICMS>18.00</vICMS><vICMSDeson>"
+    assert xml =~ "<vPIS>1.65</vPIS><vCOFINS>7.60</vCOFINS><vOutro>"
+  end
+
+  test "crt: 1 builds a Simples Nacional emitter" do
+    %{xml: xml} = NFeBuilder.build(crt: 1)
+
+    assert xml =~ "<CRT>1</CRT></emit>"
+
+    assert xml =~
+             "<ICMS><ICMSSN102><orig>0</orig><CSOSN>102</CSOSN></ICMSSN102></ICMS>"
+
+    assert xml =~ "<PIS><PISNT><CST>07</CST></PISNT></PIS>"
+    assert xml =~ "<COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS>"
+
+    refute xml =~ "ICMS00"
+    refute xml =~ "PISAliq"
+    refute xml =~ "COFINSAliq"
+
+    assert xml =~ "<ICMSTot><vBC>0.00</vBC><vICMS>0.00</vICMS><vICMSDeson>"
+    assert xml =~ "<vPIS>0.00</vPIS><vCOFINS>0.00</vCOFINS><vOutro>"
+    assert xml =~ "<vProd>100.00</vProd>"
+    assert xml =~ "<vNF>100.00</vNF>"
+    assert xml =~ "<IBSCBS><CST>000</CST>"
+    assert xml =~ "<IBSCBSTot>"
+  end
+
+  test "any other crt is refused" do
+    assert_raise ArgumentError, fn -> NFeBuilder.build(crt: 2) end
+  end
+
+  test "it carries no comments,which schema validation would refuse" do
     refute NFeBuilder.build().xml =~ "<!--"
   end
 end

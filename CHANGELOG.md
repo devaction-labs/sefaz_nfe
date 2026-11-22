@@ -2,6 +2,17 @@
 
 ## 0.1.1
 
+- OTP 29.1 resolves the handshake failure on 20 UFs (OTP-20327). The minimum
+  runtime for the per-UF services is now OTP 29.1.
+- `patches/` and the upstream issue draft are removed; nothing needs patching.
+- Verified live on OTP 29.1.2 against homologação: `service_status/1` answers
+  `cStat` 107 on 26 of 27 UFs (MA/SVAN answers 403 server-side). Full SEFAZ BA
+  lifecycle: authorize 100, CCe 135, cancel 135, `consult_protocol/1` 100 (it
+  can answer 217/494 for a few seconds after authorization), inutilização 102.
+  The Ambiente Nacional and SVAN homologação endpoints answer 403 server-side.
+- README trust-anchor guidance corrected: the ICP-Brasil v10 root is needed by
+  nearly every UF, not only SP and MT; its SHA-256 fingerprint is listed.
+
 `:connect_timeout` never left `SefazNfe.authorize/1` and its siblings, so the
 client's 10 second default was the only value there was. Measured against
 SEFAZ-BA, `time_connect` ranged from 3.5 seconds to 68.7 across consecutive
