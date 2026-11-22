@@ -635,7 +635,7 @@ defmodule SefazNfe do
       envelope,
       opts.cert,
       [
-        uf: to_string(opts.uf),
+        uf: opts.uf |> to_string() |> String.upcase(),
         service: service,
         environment: telemetry[:environment],
         model: telemetry[:model],
