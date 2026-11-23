@@ -9,7 +9,9 @@ defmodule Mix.Tasks.Sefaz.GenLayout do
       mix sefaz.gen_layout PATH --root TNFe --out priv/layouts/nfe_4.00.etf
       mix sefaz.gen_layout PATH --entry nfe_v4.00.xsd
 
-  `PATH` is the directory of the PL (for example `PL_010_V1.30`). The task
+  `PATH` is the directory of the NF-e schemas of the PL. The portal's package
+  nests them in `NFe/` (`PL_010h_v1.03/NFe`), and the layout records the package
+  name (`PL_010h_v1.03`), not `NFe`. The task
   follows `xs:include` / `xs:import` from `--entry` (default
   `nfe_v4.00.xsd`), compiles the complex type `--root` (default `TNFe`) and
   writes `--out` (default `priv/layouts/nfe_4.00.etf`).
@@ -23,6 +25,11 @@ defmodule Mix.Tasks.Sefaz.GenLayout do
       mix sefaz.gen_layout CTE_PL --entry cteModalRodoviarioOS_v4.00.xsd --element rodoOS --out priv/layouts/cte_os_modal_rodoviario_4.00.etf
       mix sefaz.gen_layout MDFE_PL --entry mdfe_v3.00.xsd --root TMDFe --out priv/layouts/mdfe_3.00.etf
       mix sefaz.gen_layout MDFE_PL --entry mdfeModalRodoviario_v3.00.xsd --element rodo --out priv/layouts/mdfe_modal_rodoviario_3.00.etf
+
+  The committed NF-e layout comes from `PL_010h_v1.03` (official portal, published
+  13/11/2026; NT 2026.005 v1.00, NT 2026.006 v1.00, NT 2026.008 v1.01):
+
+      mix sefaz.gen_layout /path/to/PL_010h_v1.03/NFe
 
   Their regeneration tests are skipped unless `SEFAZ_NFE_CTE_PL_PATH` /
   `SEFAZ_NFE_MDFE_PL_PATH` point at the unpacked PL.
@@ -39,9 +46,9 @@ defmodule Mix.Tasks.Sefaz.GenLayout do
   ## Refresh procedure
 
   1. Download the new Pacote de Liberacao from
-     https://www.nfe.fazenda.gov.br/portal/principal.aspx (Schemas XML) and
-     unpack it somewhere outside this repository.
-  2. Run `mix sefaz.gen_layout /path/to/PL_0XX_VY.ZZ`. A new construct raises;
+     https://www.nfe.fazenda.gov.br/portal/listaConteudo.aspx?tipoConteudo=BMPFMBoln3w=
+     (Schemas XML) and unpack it somewhere outside this repository.
+  2. Run `mix sefaz.gen_layout /path/to/PL_0XXy_vN.NN/NFe`. A new construct raises;
      extend `SefazNfe.Layout.Generator` (and its moduledoc) before going on.
   3. Run `mix test`. The layout tests assert the order of `infNFe`, the ICMS
      choice, facets and attributes; when a Nota Tecnica legitimately changes

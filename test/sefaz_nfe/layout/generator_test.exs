@@ -1,7 +1,7 @@
 defmodule SefazNfe.Layout.GeneratorTest do
   @moduledoc """
   The XSDs are not in this repository (AD-015). Point `SEFAZ_NFE_PL_PATH` at an
-  unpacked PL (for example `PL_010_V1.30`) to run the tests that regenerate the
+  unpacked PL's `NFe/` directory (for example `PL_010h_v1.03/NFe`) to run the tests that regenerate the
   layout; they are skipped otherwise. The key tests need no XSD.
   """
 

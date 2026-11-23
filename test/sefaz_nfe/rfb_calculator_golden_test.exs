@@ -16,10 +16,11 @@ defmodule SefazNfe.RFBCalculatorGoldenTest do
   our `ide/gCompraGov`, `det/imposto/IS`, `det/imposto/IBSCBS`, `total/ISTot` and
   `total/IBSCBSTot` are compared, canonicalised (C14N), with the calculator's.
 
-  The calculators write the layout of NT v1.36; the library targets PL_010_V1.30. What
-  differs between the two is listed in `@differences` and `@not_buildable`, each
-  asserted exactly, so that the day the PL catches up (or the calculator changes) the
-  test says so.
+  The calculators write the layout of NT v1.36, whose XSDs predate the official package
+  the library targets (PL_010h_v1.03, NT 2026.005/006/008): the calculator still writes
+  `pISEspec`, the flat `gMono*` groups and no `pDevTrib`. What differs between the two is
+  listed in `@differences` and `@not_buildable`, each asserted exactly, so that the day
+  the calculator catches up the test says so.
   """
 
   use ExUnit.Case, async: true
@@ -28,6 +29,7 @@ defmodule SefazNfe.RFBCalculatorGoldenTest do
   alias SefazNfe.Layout
   alias SefazNfe.RFBCalculator, as: RFB
   alias SefazNfe.Signer
+  alias SefazNfe.XML
 
   @names RFB.group_names()
 
@@ -41,8 +43,8 @@ defmodule SefazNfe.RFBCalculatorGoldenTest do
   @differences %{
     "regular-is-ad-valorem-ad-rem" => [
       {"det[1]/imposto/IS", "<pISEspec>21.30</pISEspec>", "<adRemIS>21.30</adRemIS>",
-       "IS ad rem rate: the calculator's layout (NT v1.36) calls it pISEspec, PL_010_V1.30 " <>
-         "adRemIS (the calculator's result carries both names)"}
+       "IS ad rem rate: the calculator's XSDs (NT v1.36) predate the official PL and still " <>
+         "call it pISEspec; PL_010h_v1.03 has adRemIS (the calculator's result carries both)"}
     ],
     "roc-presumed-credit-zfm" => [
       {"det[1]/imposto/IBSCBS", "<gCredPresIBSZFM><tpCredPresIBSZFM>",
@@ -53,7 +55,7 @@ defmodule SefazNfe.RFBCalculatorGoldenTest do
     "roc-tax-refund-devtrib" => [
       {"det[1]/imposto/IBSCBS", "<gDevTrib><vDevTrib>0.10</vDevTrib></gDevTrib>",
        "<gDevTrib><pDevTrib>10.0000</pDevTrib><vDevTrib>0.10</vDevTrib></gDevTrib>",
-       "pDevTrib: in PL_010_V1.30 and in the calculator's result, not in its NT v1.36 XML"},
+       "pDevTrib: in PL_010h_v1.03 and in the calculator's result, not in its older NT v1.36 XML"},
       {"det[1]/imposto/IBSCBS", "<gDevTrib><vDevTrib>0.05</vDevTrib></gDevTrib>",
        "<gDevTrib><pDevTrib>10.0000</pDevTrib><vDevTrib>0.05</vDevTrib></gDevTrib>",
        "pDevTrib (as above)"},
@@ -63,16 +65,17 @@ defmodule SefazNfe.RFBCalculatorGoldenTest do
     ]
   }
 
-  # Scenarios whose numbers PL_010_V1.30 has no place for: the builder rejects them with
-  # exactly the keys listed. gIBSCBSMono is a different tree in the two layouts
-  # (calculator: IBS and CBS side by side in gMonoPadrao/gMonoReten/gMonoRet/gMonoDif;
-  # PL_010_V1.30: gIBSMonoAdRem, gIBSMonoAdValorem, ...).
+  # Scenarios whose numbers the official PL has no place for: the builder rejects them with
+  # exactly the keys listed. gIBSCBSMono is a different tree in the two layouts: the
+  # calculator's XSDs predate the official PL and write IBS and CBS side by side in
+  # gMonoPadrao/gMonoReten/gMonoRet/gMonoDif; PL_010h_v1.03 has gIBSMonoAdRem,
+  # gIBSMonoAdValorem, ...
   @not_buildable %{
     "roc-monophase-retention" => ["g_mono_reten", "g_mono_ret"],
     "roc-monophase-standard-deferred" => ["g_mono_dif", "g_mono_padrao"]
   }
 
-  # The calculator's XSD (NT v1.36) refuses what we build, and the reason is the
+  # The calculator's older XSD (NT v1.36) refuses what we build, and the reason is the
   # difference listed in `@differences`; any other refusal is a failure.
   @refused %{
     "regular-is-ad-valorem-ad-rem" => ~r/adRemIS/,
@@ -115,7 +118,7 @@ defmodule SefazNfe.RFBCalculatorGoldenTest do
     end
 
     for {name, keys} <- @not_buildable do
-      test "#{name} is rejected by the builder: PL_010_V1.30 has no place for it" do
+      test "#{name} is rejected by the builder: PL_010h_v1.03 has no place for it" do
         name = unquote(name)
         keys = unquote(keys)
 
@@ -162,7 +165,7 @@ defmodule SefazNfe.RFBCalculatorGoldenTest do
     end
   end
 
-  describe "our whole document against PL_010_V1.30 (xmllint)" do
+  describe "our whole document against PL_010h_v1.03 (xmllint)" do
     @describetag skip: @skip_pl
 
     for name <- @names, not Map.has_key?(@not_buildable, name) do
@@ -174,17 +177,32 @@ defmodule SefazNfe.RFBCalculatorGoldenTest do
     end
   end
 
-  # Simples Nacional: the calculator's result has no element in PL_010_V1.30 (vIBSSN,
-  # vCBSSN, pIBSSN, ... are NT 2026.005 fields), so there is nothing to build. The
-  # scenarios pin what the calculator answers and that the layout still has no place
-  # for it: the day it has, this fails and the mapping gets written.
+  # Simples Nacional (NT 2026.005, in PL_010h_v1.03 as `gTribSN`). The calculator generates
+  # no XML for it, so the result is written into our groups
+  # (`RFB.build_simples/2`) and compared value by value. What does not map 1:1:
+  #
+  #   * `TTribSN` only has pIBSSN, vIBSSN, pCBSSN, vCBSSN (item) and vIBSSN, vCBSSN (total);
+  #     the calculator also answers vRBSNitem, tpRBSN, vBC (item), vIBSPendSusp,
+  #     vCBSPendSusp, vRBSNtot, the *PendSusp totals, IS.valor: no element, not written;
+  #   * the total vBC has no gTribSN element, it goes to `total/IBSCBSTot/vBCIBSCBS`,
+  #     which the PL requires;
+  #   * CRT 2 (excesso de sublimite): the calculator answers only the CBS, no vIBSSNtot,
+  #     but `total/IBSCBSTot/gTribSN/vIBSSN` is required: the builder rejects it;
+  #   * tpRegimeIBSCBS (`emit`) is in neither the calculator's request nor its result.
   describe "Simples Nacional" do
     @simples for name <- RFB.names(), RFB.scenario(name)["meta"]["kind"] == "simples", do: name
-    @sn_elements ~w(vRBSNitem tpRBSN vIBSSN vCBSSN pIBSSN pCBSSN vRBSNtot vIBSSNtot vCBSSNtot)
+    @sn_not_buildable %{
+      "simples-crt2-sublimit" => [{[:total, :ibs_cbs_tot, :g_trib_sn, :v_ibs_sn], :required}]
+    }
 
-    test "the layout has no Simples Nacional IBS/CBS element yet" do
+    test "the layout has the Simples Nacional IBS/CBS elements of NT 2026.005" do
       tags = Layout.nfe().root |> tags() |> MapSet.new()
-      assert Enum.filter(@sn_elements, &MapSet.member?(tags, &1)) == []
+
+      for tag <- ~w(tpRegimeIBSCBS cAtivSN gTribSN gIBSSN gCBSSN pIBSSN vIBSSN pCBSSN vCBSSN) do
+        assert MapSet.member?(tags, tag), "#{tag} is not in the layout"
+      end
+
+      refute MapSet.member?(tags, "vRBSNitem")
     end
 
     for name <- @simples do
@@ -208,6 +226,92 @@ defmodule SefazNfe.RFBCalculatorGoldenTest do
           assert Decimal.equal?(sum, Decimal.new(total)), "#{name}: #{field} does not add up"
         end
       end
+
+      if not Map.has_key?(@sn_not_buildable, name) do
+        test "#{name}: gTribSN carries the calculator's values, element by element" do
+          name = unquote(name)
+          result = RFB.expected_result(name)
+          request = RFB.scenario(name)["request"]
+
+          assert {:ok, %{xml: xml}} = RFB.build_simples(RFB.scenario(name), result)
+          {:ok, doc} = xml |> String.replace(~r/>\s+</, "><") |> XML.parse()
+          inf = XML.element(doc, "infNFe")
+
+          assert XML.text(doc, "CRT") == request["CRT"]
+          assert XML.all(doc, "tpRegimeIBSCBS") == []
+
+          dets = inf |> XML.children() |> Enum.filter(&(sn_local(&1) == "det"))
+          objects = Enum.sort_by(result["objetos"], & &1["nObj"])
+          assert length(dets) == length(objects)
+
+          for {det, object} <- Enum.zip(dets, objects) do
+            calc = object["tribCalc"]
+            item = Enum.at(request["itens"], object["nObj"] - 1)
+
+            assert sn_values(det, ["prod", "cAtivSN"]) == List.wrap(item["cAtivSN"])
+
+            expected =
+              for k <- ~w(pIBSSN vIBSSN pCBSSN vCBSSN),
+                  object["estadoItem"] == "CALCULADO",
+                  calc[k],
+                  do: {k, calc[k]}
+
+            assert sn_group(det, ["imposto", "IBSCBS", "gTribSN"]) == Map.new(expected)
+          end
+
+          total = result["total"]
+
+          assert sn_group(inf, ["total", "IBSCBSTot", "gTribSN"]) ==
+                   %{"vIBSSN" => total["vIBSSNtot"], "vCBSSN" => total["vCBSSNtot"]}
+
+          assert sn_values(inf, ["total", "IBSCBSTot", "vBCIBSCBS"]) == [total["vBC"]]
+        end
+
+        test "#{name}: the whole document validates against PL_010h_v1.03 (xmllint)" do
+          name = unquote(name)
+
+          if @have_pl do
+            assert {:ok, %{xml: xml}} =
+                     RFB.build_simples(RFB.scenario(name), RFB.expected_result(name))
+
+            assert {:ok, signed} = Signer.sign_nfe(xml, Fixtures.cert())
+            assert lint(signed) == :ok
+          end
+        end
+      end
+    end
+
+    for {name, expected} <- @sn_not_buildable do
+      test "#{name}: the builder rejects it, the calculator has no vIBSSNtot" do
+        name = unquote(name)
+        assert {:error, errors} = RFB.build_simples(RFB.scenario(name), RFB.expected_result(name))
+        assert errors == unquote(Macro.escape(expected))
+        assert RFB.expected_result(name)["total"]["vIBSSNtot"] == nil
+      end
+    end
+  end
+
+  defp sn_local(element), do: element |> XML.qname() |> elem(1)
+
+  defp sn_walk(element, []), do: [element]
+
+  defp sn_walk(element, [name | rest]) do
+    element
+    |> XML.children()
+    |> Enum.filter(&(sn_local(&1) == name))
+    |> Enum.flat_map(&sn_walk(&1, rest))
+  end
+
+  defp sn_values(element, path), do: element |> sn_walk(path) |> Enum.map(&XML.own_text/1)
+
+  defp sn_group(element, path) do
+    for group <- sn_walk(element, path), leaf <- sn_leaves(group), into: %{}, do: leaf
+  end
+
+  defp sn_leaves(element) do
+    case XML.children(element) do
+      [] -> [{sn_local(element), XML.own_text(element)}]
+      kids -> Enum.flat_map(kids, &sn_leaves/1)
     end
   end
 

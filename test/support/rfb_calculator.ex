@@ -18,8 +18,8 @@ defmodule SefazNfe.RFBCalculator do
   @dir Path.expand("../golden/rfb", __DIR__)
   @namespace "http://www.portalfiscal.inf.br/nfe"
 
-  # Not elements of PL_010_V1.30: the free text the calculator adds for humans, and
-  # `pISEspec`, which the calculator's newer layout (NT v1.36) writes where the PL
+  # Not elements of PL_010h_v1.03: the free text the calculator adds for humans, and
+  # `pISEspec`, which the calculator's older layout (NT v1.36) writes where the PL
   # has `adRemIS` (the result carries both; see `@differences` in the golden test).
   @dropped ["memoriaCalculo", "pISEspec"]
 
@@ -100,6 +100,87 @@ defmodule SefazNfe.RFBCalculator do
     %{document | det: items, total: total(document.total, result["total"]["tribCalc"])}
     |> put_compra_gov(result["oper"])
   end
+
+  @doc """
+  Our NF-e for a `simples` scenario: the calculator's result (`vIBSSN`, `pIBSSN`,
+  `vCBSSN`, `pCBSSN` per calculated item, `vIBSSNtot`, `vCBSSNtot` in total) written into
+  `det/imposto/IBSCBS/gTribSN` and `total/IBSCBSTot/gTribSN`, and the request's `cAtivSN`
+  into `det/prod/cAtivSN`. An item the calculator did not calculate
+  (`NAO_CALCULADO`) gets no `gTribSN`. Returns what `SefazNfe.Builder.build_nfe/1` returns.
+
+  What the calculator answers and `TTribSN` has no element for (`vRBSNitem`, `tpRBSN`,
+  `vBC` per item, `vIBSPendSusp`, `vCBSPendSusp`, `vRBSNtot`, the `*PendSusp` totals, the
+  `IS.valor` of the item) is not written. The calculator's total `vBC` goes to
+  `total/IBSCBSTot/vBCIBSCBS`, which the PL requires there. `tpRegimeIBSCBS` is not in the calculator's
+  request or result at all.
+  """
+  @spec build_simples(map(), map()) :: {:ok, map()} | {:error, term()}
+  def build_simples(%{"meta" => meta, "request" => request}, result) do
+    model = model(meta)
+    crt = String.to_integer(request["CRT"])
+
+    document =
+      model
+      |> NFeMap.document(1, NFeBuilder.build(model: model).access_key)
+      |> Map.delete(:id)
+      |> update_in([:ide], &Map.drop(&1, [:c_nf, :c_dv]))
+      |> put_in([:emit, :crt], crt)
+
+    [det | _] = document.det
+    activities = Map.new(request["itens"], &{&1["numero"], &1["cAtivSN"]})
+
+    items =
+      for object <- Enum.sort_by(result["objetos"], & &1["nObj"]) do
+        base = %{cst: "000", c_class_trib: "000001"}
+
+        ibs_cbs =
+          case object["estadoItem"] do
+            "CALCULADO" -> Map.put(base, "g_trib_sn", trib_sn(object["tribCalc"]))
+            _ -> base
+          end
+
+        prod =
+          case activities[object["nObj"]] do
+            nil -> det.prod
+            activity -> Map.put(det.prod, "c_ativ_sn", activity)
+          end
+
+        %{det | prod: prod, imposto: Map.put(det.imposto, :ibs_cbs, ibs_cbs)}
+      end
+
+    total = result["total"]
+
+    sums = %{
+      "v_ibs_sn" => total["vIBSSNtot"],
+      "v_cbs_sn" => total["vCBSSNtot"]
+    }
+
+    %{
+      document
+      | det: items,
+        total:
+          Map.put(document.total, :ibs_cbs_tot, %{
+            "v_bc_ibs_cbs" => total["vBC"],
+            "g_trib_sn" => Map.reject(sums, fn {_k, v} -> is_nil(v) end)
+          })
+    }
+    |> Builder.build_nfe()
+  end
+
+  defp trib_sn(calc) do
+    %{}
+    |> put_if("g_ibs_sn", calc["vIBSSN"], %{
+      "p_ibs_sn" => calc["pIBSSN"],
+      "v_ibs_sn" => calc["vIBSSN"]
+    })
+    |> put_if("g_cbs_sn", calc["vCBSSN"], %{
+      "p_cbs_sn" => calc["pCBSSN"],
+      "v_cbs_sn" => calc["vCBSSN"]
+    })
+  end
+
+  defp put_if(map, _key, nil, _value), do: map
+  defp put_if(map, key, _present, value), do: Map.put(map, key, value)
 
   defp model(%{"document" => "nfce"}), do: 65
   defp model(%{"document" => "nfe"}), do: 55
