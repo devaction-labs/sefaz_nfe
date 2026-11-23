@@ -4,7 +4,7 @@ Elixir library for **SEFAZ communication** for NF-e (55), NFC-e (65), CT-e (57/6
 
 It does **not** calculate taxes. The ERP (or Nexus Pro) supplies every value; this library builds the XML from a map, signs it and talks to SEFAZ.
 
-> Status: 0.4.1 (NF-e layout PL_010h_v1.03). CT-e 57/67 and MDF-e 58 transport, events and builder were added
+> Status: 0.4.2 (NF-e layout PL_010h_v1.03). CT-e 57/67 and MDF-e 58 transport, events and builder were added
 > (see below and the CHANGELOG): MDF-e ran its whole lifecycle in homologação
 > (authorize 100, condutor, encerramento 135, consult 132); CT-e reached SEFAZ
 > validation (203, emitter not credentialed), so a CT-e 100 is still unverified.
@@ -18,7 +18,7 @@ It does **not** calculate taxes. The ERP (or Nexus Pro) supplies every value; th
 > not be exercised in homologação; see the CHANGELOG.
 >
 > ```elixir
-> {:sefaz_nfe, "~> 0.4.1"}
+> {:sefaz_nfe, "~> 0.4.2"}
 > ```
 >
 > **Requires OTP 29.1 or later.** Earlier OTP 29 aborts the TLS handshake on
