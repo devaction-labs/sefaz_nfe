@@ -212,7 +212,7 @@ defmodule SefazNfe.Layout.Generator do
 
     base = %{
       generator: @version,
-      pl: dir |> Path.expand() |> Path.basename(),
+      pl: pl_name(dir),
       namespace: target_ns,
       root_type: root_type,
       sources:
@@ -771,5 +771,16 @@ defmodule SefazNfe.Layout.Generator do
         _ -> nil
       end
     end)
+  end
+
+  # The portal's Pacote de Liberacao nests the NF-e schemas in `NFe/`
+  # (`PL_010h_v1.03/NFe/nfe_v4.00.xsd`); the package is what gets recorded.
+  defp pl_name(dir) do
+    expanded = Path.expand(dir)
+
+    case Path.basename(expanded) do
+      "NFe" -> expanded |> Path.dirname() |> Path.basename()
+      name -> name
+    end
   end
 end

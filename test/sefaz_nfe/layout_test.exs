@@ -15,7 +15,7 @@ defmodule SefazNfe.LayoutTest do
   test "records where it came from" do
     layout = Layout.nfe()
 
-    assert layout.pl == "PL_010_V1.30"
+    assert layout.pl == "PL_010h_v1.03"
     assert layout.generator == 1
     assert layout.root_type == "TNFe"
     assert layout.namespace == "http://www.portalfiscal.inf.br/nfe"
@@ -29,6 +29,45 @@ defmodule SefazNfe.LayoutTest do
            ]
 
     assert Enum.all?(layout.sources, &(&1.sha256 =~ ~r/\A[0-9a-f]{64}\z/))
+  end
+
+  test "records the SHA-256 of the PL_010h_v1.03 sources (official portal, 13/11/2026)" do
+    assert Map.new(Layout.nfe().sources, &{&1.file, &1.sha256}) == %{
+             "DFeTiposBasicos_v1.00.xsd" =>
+               "22cc19e1bb09808ec475d0ad830303699cbf167d630e57023f7d7f1e7c2cb1cc",
+             "leiauteNFe_v4.00.xsd" =>
+               "f1bedcdf38e8f6536be2f1a3fb8fb5c27a23364f62a8f7dab0ff884635a000e6",
+             "nfe_v4.00.xsd" =>
+               "adce3646c13ceb54922ec3142fc1dc45bd4fb839ac35ad583e86c733c07d27df",
+             "tiposBasico_v4.00.xsd" =>
+               "772619c85723e598840667ca66e7298a250442df47eeb94b397d2a333ce62047",
+             "xmldsig-core-schema_v1.01.xsd" =>
+               "f56744a5f51c03f027de13f39f869307091781a9ef1d91b1ebe14719ce28e1ac"
+           }
+  end
+
+  test "the Simples Nacional elements of NT 2026.005 (PL_010h_v1.03) are optional and ordered" do
+    assert %{min: 0} = find!([:inf_nfe, :emit, :tp_regime_ibs_cbs])
+    emit = tags(find!([:inf_nfe, :emit]))
+
+    assert Enum.find_index(emit, &(&1 == "tpRegimeIBSCBS")) ==
+             Enum.find_index(emit, &(&1 == "CRT")) + 1
+
+    assert %{min: 0} = find!([:inf_nfe, :det, :prod, :c_ativ_sn])
+    assert %{min: 0} = find!([:inf_nfe, :total, :ibs_cbs_tot, :g_trib_sn])
+
+    assert %{content: %{enum: ["01", "02", "03", "04", "90"]}} =
+             find!([:inf_nfe, :det, :prod, :c_ativ_sn])
+
+    assert %{content: %{enum: ["1", "2", "3", "4"]}} =
+             find!([:inf_nfe, :emit, :tp_regime_ibs_cbs])
+
+    assert tags(find!([:inf_nfe, :det, :imposto, :ibs_cbs, :g_trib_sn])) == ["gIBSSN", "gCBSSN"]
+
+    assert tags(find!([:inf_nfe, :det, :imposto, :ibs_cbs, :g_trib_sn, :g_ibs_sn])) ==
+             ["pIBSSN", "vIBSSN"]
+
+    assert tags(find!([:inf_nfe, :total, :ibs_cbs_tot, :g_trib_sn])) == ["vIBSSN", "vCBSSN"]
   end
 
   test "the root is NFe, with infNFe, infNFeSupl and an opaque Signature" do

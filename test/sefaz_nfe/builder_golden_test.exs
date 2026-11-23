@@ -120,7 +120,10 @@ defmodule SefazNfe.BuilderGoldenTest do
     end
   end
 
-  describe "both documents against PL_010_V1.30 (xmllint)" do
+  # NFePHP's output is pinned to the gateway's V1.30 and is also valid against PL_010h_v1.03:
+  # 010h only adds (tpRegimeIBSCBS, cAtivSN, gTribSN, all optional), so both documents
+  # validate against it (asserted below, `== :ok`).
+  describe "both documents against PL_010h_v1.03 (xmllint)" do
     @describetag skip: @skip_pl
 
     for name <- @names do

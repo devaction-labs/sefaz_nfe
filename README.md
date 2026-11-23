@@ -172,9 +172,12 @@ network. **The library never computes totals or taxes**: `v_nf`, `v_icms` and
 every other value are passed through exactly as given (`Decimal` is accepted
 when the optional dependency is present, and is formatted but never rounded).
 
-The layout is data in `priv/layouts/nfe_4.00.etf`. To refresh it for a new
-Pacote de Liberação, run `mix sefaz.gen_layout` against the PL directory. Tests
-that read the PL XSDs use `SEFAZ_NFE_PL_PATH` and skip without it.
+The layout is data in `priv/layouts/nfe_4.00.etf`, generated from the official
+Pacote de Liberação `PL_010h_v1.03` (NT 2026.005, 2026.006 and 2026.008,
+published 13/11/2026 on the NF-e portal). To refresh it for a new PL, run
+`mix sefaz.gen_layout` against the PL's `NFe/` directory. Tests that read the PL
+XSDs use `SEFAZ_NFE_PL_PATH` (the `NFe/` directory of the unpacked PL) and skip
+without it.
 
 ## CT-e and MDF-e
 

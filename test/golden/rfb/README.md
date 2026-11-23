@@ -50,5 +50,5 @@ fails with the diff when the official output changed. It does not run on pull re
   from the PL, that is a builder bug; if the PL differs from what RFB now generates, the
   PL is behind.
 * **A listed difference is gone.** `@differences`, `@not_buildable` and `@refused` in the
-  test pin exactly where the calculator (NT v1.36) and PL_010_V1.30 disagree today. When
+  test pin exactly where the calculator (NT v1.36, whose XSDs predate the official PL) and PL_010h_v1.03 disagree today. When
   one stops being true, remove it.
