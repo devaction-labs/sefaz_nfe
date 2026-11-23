@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "description": "CST 550 (suspensão) com tributação regular informada (gTribRegular)",
+    "document": "nfe",
+    "kind": "calculo",
+    "covers": [
+      "gTribRegular"
+    ]
+  },
+  "request": {
+    "id": "rfb-regular-trib-regular-550001",
+    "versao": "1.0.0",
+    "dhFatoGerador": "2027-03-10T10:00:00-03:00",
+    "municipio": 4314902,
+    "uf": "RS",
+    "itens": [
+      {
+        "numero": 1,
+        "ncm": "87100000",
+        "cst": "550",
+        "cClassTrib": "550001",
+        "baseCalculo": 200,
+        "quantidade": 1,
+        "unidade": "UN",
+        "tributacaoRegular": {
+          "cst": "200",
+          "cClassTrib": "200043"
+        },
+        "aliquotasNominais": {
+          "cbs": 8.8,
+          "ibsEstadual": 0.05,
+          "ibsMunicipal": 0.05
+        }
+      }
+    ],
+    "tpDoc": 55
+  }
+}

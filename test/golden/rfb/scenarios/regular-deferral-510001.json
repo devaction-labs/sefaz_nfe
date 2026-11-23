@@ -1,0 +1,34 @@
+{
+  "meta": {
+    "description": "CST 510 (diferimento) com energia elétrica: gDif com pDif 100%",
+    "document": "nfe",
+    "kind": "calculo",
+    "covers": [
+      "gDif"
+    ]
+  },
+  "request": {
+    "id": "rfb-regular-deferral-510001",
+    "versao": "1.0.0",
+    "dhFatoGerador": "2027-03-10T10:00:00-03:00",
+    "municipio": 4314902,
+    "uf": "RS",
+    "itens": [
+      {
+        "numero": 1,
+        "ncm": "27160000",
+        "cst": "510",
+        "cClassTrib": "510001",
+        "baseCalculo": 200,
+        "quantidade": 10,
+        "unidade": "UN",
+        "aliquotasNominais": {
+          "cbs": 8.8,
+          "ibsEstadual": 0.05,
+          "ibsMunicipal": 0.05
+        }
+      }
+    ],
+    "tpDoc": 55
+  }
+}

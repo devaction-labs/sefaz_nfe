@@ -1,0 +1,29 @@
+{
+  "meta": {
+    "description": "Simples Nacional CRT 1, NF-e: IBS e CBS devidos pelo Simples, IS repassado fora da receita bruta (caso do repositório)",
+    "document": "nfe",
+    "kind": "simples",
+    "covers": [
+      "SN IBS+CBS",
+      "IS fora da RBSN"
+    ]
+  },
+  "request": {
+    "id": "rfb-sn",
+    "versao": "2.0.0",
+    "data": "2027-03-15",
+    "tpDoc": "55",
+    "CRT": "1",
+    "itens": [
+      {
+        "numero": 1,
+        "cClassTrib": "000001",
+        "valorImpostoSeletivo": "50.00",
+        "cAtivSN": "01",
+        "baseCalculo": "950.00",
+        "pIBSSN": "1.25",
+        "pCBSSN": "2.75"
+      }
+    ]
+  }
+}

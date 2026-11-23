@@ -1,0 +1,84 @@
+{
+  "objetos": [
+    {
+      "nObj": 1,
+      "tribCalc": {
+        "IBSCBS": {
+          "CST": "200",
+          "cClassTrib": "200034",
+          "gIBSCBS": {
+            "vBC": "1000000.00",
+            "gIBSUF": {
+              "pIBSUF": "0.05",
+              "gRed": {
+                "pRedAliq": "60.00",
+                "pAliqEfet": "0.02"
+              },
+              "vIBSUF": "200.00"
+            },
+            "gIBSMun": {
+              "pIBSMun": "0.05",
+              "gRed": {
+                "pRedAliq": "60.00",
+                "pAliqEfet": "0.02"
+              },
+              "vIBSMun": "200.00"
+            },
+            "vIBS": "400.00",
+            "gCBS": {
+              "pCBS": "8.8123",
+              "gRed": {
+                "pRedAliq": "60.00",
+                "pAliqEfet": "3.5249"
+              },
+              "vCBS": "35249.00"
+            }
+          },
+          "memoriaCalculo": {
+            "cbs": "Operação de consumo com enquadramento legal em Art. 135, tributada conforme Alíquota reduzida em 60%. A base de cálculo utilizada é de R$ 1.000.000,00, com alíquota de 8,8123%, sendo que esse regime define uma redução de 60,00% na alíquota.",
+            "ibsUF": "Operação de consumo com enquadramento legal em Art. 135, tributada conforme Alíquota reduzida em 60%. A base de cálculo utilizada é de R$ 1.000.000,00, com alíquota de 0,05%, sendo que esse regime define uma redução de 60,00% na alíquota.",
+            "ibsMun": "Operação de consumo com enquadramento legal em Art. 135, tributada conforme Alíquota reduzida em 60%. A base de cálculo utilizada é de R$ 1.000.000,00, com alíquota de 0,05%, sendo que esse regime define uma redução de 60,00% na alíquota."
+          }
+        }
+      },
+      "calculoSimulado": true
+    }
+  ],
+  "total": {
+    "tribCalc": {
+      "IBSCBSTot": {
+        "vBCIBSCBS": "1000000.00",
+        "gIBS": {
+          "gIBSUF": {
+            "vDif": "0.00",
+            "vDevTrib": "0.00",
+            "vIBSUF": "200.00"
+          },
+          "gIBSMun": {
+            "vDif": "0.00",
+            "vDevTrib": "0.00",
+            "vIBSMun": "200.00"
+          },
+          "vIBS": "400.00",
+          "vCredPres": "0.00",
+          "vCredPresCondSus": "0.00"
+        },
+        "gCBS": {
+          "vDif": "0.00",
+          "vDevTrib": "0.00",
+          "vCBS": "35249.00",
+          "vCredPres": "0.00",
+          "vCredPresCondSus": "0.00"
+        },
+        "gMono": {
+          "vIBSMono": "0.00",
+          "vCBSMono": "0.00",
+          "vIBSMonoReten": "0.00",
+          "vCBSMonoReten": "0.00",
+          "vIBSMonoRet": "0.00",
+          "vCBSMonoRet": "0.00"
+        }
+      }
+    }
+  }
+}

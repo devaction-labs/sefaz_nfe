@@ -1,0 +1,4 @@
+{
+  "built": false,
+  "errors": "[{[:det, 0, :imposto, :ibs_cbs, :g_ibs_cbs_mono, \"g_mono_dif\"], :unknown_key}, {[:det, 0, :imposto, :ibs_cbs, :g_ibs_cbs_mono, \"g_mono_padrao\"], :unknown_key}]"
+}

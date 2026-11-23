@@ -1,0 +1,28 @@
+{
+  "meta": {
+    "description": "Simples Nacional CRT 2 (excesso de sublimite): só a CBS é devida pelo Simples, pIBSSN ignorado",
+    "document": "nfe",
+    "kind": "simples",
+    "covers": [
+      "SN CRT 2 sem IBS"
+    ]
+  },
+  "request": {
+    "id": "rfb-sn",
+    "versao": "2.0.0",
+    "data": "2027-03-15",
+    "tpDoc": "55",
+    "CRT": "2",
+    "itens": [
+      {
+        "numero": 1,
+        "cClassTrib": "000001",
+        "valorImpostoSeletivo": "0.00",
+        "cAtivSN": "01",
+        "baseCalculo": "1000.00",
+        "pIBSSN": "0.10",
+        "pCBSSN": "0.90"
+      }
+    ]
+  }
+}

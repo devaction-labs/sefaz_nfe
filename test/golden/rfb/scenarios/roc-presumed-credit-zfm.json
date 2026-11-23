@@ -1,0 +1,65 @@
+{
+  "meta": {
+    "description": "Crédito presumido de IBS na ZFM (CST 810, gCredPresIBSZFM); ROC escrito à mão",
+    "document": "nfe",
+    "kind": "roc",
+    "covers": [
+      "gCredPresIBSZFM"
+    ]
+  },
+  "request": {
+    "objetos": [
+      {
+        "nObj": 1,
+        "tribCalc": {
+          "IBSCBS": {
+            "CST": "810",
+            "cClassTrib": "810001",
+            "gCredPresIBSZFM": {
+              "competApur": "2027-03",
+              "tpCredPresIBSZFM": 1,
+              "vCredPresIBSZFM": "12.34"
+            }
+          }
+        }
+      }
+    ],
+    "total": {
+      "tribCalc": {
+        "IBSCBSTot": {
+          "vBCIBSCBS": "0.00",
+          "gIBS": {
+            "gIBSUF": {
+              "vDif": "0.00",
+              "vDevTrib": "0.00",
+              "vIBSUF": "0.00"
+            },
+            "gIBSMun": {
+              "vDif": "0.00",
+              "vDevTrib": "0.00",
+              "vIBSMun": "0.00"
+            },
+            "vIBS": "0.00",
+            "vCredPres": "0.00",
+            "vCredPresCondSus": "0.00"
+          },
+          "gCBS": {
+            "vDif": "0.00",
+            "vDevTrib": "0.00",
+            "vCBS": "0.00",
+            "vCredPres": "0.00",
+            "vCredPresCondSus": "0.00"
+          },
+          "gMono": {
+            "vIBSMono": "0.00",
+            "vCBSMono": "0.00",
+            "vIBSMonoReten": "0.00",
+            "vCBSMonoReten": "0.00",
+            "vIBSMonoRet": "0.00",
+            "vCBSMonoRet": "0.00"
+          }
+        }
+      }
+    }
+  }
+}
