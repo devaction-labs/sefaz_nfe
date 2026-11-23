@@ -1,0 +1,6 @@
+{
+  "built": true,
+  "detail": "Erro na validação do XML: Erro na linha 1, coluna 248: cvc-complex-type.2.4.a: Invalid content was found starting with element '{\"http://www.portalfiscal.inf.br/nfe\":pDevTrib}'. One of '{\"http://www.portalfiscal.inf.br/nfe\":vDevTrib}' is expected.",
+  "status": 422,
+  "valid": false
+}

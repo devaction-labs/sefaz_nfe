@@ -1,0 +1,28 @@
+{
+  "meta": {
+    "description": "Simples Nacional CRT 1, NFC-e",
+    "document": "nfce",
+    "kind": "simples",
+    "covers": [
+      "SN NFC-e"
+    ]
+  },
+  "request": {
+    "id": "rfb-sn",
+    "versao": "2.0.0",
+    "data": "2027-03-15",
+    "tpDoc": "65",
+    "CRT": "1",
+    "itens": [
+      {
+        "numero": 1,
+        "cClassTrib": "000001",
+        "valorImpostoSeletivo": "0.00",
+        "cAtivSN": "01",
+        "baseCalculo": "100.00",
+        "pIBSSN": "0.10",
+        "pCBSSN": "0.90"
+      }
+    ]
+  }
+}

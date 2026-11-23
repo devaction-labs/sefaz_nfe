@@ -1,0 +1,78 @@
+{
+  "objetos": [
+    {
+      "nObj": 1,
+      "tribCalc": {
+        "IBSCBS": {
+          "CST": "000",
+          "cClassTrib": "000001",
+          "gIBSCBS": {
+            "gCBS": {
+              "gDevTrib": {
+                "pDevTrib": "10.0000",
+                "vDevTrib": "0.90"
+              },
+              "pCBS": "0.90",
+              "vCBS": "9.00"
+            },
+            "gIBSMun": {
+              "gDevTrib": {
+                "pDevTrib": "10.0000",
+                "vDevTrib": "0.05"
+              },
+              "pIBSMun": "0.05",
+              "vIBSMun": "0.50"
+            },
+            "gIBSUF": {
+              "gDevTrib": {
+                "pDevTrib": "10.0000",
+                "vDevTrib": "0.10"
+              },
+              "pIBSUF": "0.10",
+              "vIBSUF": "1.00"
+            },
+            "vBC": "1000.00",
+            "vIBS": "1.50"
+          }
+        }
+      }
+    }
+  ],
+  "total": {
+    "tribCalc": {
+      "IBSCBSTot": {
+        "gCBS": {
+          "vCBS": "9.00",
+          "vCredPres": "0.00",
+          "vCredPresCondSus": "0.00",
+          "vDevTrib": "0.90",
+          "vDif": "0.00"
+        },
+        "gIBS": {
+          "gIBSMun": {
+            "vDevTrib": "0.05",
+            "vDif": "0.00",
+            "vIBSMun": "0.50"
+          },
+          "gIBSUF": {
+            "vDevTrib": "0.10",
+            "vDif": "0.00",
+            "vIBSUF": "1.00"
+          },
+          "vCredPres": "0.00",
+          "vCredPresCondSus": "0.00",
+          "vIBS": "1.50"
+        },
+        "gMono": {
+          "vCBSMono": "0.00",
+          "vCBSMonoRet": "0.00",
+          "vCBSMonoReten": "0.00",
+          "vIBSMono": "0.00",
+          "vIBSMonoRet": "0.00",
+          "vIBSMonoReten": "0.00"
+        },
+        "vBCIBSCBS": "1000.00"
+      }
+    }
+  }
+}

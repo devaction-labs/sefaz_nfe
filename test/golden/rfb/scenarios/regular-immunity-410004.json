@@ -1,0 +1,34 @@
+{
+  "meta": {
+    "description": "CST 410 (imunidade): IBSCBS só com CST e cClassTrib, sem gIBSCBS",
+    "document": "nfe",
+    "kind": "calculo",
+    "covers": [
+      "IBSCBS sem gIBSCBS"
+    ]
+  },
+  "request": {
+    "id": "rfb-regular-immunity-410004",
+    "versao": "1.0.0",
+    "dhFatoGerador": "2027-03-10T10:00:00-03:00",
+    "municipio": 4314902,
+    "uf": "RS",
+    "itens": [
+      {
+        "numero": 1,
+        "ncm": "84713012",
+        "cst": "410",
+        "cClassTrib": "410004",
+        "baseCalculo": 200,
+        "quantidade": 10,
+        "unidade": "UN",
+        "aliquotasNominais": {
+          "cbs": 8.8,
+          "ibsEstadual": 0.05,
+          "ibsMunicipal": 0.05
+        }
+      }
+    ],
+    "tpDoc": 55
+  }
+}

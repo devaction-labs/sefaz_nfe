@@ -1,0 +1,36 @@
+{
+  "meta": {
+    "description": "Compras governamentais (gCompraGov na operação): gTribCompraGov (T5 do repositório)",
+    "document": "nfe",
+    "kind": "calculo",
+    "covers": [
+      "gTribCompraGov"
+    ]
+  },
+  "request": {
+    "id": "rfb-regular-gov-purchase",
+    "versao": "0.0.1",
+    "dhFatoGerador": "2027-03-15T10:00:00-03:00",
+    "municipio": 3550308,
+    "uf": "SP",
+    "tpDoc": 55,
+    "itens": [
+      {
+        "numero": 1,
+        "cst": "000",
+        "cClassTrib": "000001",
+        "baseCalculo": 12.0,
+        "ncm": "84713012",
+        "aliquotasNominais": {
+          "cbs": 8.8,
+          "ibsEstadual": 0.05,
+          "ibsMunicipal": 0.05
+        }
+      }
+    ],
+    "gCompraGov": {
+      "tpEnteGov": 1,
+      "tpOperGov": 1
+    }
+  }
+}

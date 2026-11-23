@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "description": "CST 515 (diferimento com redução de alíquota): gDif + gRed",
+    "document": "nfe",
+    "kind": "calculo",
+    "covers": [
+      "gDif",
+      "gRed"
+    ]
+  },
+  "request": {
+    "id": "rfb-regular-deferral-reduction-515001",
+    "versao": "1.0.0",
+    "dhFatoGerador": "2027-03-10T10:00:00-03:00",
+    "municipio": 4314902,
+    "uf": "RS",
+    "itens": [
+      {
+        "numero": 1,
+        "ncm": "10063021",
+        "cst": "515",
+        "cClassTrib": "515001",
+        "baseCalculo": 200,
+        "quantidade": 10,
+        "unidade": "KG",
+        "aliquotasNominais": {
+          "cbs": 8.8,
+          "ibsEstadual": 0.05,
+          "ibsMunicipal": 0.05
+        }
+      }
+    ],
+    "tpDoc": 55
+  }
+}

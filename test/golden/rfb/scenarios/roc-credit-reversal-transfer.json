@@ -1,0 +1,78 @@
+{
+  "meta": {
+    "description": "Estorno de crédito (gEstornoCred) e transferência de crédito (gTransfCred) em dois itens; ROC escrito à mão",
+    "document": "nfe",
+    "kind": "roc",
+    "covers": [
+      "gEstornoCred",
+      "gTransfCred"
+    ]
+  },
+  "request": {
+    "objetos": [
+      {
+        "nObj": 1,
+        "tribCalc": {
+          "IBSCBS": {
+            "CST": "000",
+            "cClassTrib": "000001",
+            "gEstornoCred": {
+              "vIBSEstCred": "1.00",
+              "vCBSEstCred": "9.00"
+            }
+          }
+        }
+      },
+      {
+        "nObj": 2,
+        "tribCalc": {
+          "IBSCBS": {
+            "CST": "800",
+            "cClassTrib": "800001",
+            "gTransfCred": {
+              "vIBS": "2.00",
+              "vCBS": "8.00"
+            }
+          }
+        }
+      }
+    ],
+    "total": {
+      "tribCalc": {
+        "IBSCBSTot": {
+          "vBCIBSCBS": "0.00",
+          "gIBS": {
+            "gIBSUF": {
+              "vDif": "0.00",
+              "vDevTrib": "0.00",
+              "vIBSUF": "0.00"
+            },
+            "gIBSMun": {
+              "vDif": "0.00",
+              "vDevTrib": "0.00",
+              "vIBSMun": "0.00"
+            },
+            "vIBS": "0.00",
+            "vCredPres": "0.00",
+            "vCredPresCondSus": "0.00"
+          },
+          "gCBS": {
+            "vDif": "0.00",
+            "vDevTrib": "0.00",
+            "vCBS": "0.00",
+            "vCredPres": "0.00",
+            "vCredPresCondSus": "0.00"
+          },
+          "gMono": {
+            "vIBSMono": "0.00",
+            "vCBSMono": "0.00",
+            "vIBSMonoReten": "0.00",
+            "vCBSMonoReten": "0.00",
+            "vIBSMonoRet": "0.00",
+            "vCBSMonoRet": "0.00"
+          }
+        }
+      }
+    }
+  }
+}

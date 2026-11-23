@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "description": "Simples Nacional CRT 1 com três itens, o terceiro sem cAtivSN (NAO_CALCULADO, sem erro)",
+    "document": "nfe",
+    "kind": "simples",
+    "covers": [
+      "SN multi-item",
+      "NAO_CALCULADO"
+    ]
+  },
+  "request": {
+    "id": "rfb-sn",
+    "versao": "2.0.0",
+    "data": "2027-03-15",
+    "tpDoc": "55",
+    "CRT": "1",
+    "itens": [
+      {
+        "numero": 1,
+        "cClassTrib": "000001",
+        "valorImpostoSeletivo": "0.00",
+        "cAtivSN": "01",
+        "baseCalculo": "500.00",
+        "pIBSSN": "0.10",
+        "pCBSSN": "0.90"
+      },
+      {
+        "numero": 2,
+        "cClassTrib": "200002",
+        "valorImpostoSeletivo": "0.00",
+        "cAtivSN": "02",
+        "ncm": "10063021",
+        "baseCalculo": "300.00",
+        "pIBSSN": "0.10",
+        "pCBSSN": "0.90"
+      },
+      {
+        "numero": 3,
+        "cClassTrib": "000001",
+        "valorImpostoSeletivo": "0.00",
+        "baseCalculo": "10.00"
+      }
+    ]
+  }
+}

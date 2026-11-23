@@ -1,0 +1,34 @@
+{
+  "meta": {
+    "description": "CST 200 com redução de alíquota (gRed, pRedAliq/pAliqEfet)",
+    "document": "nfe",
+    "kind": "calculo",
+    "covers": [
+      "gRed"
+    ]
+  },
+  "request": {
+    "id": "rfb-regular-reduction-200002",
+    "versao": "1.0.0",
+    "dhFatoGerador": "2027-03-10T10:00:00-03:00",
+    "municipio": 4314902,
+    "uf": "RS",
+    "itens": [
+      {
+        "numero": 1,
+        "ncm": "10063021",
+        "cst": "200",
+        "cClassTrib": "200002",
+        "baseCalculo": 1000,
+        "quantidade": 1,
+        "unidade": "VN",
+        "aliquotasNominais": {
+          "cbs": 8.8,
+          "ibsEstadual": 0.05,
+          "ibsMunicipal": 0.05
+        }
+      }
+    ],
+    "tpDoc": 55
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "oper": {
+    "data": "2027-03-15",
+    "tpDoc": "55",
+    "CRT": "1"
+  },
+  "objetos": [
+    {
+      "nObj": 1,
+      "estadoItem": "CALCULADO",
+      "tribCalc": {
+        "vRBSNitem": "500.00",
+        "tpRBSN": 1,
+        "tpRBSNDescricao": "Receita bruta - interna",
+        "vBC": "500.00",
+        "pIBSSN": "0.10",
+        "vIBSSN": "0.50",
+        "vIBSPendSusp": "0.00",
+        "pCBSSN": "0.90",
+        "vCBSSN": "4.50",
+        "vCBSPendSusp": "0.00",
+        "IS": {
+          "valor": "0.00"
+        },
+        "totalItem": "5.00",
+        "memoriaCalculo": {
+          "cbs": "Receita bruta do Simples Nacional de R$ 500,00 (Receita bruta - interna). A base de cálculo utilizada é de R$ 500,00, com alíquota efetiva de 0,90%. Valor devido de R$ 4,50 e pendente/suspenso de R$ 0,00.",
+          "ibs": "Receita bruta do Simples Nacional de R$ 500,00 (Receita bruta - interna). A base de cálculo utilizada é de R$ 500,00, com alíquota efetiva de 0,10%. Valor devido de R$ 0,50 e pendente/suspenso de R$ 0,00."
+        }
+      }
+    },
+    {
+      "nObj": 2,
+      "estadoItem": "CALCULADO",
+      "tribCalc": {
+        "vRBSNitem": "300.00",
+        "tpRBSN": 1,
+        "tpRBSNDescricao": "Receita bruta - interna",
+        "vBC": "300.00",
+        "pIBSSN": "0.10",
+        "vIBSSN": "0.30",
+        "vIBSPendSusp": "0.00",
+        "pCBSSN": "0.90",
+        "vCBSSN": "2.70",
+        "vCBSPendSusp": "0.00",
+        "IS": {
+          "valor": "0.00"
+        },
+        "totalItem": "3.00",
+        "memoriaCalculo": {
+          "cbs": "Receita bruta do Simples Nacional de R$ 300,00 (Receita bruta - interna). A base de cálculo utilizada é de R$ 300,00, com alíquota efetiva de 0,90%. Valor devido de R$ 2,70 e pendente/suspenso de R$ 0,00.",
+          "ibs": "Receita bruta do Simples Nacional de R$ 300,00 (Receita bruta - interna). A base de cálculo utilizada é de R$ 300,00, com alíquota efetiva de 0,10%. Valor devido de R$ 0,30 e pendente/suspenso de R$ 0,00."
+        }
+      }
+    },
+    {
+      "nObj": 3,
+      "estadoItem": "NAO_CALCULADO",
+      "motivoEstado": {
+        "codigo": "CATIVSN_AUSENTE",
+        "descricao": "O código de atividade do Simples Nacional (cAtivSN) não foi informado; sem ele o IBS e a CBS do item não são calculados (NT 2026.005, §5.3.3)."
+      },
+      "tribCalc": {
+        "vRBSNitem": "10.00",
+        "tpRBSN": 1,
+        "tpRBSNDescricao": "Receita bruta - interna"
+      }
+    }
+  ],
+  "total": {
+    "vRBSNtot": "810.00",
+    "vBC": "800.00",
+    "vIBSSNtot": "0.80",
+    "vIBSSNtotPendSusp": "0.00",
+    "vCBSSNtot": "7.20",
+    "vCBSSNtotPendSusp": "0.00",
+    "totalIs": "0.00",
+    "totalTributos": "8.00"
+  }
+}

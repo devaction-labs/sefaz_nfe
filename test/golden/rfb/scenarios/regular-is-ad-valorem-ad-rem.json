@@ -1,0 +1,47 @@
+{
+  "meta": {
+    "description": "Imposto Seletivo com alíquotas ad valorem e ad rem (test do repositório tpdoc_imposto_seletivo_2027)",
+    "document": "nfe",
+    "kind": "calculo",
+    "covers": [
+      "IS ad rem",
+      "ISTot"
+    ]
+  },
+  "request": {
+    "id": "rfb-regular-is-ad-valorem-ad-rem",
+    "versao": "0.0.1",
+    "dhFatoGerador": "2027-01-01T09:50:05-03:00",
+    "municipio": 4314902,
+    "uf": "RS",
+    "tpDoc": 55,
+    "itens": [
+      {
+        "numero": 1,
+        "ncm": "24021000",
+        "cst": "000",
+        "cClassTrib": "000001",
+        "baseCalculo": 200,
+        "quantidade": 1,
+        "unidade": "VN",
+        "impostoSeletivo": {
+          "cst": "000",
+          "baseCalculo": 200,
+          "quantidade": 1,
+          "unidade": "VN",
+          "impostoInformado": 0,
+          "cClassTrib": "000001"
+        },
+        "aliquotasNominais": {
+          "cbs": 8.4,
+          "ibsEstadual": 0.05,
+          "ibsMunicipal": 0.05,
+          "impostoSeletivo": {
+            "adValorem": 13,
+            "adRem": 21.3
+          }
+        }
+      }
+    ]
+  }
+}

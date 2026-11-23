@@ -1,0 +1,48 @@
+{
+  "meta": {
+    "description": "docs/exemplos.md item 2: cerveja com Imposto Seletivo, alíquotas nominais informadas; a base de CBS/IBS é derivada de BC(IS)+IS",
+    "document": "nfe",
+    "kind": "calculo",
+    "covers": [
+      "IS",
+      "ISTot",
+      "IBSCBS integral",
+      "vBC derivada do IS"
+    ]
+  },
+  "request": {
+    "id": "rfb-regular-is-beer-own-rates",
+    "versao": "1.0.0",
+    "dhFatoGerador": "2027-03-10T10:00:00-03:00",
+    "municipio": 4314902,
+    "uf": "RS",
+    "itens": [
+      {
+        "numero": 1,
+        "ncm": "22030000",
+        "cst": "000",
+        "cClassTrib": "000001",
+        "baseCalculo": null,
+        "quantidade": 12,
+        "unidade": "LT",
+        "impostoSeletivo": {
+          "cst": "000",
+          "cClassTrib": "000001",
+          "baseCalculo": 150.0,
+          "quantidade": 12,
+          "unidade": "LT",
+          "impostoInformado": 15.0
+        },
+        "aliquotasNominais": {
+          "cbs": 8.8,
+          "ibsEstadual": 0.05,
+          "ibsMunicipal": 0.05,
+          "impostoSeletivo": {
+            "adValorem": 10.0
+          }
+        }
+      }
+    ],
+    "tpDoc": 55
+  }
+}

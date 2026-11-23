@@ -1,0 +1,29 @@
+{
+  "meta": {
+    "description": "Sem alíquotas nominais: alíquotas de referência do banco (2026), CST 000",
+    "document": "nfe",
+    "kind": "calculo",
+    "covers": [
+      "alíquota de referência"
+    ]
+  },
+  "request": {
+    "id": "rfb-regular-reference-rates-2026",
+    "versao": "0.0.1",
+    "municipio": 4314902,
+    "uf": "RS",
+    "itens": [
+      {
+        "numero": 1,
+        "ncm": "24021000",
+        "cst": "000",
+        "cClassTrib": "000001",
+        "baseCalculo": 200,
+        "quantidade": 1,
+        "unidade": "VN"
+      }
+    ],
+    "dhFatoGerador": "2026-01-01T09:50:05-03:00",
+    "tpDoc": 55
+  }
+}

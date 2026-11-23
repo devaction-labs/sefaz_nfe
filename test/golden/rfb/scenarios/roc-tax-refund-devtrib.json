@@ -1,0 +1,89 @@
+{
+  "meta": {
+    "description": "Devolução de tributos (gDevTrib em gIBSUF, gIBSMun e gCBS) e vDevTrib nos totais; ROC escrito à mão",
+    "document": "nfe",
+    "kind": "roc",
+    "covers": [
+      "gDevTrib",
+      "vDevTrib"
+    ]
+  },
+  "request": {
+    "objetos": [
+      {
+        "nObj": 1,
+        "tribCalc": {
+          "IBSCBS": {
+            "CST": "000",
+            "cClassTrib": "000001",
+            "gIBSCBS": {
+              "vBC": "1000.00",
+              "gIBSUF": {
+                "pIBSUF": "0.10",
+                "gDevTrib": {
+                  "pDevTrib": "10.0000",
+                  "vDevTrib": "0.10"
+                },
+                "vIBSUF": "1.00"
+              },
+              "gIBSMun": {
+                "pIBSMun": "0.05",
+                "gDevTrib": {
+                  "pDevTrib": "10.0000",
+                  "vDevTrib": "0.05"
+                },
+                "vIBSMun": "0.50"
+              },
+              "vIBS": "1.50",
+              "gCBS": {
+                "pCBS": "0.90",
+                "gDevTrib": {
+                  "pDevTrib": "10.0000",
+                  "vDevTrib": "0.90"
+                },
+                "vCBS": "9.00"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "total": {
+      "tribCalc": {
+        "IBSCBSTot": {
+          "vBCIBSCBS": "1000.00",
+          "gIBS": {
+            "gIBSUF": {
+              "vDif": "0.00",
+              "vDevTrib": "0.10",
+              "vIBSUF": "1.00"
+            },
+            "gIBSMun": {
+              "vDif": "0.00",
+              "vDevTrib": "0.05",
+              "vIBSMun": "0.50"
+            },
+            "vIBS": "1.50",
+            "vCredPres": "0.00",
+            "vCredPresCondSus": "0.00"
+          },
+          "gCBS": {
+            "vDif": "0.00",
+            "vDevTrib": "0.90",
+            "vCBS": "9.00",
+            "vCredPres": "0.00",
+            "vCredPresCondSus": "0.00"
+          },
+          "gMono": {
+            "vIBSMono": "0.00",
+            "vCBSMono": "0.00",
+            "vIBSMonoReten": "0.00",
+            "vCBSMonoReten": "0.00",
+            "vIBSMonoRet": "0.00",
+            "vCBSMonoRet": "0.00"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,71 @@
+name: Conformance (RFB calculators)
+
+# Weekly and on demand only: it clones the official Receita Federal calculators, builds
+# and runs them in containers, so it is slow and needs the network. Never on pull requests.
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conformance
+  cancel-in-progress: false
+
+jobs:
+  rfb-calculators:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MIX_ENV: test
+      CONTAINER_RUNTIME: docker
+      # The head of each calculator's default branch, not the commits pinned in the script.
+      RFB_REGIME_REF: latest
+      RFB_SIMPLES_REF: latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+        id: beam
+        with:
+          otp-version: "29"
+          elixir-version: "1.20"
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-conformance-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: ${{ runner.os }}-conformance-
+
+      - run: mix deps.get
+
+      # Re-renders test/golden/rfb/expected from the calculators at `latest`.
+      - name: Render from the official calculators
+        run: scripts/conformance/rfb_calculator.sh
+
+      # Not a failure yet: the golden test below says what the change means for the builder.
+      - name: Did the official output change?
+        id: changed
+        continue-on-error: true
+        run: |
+          git add --intent-to-add test/golden/rfb
+          # What the calculators were at (RFB_VERSIONS) changes with every upstream commit;
+          # only a change of what they answer is a failure.
+          git --no-pager diff -- test/golden/rfb/expected/RFB_VERSIONS || true
+          git --no-pager diff --stat -- test/golden/rfb ':!test/golden/rfb/expected/RFB_VERSIONS'
+          git --no-pager diff --exit-code -- test/golden/rfb ':!test/golden/rfb/expected/RFB_VERSIONS'
+
+      # Reads the files just rendered; never a socket.
+      - name: Golden test against the rendered files
+        if: always()
+        run: mix test test/sefaz_nfe/rfb_calculator_golden_test.exs
+
+      - name: Fail when the official output changed
+        if: steps.changed.outcome == 'failure'
+        run: |
+          echo "::error::The official RFB calculators answer differently from test/golden/rfb/expected. Review the diff above (a rule or layout changed), update the PL / layout or the mapping, then re-render with scripts/conformance/rfb_calculator.sh and commit."
+          exit 1
