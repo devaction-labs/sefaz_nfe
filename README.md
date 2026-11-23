@@ -12,8 +12,9 @@ It does **not** calculate taxes. The ERP (or Nexus Pro) supplies every value; th
 > homologação with a real ICP-Brasil A1: authorization (`cStat` 100, `nfeProc`
 > assembled), CCe and cancellation (135), protocol consultation (100), and
 > inutilização (102), all against SEFAZ BA. NFC-e 65 (authorize, consult, cancel
-> with the generated QR code 3.00) and SVC-RS contingency were verified the same
-> way. SVC-AN, EPEC, QR 2.00, NFC-e inutilização, DistDFe and manifestação could
+> with the generated QR code 3.00, and QR code 2.00 with a registered CSC) and
+> SVC-RS contingency were verified the same way. SVC-AN, EPEC, NFC-e
+> inutilização, DistDFe and manifestação could
 > not be exercised in homologação; see the CHANGELOG.
 >
 > ```elixir
