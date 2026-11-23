@@ -180,7 +180,10 @@ SEFAZ-PE GNRE portal, the state payment guide.
 
 A new Phoenix application on top of this library, exposing the **same HTTP
 contract** as `fiscal-gateway`, so a client migrates by pointing at another
-domain. The gateway's Scramble OpenAPI document (`/docs/api`) is the contract
+domain. It is the **one central fiscal service** for every app (signetum and the
+others): apps talk to it over HTTP and never depend on `sefaz_nfe` directly, so
+certificates, numbering, SEFAZ connectivity and library upgrades live in one
+place (decided 2026-11-23; issue #13 closed on that basis). The gateway's Scramble OpenAPI document (`/docs/api`) is the contract
 and is checked by contract tests. Host-side concerns live there: numbering,
 idempotency, webhooks (same HMAC and event names), tenancy, queues, storage,
 e-mail, contingency policy. Open question: whether clients use the gateway's
