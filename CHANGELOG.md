@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.4.1
+
+### Changed
+
+- The NF-e layout is regenerated from **PL_010h_v1.03**, the newest package on
+  the official NF-e portal (published 13/11/2026; NT 2026.005 v1.00,
+  NT 2026.006 v1.00, NT 2026.008 v1.01). It only adds to PL_010_V1.30:
+  `emit/tpRegimeIBSCBS`, `det/prod/cAtivSN`, and the Simples Nacional IBS/CBS
+  group `gTribSN` in `det/imposto/IBSCBS` and `total/IBSCBSTot`. Documents valid
+  under V1.30 stay valid. Builder keys `:tp_regime_ibs_cbs`, `:c_ativ_sn` and
+  `:g_trib_sn` are new.
+
+### Added
+
+- Conformance against the official Receita Federal calculators
+  (`calculadora-rtc-regime-regular` and `calculadora-rtc-simples-nacional`):
+  `scripts/conformance/rfb_calculator.sh` runs them in containers (podman or
+  docker) and records their results under `test/golden/rfb/`; a golden test
+  compares the builder's IBS/CBS/IS groups with them, and a weekly workflow
+  re-renders against their latest version. The calculator's XSDs predate the
+  official PL (`pISEspec`, flat `gMono*`, `pDevTrib`); those differences are
+  asserted, not hidden.
+
 ## 0.4.0
 
 ### Breaking changes
