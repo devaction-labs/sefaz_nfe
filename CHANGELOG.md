@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Verified
+
+- NFC-e QR code 2.00 live in homologação (BA, via SVRS) with a CSC registered
+  on 23/11/2026: authorize 100 with the generated `qrCode` (`|2|2|1|<hash>`),
+  cancel 135. The earlier 462 came from CSCs that were no longer registered.
+
 ## 0.4.1
 
 ### Changed

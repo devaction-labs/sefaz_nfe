@@ -222,7 +222,7 @@
 
 - **Feature**: Phase 5 of `.specs/ROADMAP.md` (CT-e 57/67 and MDF-e 58, one package, AD-026)
 - **Phase / Task**: Phase 5 complete, release 0.4.0 prepared (PR `release/0.4.0`). Live in homologação with a real A1: `service_status` 107 on 27/27 UFs for CT-e 57, CT-e OS 67 and MDF-e 58; MDF-e lifecycle (authorize 100, consult, pending, condutor 135, encerramento 135, consult 132); CT-e reached 203 (emitter not credentialed). Golden: `infCte` / `infMDFe` equal to NFePHP for 10 documents.
-- **Known gaps**: CT-e live 100 needs a credentialed emitter; QR 2.00 live needs current CSCs; AN/SVAN homologação answer 403 (SVC-AN, EPEC, DistDFe, manifestação unverifiable there); NFC-e inutilização (998); `authorization_result/1` against a real receipt (AD-019); NF-e golden coverage for ICMS 30/51/70/90, ISSQN and IBS/CBS.
+- **Known gaps**: CT-e live 100 needs a credentialed emitter; AN/SVAN homologação answer 403 (SVC-AN, EPEC, DistDFe, manifestação unverifiable there); NFC-e inutilização (998); `authorization_result/1` against a real receipt (AD-019); NF-e golden coverage for ICMS 30/51/70/90, ISSQN and IBS/CBS.
 - **Next step**: Merge the release PR, tag and publish 0.4.0 (maintainer 2FA), then one of: the fiscal-gateway-compatible API (separate project), Phase 4 (DANFE family) or GNRE (Phase 5b).
 - **Open question**: whether clients use the gateway's `computed` tax mode (sizes the API project).
 - **Blockers**: none
