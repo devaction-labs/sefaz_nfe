@@ -1,7 +1,7 @@
 defmodule SefazNfe.MixProject do
   use Mix.Project
 
-  @version "0.4.2"
+  @version "0.4.3"
   @source_url "https://github.com/devaction-labs/sefaz_nfe"
 
   def project do
