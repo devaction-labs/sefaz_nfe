@@ -218,6 +218,14 @@
 - **Date**: 2026-11-22
 - **Status**: active
 
+### AD-027
+- **Decision**: `authorization_result/1` and `consult_protocol/1` take an optional `:signed_xml` (the NFe that was sent). With it, and a `protNFe` of the same key and digest in the answer, `Result.xml` is the `nfeProc` from `Proc.nfe_proc/2`, as `authorize/1` builds it; `Result.signed_xml` carries it back. A `procEventoNFe` in a consultation is not copied into the `nfeProc`. A `:signed_xml` whose key is not `:ch_nfe` is `{:error, :signed_xml_key_mismatch}` before the network. The raw answer is a new `Result.response_xml`: the SOAP body exactly as received, envelope included, set by `Result.parse/1` for every operation that returns a `Result`, and absent from the `JSON.Encoder`.
+- **Reason**: An authorization collected through a receipt or a consultation (after a timeout or a 204) left the host with a protocol but not the legally valid `nfeProc`. For audit, the faithful artefact is what SEFAZ sent, untouched; stripping the envelope would be a re-serialisation (AD-011) and a telemetry field would break the rule that metadata never carries XML. A `Result` field is the existing mechanism (`xml`, `signed_xml`) and `parse/1` is the one place every operation passes through.
+- **Trade-off**: `Result` holds one more binary (the host already holds `xml`/`signed_xml`); `DistDFe` and `TaxpayerLookup` are other structs and do not carry it.
+- **Scope**: `SefazNfe.authorization_result/1`, `SefazNfe.consult_protocol/1`, `SefazNfe.Result`
+- **Date**: 2026-11-24
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: Phase 5 of `.specs/ROADMAP.md` (CT-e 57/67 and MDF-e 58, one package, AD-026)

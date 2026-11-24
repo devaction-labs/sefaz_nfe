@@ -246,6 +246,18 @@ defmodule SefazNfe do
   finished, and the document's own outcome is read from the nested protocol.
 
   `:model` (55 by default, or 65) selects the endpoints.
+
+  `:signed_xml` is optional: the signed `NFe` that was sent, which is
+  `:signed_xml` of the `authorize/1` result. With it, and a `protNFe` of the same
+  key in the answer, the result's `:xml` is the `nfeProc` exactly as
+  `authorize/1` builds it (`SefazNfe.Proc.nfe_proc/2`), so a document that was
+  authorized through a receipt ends up with the same legal file. The result
+  carries it back as `:signed_xml`. Without it nothing changes: `:xml` is `nil`.
+  A `protNFe` of another key, or one whose digest is not the document's, or one
+  that is not an authorization, leaves `:xml` as `nil` (the protocol is still in
+  the result).
+
+  The SOAP answer is in `:response_xml`; see `SefazNfe.Result`.
   """
   @spec authorization_result(map()) :: {:ok, Result.t()} | {:error, term()}
   def authorization_result(opts) when is_map(opts),
@@ -254,14 +266,49 @@ defmodule SefazNfe do
   defp do_authorization_result(opts) do
     with :ok <- require_keys(opts, [:n_rec, :cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
+         :ok <- validate_signed_xml(opts),
          {:ok, model} <- model(opts),
          {:ok, url} <- Endpoints.url(opts.uf, opts.environment, :nfe_ret_autorizacao, model),
          message = Envelope.authorization_result(opts.n_rec, Envelope.tp_amb(opts.environment)),
          {:ok, envelope} <- Envelope.wrap(:nfe_ret_autorizacao, message),
-         {:ok, body} <- call(url, envelope, opts, :nfe_ret_autorizacao) do
-      Result.parse(body)
+         {:ok, body} <- call(url, envelope, opts, :nfe_ret_autorizacao),
+         {:ok, result} <- Result.parse(body) do
+      {:ok, attach_nfe_proc(result, opts, body)}
     end
   end
+
+  # An optional `:signed_xml` is the NFe that was sent. It must be a string; the
+  # facts about it are read where they are needed.
+  defp validate_signed_xml(opts) do
+    case Map.get(opts, :signed_xml) do
+      nil -> :ok
+      xml when is_binary(xml) -> :ok
+      _other -> {:error, :invalid_xml}
+    end
+  end
+
+  # With the signed NFe, the answer's own protNFe becomes the `nfeProc`, as in
+  # `authorize/1`; a protocol of another key or digest leaves `:xml` nil.
+  defp attach_nfe_proc(result, opts, body) do
+    case Map.get(opts, :signed_xml) do
+      nil -> result
+      signed -> %{result | signed_xml: signed, xml: processed(Proc.nfe_proc(signed, body))}
+    end
+  end
+
+  # A consultation names a key, so a signed NFe of another one is a caller bug
+  # worth refusing before SEFAZ is asked.
+  defp signed_xml_matches_key(%{signed_xml: signed, ch_nfe: ch_nfe}) when is_binary(signed) do
+    with {:ok, doc} <- SefazNfe.XML.parse(signed) do
+      case SefazNfe.XML.attribute(doc, "infNFe", "Id") do
+        "NFe" <> ^ch_nfe -> :ok
+        "NFe" <> _other -> {:error, :signed_xml_key_mismatch}
+        _no_id -> {:error, :signed_xml_key_mismatch}
+      end
+    end
+  end
+
+  defp signed_xml_matches_key(_opts), do: :ok
 
   @doc """
   `NFeStatusServico4` for one UF.
@@ -396,6 +443,17 @@ defmodule SefazNfe do
 
   The model comes from the key, so an NFC-e is asked of the NFC-e authorizer.
 
+  `:signed_xml` is optional: the signed `NFe` that was sent. With it, when the
+  answer holds a `protNFe` of the key (an authorized document), the result's
+  `:xml` is the `nfeProc` as `authorize/1` builds it. Only the `protNFe` goes in:
+  a `procEventoNFe` the answer carries (a cancellation) is not copied, so
+  `SefazNfe.Proc.cancel_register/2` can still append it. A `:signed_xml` whose
+  key is not `:ch_nfe` is `{:error, :signed_xml_key_mismatch}`, before SEFAZ is
+  called. The result carries it back as `:signed_xml`. Without it `:xml` is
+  `nil`, as before.
+
+  The SOAP answer is in `:response_xml`; see `SefazNfe.Result`.
+
   ## `:contingency`
 
   Optional, `:svc_an` or `:svc_rs`: ask that SVC instead of the origin. Absent
@@ -416,12 +474,15 @@ defmodule SefazNfe do
     with :ok <- require_keys(opts, [:ch_nfe, :cert, :uf, :environment]),
          :ok <- validate_environment(opts.environment),
          :ok <- validate_ch_nfe(opts.ch_nfe),
+         :ok <- validate_signed_xml(opts),
+         :ok <- signed_xml_matches_key(opts),
          {:ok, model} <- key_model(opts.ch_nfe),
          {:ok, url} <- route(opts, :nfe_consulta_protocolo, model),
          message = Envelope.consult_protocol(opts.ch_nfe, Envelope.tp_amb(opts.environment)),
          {:ok, envelope} <- Envelope.wrap(:nfe_consulta_protocolo, message),
-         {:ok, body} <- call(url, envelope, opts, :nfe_consulta_protocolo) do
-      Result.parse(body)
+         {:ok, body} <- call(url, envelope, opts, :nfe_consulta_protocolo),
+         {:ok, result} <- Result.parse(body) do
+      {:ok, attach_nfe_proc(result, opts, body)}
     end
   end
 
