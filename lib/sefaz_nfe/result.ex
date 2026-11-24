@@ -7,18 +7,29 @@ defmodule SefazNfe.Result do
   Parsed SEFAZ business outcome. A SOAP envelope that we understood is
   `{:ok, t}` even when `c_stat != 100` — that is a rejection, not a crash.
 
-  ## The two XML fields
+  ## The XML fields
 
   `:signed_xml` is what was actually sent to SEFAZ, always present after an
   authorization attempt, an event or a voiding. `:xml` is the processed
   document, built by `SefazNfe.Proc`, and is only set once SEFAZ accepted it:
   the `nfeProc` (signed document plus its protocol) for an authorization, the
   `procEventoNFe` for an event (cancellation, CCe, EPEC, manifestação) and the
-  `procInutNFe` for a voiding. The `nfeProc` is the
+  `procInutNFe` for a voiding. `authorization_result/1` and `consult_protocol/1`
+  also set both when given the optional `:signed_xml` of the document. The `nfeProc` is the
   document that has to be archived and delivered to the recipient, so losing
   either of them loses something legally required: without the protocol there
   is nothing to prove, and without the signed bytes the protocol cannot be
   attached to anything later.
+
+  ## `:response_xml`
+
+  The SOAP answer exactly as received, envelope included, set by `parse/1` for
+  every operation that returns a `Result`. It is for audit and for storing what
+  SEFAZ said byte for byte (a rejection has no `:xml`); it is never altered, and
+  it is not part of the JSON encoding. It is `nil` only for a `Result` that was
+  not parsed from an answer. `SefazNfe.DistDFe` and `SefazNfe.TaxpayerLookup`
+  are other structs and do not carry it. Telemetry never sees it (no XML in
+  metadata).
 
   A batch answer wraps the real outcome one level down — `protNFe/infProt` for a
   document, `retEvento/infEvento` for an event — so `parse/1` reads the nested
@@ -51,7 +62,8 @@ defmodule SefazNfe.Result do
           n_rec: String.t() | nil,
           dh_recbto: String.t() | nil,
           xml: String.t() | nil,
-          signed_xml: String.t() | nil
+          signed_xml: String.t() | nil,
+          response_xml: String.t() | nil
         }
 
   @enforce_keys [:status, :c_stat, :x_motivo]
@@ -64,7 +76,8 @@ defmodule SefazNfe.Result do
     :n_rec,
     :dh_recbto,
     :xml,
-    :signed_xml
+    :signed_xml,
+    :response_xml
   ]
 
   @doc """
@@ -81,7 +94,7 @@ defmodule SefazNfe.Result do
   def parse(body) when is_binary(body) do
     with {:ok, doc} <- XML.parse(body),
          :ok <- Fault.check(doc) do
-      from_doc(doc)
+      from_doc(doc, body)
     end
   end
 
@@ -90,12 +103,12 @@ defmodule SefazNfe.Result do
   # is nested — in protNFe/infProt for a document, in retEvento/infEvento for
   # an event. Reading the envelope's own cStat would report every rejection as
   # a success.
-  defp from_doc(doc) do
+  defp from_doc(doc, body) do
     outcome = XML.element(doc, "infProt") || XML.element(doc, "infEvento") || doc
 
     case XML.integer(outcome, "cStat") do
       nil -> {:error, {:xml, :no_c_stat}}
-      c_stat -> {:ok, result(doc, outcome, c_stat)}
+      c_stat -> {:ok, %{result(doc, outcome, c_stat) | response_xml: body}}
     end
   end
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `authorization_result/1` and `consult_protocol/1` accept an optional
+  `:signed_xml` (the NFe that was sent). With it, and a `protNFe` of the same
+  key and digest in the answer, `Result.xml` is the `nfeProc`, as `authorize/1`
+  builds it, and `Result.signed_xml` carries it back. A `procEventoNFe` in a
+  consultation is not copied into the `nfeProc`. In `consult_protocol/1` a
+  `:signed_xml` of another key is `{:error, :signed_xml_key_mismatch}` before
+  SEFAZ is called. Without `:signed_xml` nothing changes (AD-027).
+- `Result.response_xml`: the SOAP answer exactly as received, envelope included,
+  for audit. Set for every operation that returns a `Result`; not in the JSON
+  encoding (AD-027).
+
 ## 0.4.2
 
 ### Verified
